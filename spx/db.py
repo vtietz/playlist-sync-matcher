@@ -1,0 +1,126 @@
+from __future__ import annotations
+import sqlite3
+from pathlib import Path
+from typing import Iterable, Sequence, Any, Dict, Tuple, Optional
+
+SCHEMA = [
+    "PRAGMA journal_mode=WAL;",
+    "CREATE TABLE IF NOT EXISTS playlists (id TEXT PRIMARY KEY, name TEXT NOT NULL, snapshot_id TEXT, last_full_ingest TIMESTAMP);",
+    "CREATE TABLE IF NOT EXISTS playlist_tracks (playlist_id TEXT NOT NULL, position INTEGER NOT NULL, track_id TEXT NOT NULL, added_at TEXT, PRIMARY KEY(playlist_id, position));",
+    "CREATE TABLE IF NOT EXISTS tracks (id TEXT PRIMARY KEY, name TEXT, album TEXT, artist TEXT, isrc TEXT, duration_ms INTEGER, normalized TEXT);",
+    "CREATE TABLE IF NOT EXISTS liked_tracks (track_id TEXT PRIMARY KEY, added_at TEXT);",
+    "CREATE TABLE IF NOT EXISTS library_files (id INTEGER PRIMARY KEY AUTOINCREMENT, path TEXT UNIQUE, size INTEGER, mtime REAL, partial_hash TEXT, title TEXT, album TEXT, artist TEXT, duration REAL, normalized TEXT);",
+    "CREATE TABLE IF NOT EXISTS matches (track_id TEXT NOT NULL, file_id INTEGER NOT NULL, score REAL NOT NULL, method TEXT NOT NULL, PRIMARY KEY(track_id, file_id));",
+    "CREATE INDEX IF NOT EXISTS idx_tracks_isrc ON tracks(isrc);",
+    "CREATE INDEX IF NOT EXISTS idx_tracks_normalized ON tracks(normalized);",
+    "CREATE INDEX IF NOT EXISTS idx_library_files_normalized ON library_files(normalized);",
+    "CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);",
+]
+
+
+class Database:
+    def __init__(self, path: Path):
+        self.path = path
+        if not path.parent.exists():
+            path.parent.mkdir(parents=True, exist_ok=True)
+        self.conn = sqlite3.connect(path)
+        self.conn.row_factory = sqlite3.Row
+        self._init_schema()
+
+    def _init_schema(self) -> None:
+        cur = self.conn.cursor()
+        for stmt in SCHEMA:
+            cur.execute(stmt)
+        self.conn.commit()
+
+    def upsert_playlist(self, pid: str, name: str, snapshot_id: str | None) -> None:
+        self.conn.execute(
+            "INSERT INTO playlists(id,name,snapshot_id) VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name, snapshot_id=excluded.snapshot_id",
+            (pid, name, snapshot_id),
+        )
+        self.conn.commit()
+
+    def playlist_snapshot_changed(self, pid: str, snapshot_id: str) -> bool:
+        cur = self.conn.execute("SELECT snapshot_id FROM playlists WHERE id=?", (pid,))
+        row = cur.fetchone()
+        if not row:
+            return True
+        return row[0] != snapshot_id
+
+    def replace_playlist_tracks(self, pid: str, tracks: Sequence[Tuple[int, str, str | None]]):
+        # tracks: (position, track_id, added_at)
+        self.conn.execute("DELETE FROM playlist_tracks WHERE playlist_id=?", (pid,))
+        self.conn.executemany(
+            "INSERT INTO playlist_tracks(playlist_id, position, track_id, added_at) VALUES(?,?,?,?)",
+            [(pid, pos, tid, added) for (pos, tid, added) in tracks],
+        )
+        self.conn.commit()
+
+    def upsert_track(self, track: Dict[str, Any]):
+        self.conn.execute(
+            "INSERT INTO tracks(id,name,album,artist,isrc,duration_ms,normalized) VALUES(?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name, album=excluded.album, artist=excluded.artist, isrc=excluded.isrc, duration_ms=excluded.duration_ms, normalized=excluded.normalized",
+            (
+                track.get("id"),
+                track.get("name"),
+                track.get("album"),
+                track.get("artist"),
+                track.get("isrc"),
+                track.get("duration_ms"),
+                track.get("normalized"),
+            ),
+        )
+
+    def upsert_liked(self, track_id: str, added_at: str):
+        self.conn.execute(
+            "INSERT INTO liked_tracks(track_id,added_at) VALUES(?,?) ON CONFLICT(track_id) DO UPDATE SET added_at=excluded.added_at",
+            (track_id, added_at),
+        )
+
+    def commit(self):
+        self.conn.commit()
+
+    def add_library_file(self, data: Dict[str, Any]):
+        self.conn.execute(
+            "INSERT INTO library_files(path,size,mtime,partial_hash,title,album,artist,duration,normalized) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(path) DO UPDATE SET size=excluded.size, mtime=excluded.mtime, partial_hash=excluded.partial_hash, title=excluded.title, album=excluded.album, artist=excluded.artist, duration=excluded.duration, normalized=excluded.normalized",
+            (
+                data["path"],
+                data.get("size"),
+                data.get("mtime"),
+                data.get("partial_hash"),
+                data.get("title"),
+                data.get("album"),
+                data.get("artist"),
+                data.get("duration"),
+                data.get("normalized"),
+            ),
+        )
+
+    def add_match(self, track_id: str, file_id: int, score: float, method: str):
+        self.conn.execute(
+            "INSERT INTO matches(track_id,file_id,score,method) VALUES(?,?,?,?) ON CONFLICT(track_id,file_id) DO UPDATE SET score=excluded.score, method=excluded.method",
+            (track_id, file_id, score, method),
+        )
+
+    def get_missing_tracks(self) -> Iterable[sqlite3.Row]:
+        sql = """
+        SELECT t.id, t.name, t.artist, t.album
+        FROM tracks t
+        LEFT JOIN matches m ON m.track_id = t.id
+        WHERE m.track_id IS NULL
+        ORDER BY t.artist, t.album, t.name
+        """
+        return self.conn.execute(sql)
+
+    def set_meta(self, key: str, value: str):
+        self.conn.execute("INSERT INTO meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, value))
+
+    def get_meta(self, key: str) -> Optional[str]:
+        cur = self.conn.execute("SELECT value FROM meta WHERE key=?", (key,))
+        row = cur.fetchone()
+        return row[0] if row else None
+
+    def close(self):
+        self.conn.commit()
+        self.conn.close()
+
+__all__ = ["Database"]

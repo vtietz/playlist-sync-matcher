@@ -1,0 +1,52 @@
+# Python / build artifacts
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+.eggs/
+build/
+dist/
+*.manifest
+*.spec
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# IDE/editor
+.vscode/
+.idea/
+*.swp
+
+# Test / coverage
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+
+# Logs
+logs/
+*.log
+
+# Local data & generated exports
+/data/
+/export/playlists/
+/export/reports/
+
+# Spotify auth tokens
+tokens.json
+
+# Environment files
+.env
+.env.local
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# Placeholder directories from exports
+*_placeholders/
