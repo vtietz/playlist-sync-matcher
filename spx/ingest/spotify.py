@@ -1,8 +1,11 @@
 from __future__ import annotations
 import requests
 from typing import Iterator, Dict, Any, List
+import os
+import time
 from tenacity import retry, stop_after_attempt, wait_random_exponential
 from datetime import datetime
+from ..utils.normalization import normalize_title_artist
 
 API_BASE = "https://api.spotify.com/v1"
 
@@ -25,19 +28,21 @@ class SpotifyClient:
         r.raise_for_status()
         return r.json()
 
-    def current_user_playlists(self) -> Iterator[Dict[str, Any]]:
+    def current_user_playlists(self, verbose: bool = False) -> Iterator[Dict[str, Any]]:
         limit = 50
         offset = 0
         while True:
             data = self._get('/me/playlists', params={'limit': limit, 'offset': offset})
             items = data.get('items', [])
+            if verbose or os.environ.get('SPX_DEBUG'):
+                print(f"[ingest] Fetched {len(items)} playlists (offset={offset})")
             for pl in items:
                 yield pl
             if len(items) < limit:
                 break
             offset += limit
 
-    def playlist_items(self, playlist_id: str) -> List[Dict[str, Any]]:
+    def playlist_items(self, playlist_id: str, verbose: bool = False) -> List[Dict[str, Any]]:
         tracks: List[Dict[str, Any]] = []
         limit = 100
         offset = 0
@@ -45,17 +50,21 @@ class SpotifyClient:
             data = self._get(f'/playlists/{playlist_id}/tracks', params={'limit': limit, 'offset': offset})
             items = data.get('items', [])
             tracks.extend(items)
+            if verbose or os.environ.get('SPX_DEBUG'):
+                print(f"[ingest] Playlist {playlist_id} page fetched {len(items)} tracks (offset={offset})")
             if len(items) < limit:
                 break
             offset += limit
         return tracks
 
-    def liked_tracks(self) -> Iterator[Dict[str, Any]]:
+    def liked_tracks(self, verbose: bool = False) -> Iterator[Dict[str, Any]]:
         limit = 50
         offset = 0
         while True:
             data = self._get('/me/tracks', params={'limit': limit, 'offset': offset})
             items = data.get('items', [])
+            if verbose or os.environ.get('SPX_DEBUG'):
+                print(f"[ingest] Fetched {len(items)} liked tracks (offset={offset})")
             for t in items:
                 yield t
             if len(items) < limit:
@@ -63,12 +72,27 @@ class SpotifyClient:
             offset += limit
 
 
-def ingest_playlists(db, client: SpotifyClient):
+def _extract_year(release_date: str | None):
+    if not release_date:
+        return None
+    # Spotify can return YYYY-MM-DD, YYYY-MM, or YYYY
+    if len(release_date) >= 4 and release_date[:4].isdigit():
+        return int(release_date[:4])
+    return None
+
+
+def ingest_playlists(db, client: SpotifyClient, verbose: bool = False, use_year: bool = False):
+    t0 = time.time()
+    processed = 0
+    skipped = 0
     for pl in client.current_user_playlists():
         pid = pl['id']
         name = pl.get('name')
         snapshot_id = pl.get('snapshot_id')
         if not db.playlist_snapshot_changed(pid, snapshot_id):
+            skipped += 1
+            if verbose or os.environ.get('SPX_DEBUG'):
+                print(f"[ingest] Skipping unchanged playlist '{name}' ({pid}) snapshot={snapshot_id}")
             continue
         tracks = client.playlist_items(pid)
         simplified = []
@@ -80,6 +104,11 @@ def ingest_playlists(db, client: SpotifyClient):
             if not t_id:
                 continue
             artist_names = ', '.join(a['name'] for a in track.get('artists', []) if a.get('name'))
+            # normalization
+            nt, na, combo = normalize_title_artist(track.get('name') or '', artist_names)
+            year = _extract_year(((track.get('album') or {}).get('release_date')))
+            if use_year and year:
+                combo = f"{combo} {year}"
             simplified.append((idx, t_id, item.get('added_at')))
             db.upsert_track({
                 'id': t_id,
@@ -88,16 +117,24 @@ def ingest_playlists(db, client: SpotifyClient):
                 'artist': artist_names,
                 'isrc': ((track.get('external_ids') or {}).get('isrc')),
                 'duration_ms': track.get('duration_ms'),
-                'normalized': None,
+                'normalized': combo,
+                'year': year,
             })
         db.upsert_playlist(pid, name, snapshot_id)
         db.replace_playlist_tracks(pid, simplified)
         db.commit()
+        processed += 1
+        if verbose or os.environ.get('SPX_DEBUG'):
+            print(f"[ingest] Updated playlist '{name}' ({pid}) tracks={len(simplified)} snapshot={snapshot_id}")
+    if verbose or os.environ.get('SPX_DEBUG'):
+        print(f"[ingest] Playlists ingestion complete: updated={processed} (skipped={skipped}) in {time.time()-t0:.2f}s")
 
 
-def ingest_liked(db, client: SpotifyClient):
+def ingest_liked(db, client: SpotifyClient, verbose: bool = False, use_year: bool = False):
     last_added_at = db.get_meta('liked_last_added_at')
     newest_seen = last_added_at
+    t0 = time.time()
+    ingested = 0
     for item in client.liked_tracks():
         added_at = item.get('added_at')
         track = item.get('track') or {}
@@ -105,11 +142,17 @@ def ingest_liked(db, client: SpotifyClient):
             continue
         if last_added_at and added_at <= last_added_at:
             # already ingested due to sorting newest-first assumption
+            if verbose or os.environ.get('SPX_DEBUG'):
+                print(f"[ingest] Reached previously ingested liked track boundary at {added_at}; stopping.")
             break
         t_id = track.get('id')
         if not t_id:
             continue
         artist_names = ', '.join(a['name'] for a in track.get('artists', []) if a.get('name'))
+        nt, na, combo = normalize_title_artist(track.get('name') or '', artist_names)
+        year = _extract_year(((track.get('album') or {}).get('release_date')))
+        if use_year and year:
+            combo = f"{combo} {year}"
         db.upsert_track({
             'id': t_id,
             'name': track.get('name'),
@@ -117,11 +160,15 @@ def ingest_liked(db, client: SpotifyClient):
             'artist': artist_names,
             'isrc': ((track.get('external_ids') or {}).get('isrc')),
             'duration_ms': track.get('duration_ms'),
-            'normalized': None,
+            'normalized': combo,
+            'year': year,
         })
         db.upsert_liked(t_id, added_at)
         if (not newest_seen) or added_at > newest_seen:
             newest_seen = added_at
+        ingested += 1
+    if verbose or os.environ.get('SPX_DEBUG'):
+        print(f"[ingest] Liked tracks ingested={ingested} (newest_seen={newest_seen}) in {time.time()-t0:.2f}s")
     if newest_seen and newest_seen != last_added_at:
         db.set_meta('liked_last_added_at', newest_seen)
     db.commit()

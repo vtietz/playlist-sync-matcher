@@ -7,8 +7,10 @@ SCHEMA = [
     "PRAGMA journal_mode=WAL;",
     "CREATE TABLE IF NOT EXISTS playlists (id TEXT PRIMARY KEY, name TEXT NOT NULL, snapshot_id TEXT, last_full_ingest TIMESTAMP);",
     "CREATE TABLE IF NOT EXISTS playlist_tracks (playlist_id TEXT NOT NULL, position INTEGER NOT NULL, track_id TEXT NOT NULL, added_at TEXT, PRIMARY KEY(playlist_id, position));",
+    # year column will be added via migration if missing
     "CREATE TABLE IF NOT EXISTS tracks (id TEXT PRIMARY KEY, name TEXT, album TEXT, artist TEXT, isrc TEXT, duration_ms INTEGER, normalized TEXT);",
     "CREATE TABLE IF NOT EXISTS liked_tracks (track_id TEXT PRIMARY KEY, added_at TEXT);",
+    # year column will be added via migration if missing
     "CREATE TABLE IF NOT EXISTS library_files (id INTEGER PRIMARY KEY AUTOINCREMENT, path TEXT UNIQUE, size INTEGER, mtime REAL, partial_hash TEXT, title TEXT, album TEXT, artist TEXT, duration REAL, normalized TEXT);",
     "CREATE TABLE IF NOT EXISTS matches (track_id TEXT NOT NULL, file_id INTEGER NOT NULL, score REAL NOT NULL, method TEXT NOT NULL, PRIMARY KEY(track_id, file_id));",
     "CREATE INDEX IF NOT EXISTS idx_tracks_isrc ON tracks(isrc);",
@@ -32,6 +34,16 @@ class Database:
         for stmt in SCHEMA:
             cur.execute(stmt)
         self.conn.commit()
+        # Migrations: add 'year' columns if not exist
+        self._ensure_column('tracks', 'year', 'INTEGER')
+        self._ensure_column('library_files', 'year', 'INTEGER')
+
+    def _ensure_column(self, table: str, column: str, col_type: str):
+        cur = self.conn.execute(f"PRAGMA table_info({table})")
+        cols = [r[1] for r in cur.fetchall()]
+        if column not in cols:
+            self.conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}")
+            self.conn.commit()
 
     def upsert_playlist(self, pid: str, name: str, snapshot_id: str | None) -> None:
         self.conn.execute(
@@ -58,7 +70,7 @@ class Database:
 
     def upsert_track(self, track: Dict[str, Any]):
         self.conn.execute(
-            "INSERT INTO tracks(id,name,album,artist,isrc,duration_ms,normalized) VALUES(?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name, album=excluded.album, artist=excluded.artist, isrc=excluded.isrc, duration_ms=excluded.duration_ms, normalized=excluded.normalized",
+            "INSERT INTO tracks(id,name,album,artist,isrc,duration_ms,normalized,year) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name, album=excluded.album, artist=excluded.artist, isrc=excluded.isrc, duration_ms=excluded.duration_ms, normalized=excluded.normalized, year=excluded.year",
             (
                 track.get("id"),
                 track.get("name"),
@@ -67,6 +79,7 @@ class Database:
                 track.get("isrc"),
                 track.get("duration_ms"),
                 track.get("normalized"),
+                track.get("year"),
             ),
         )
 
@@ -81,7 +94,7 @@ class Database:
 
     def add_library_file(self, data: Dict[str, Any]):
         self.conn.execute(
-            "INSERT INTO library_files(path,size,mtime,partial_hash,title,album,artist,duration,normalized) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(path) DO UPDATE SET size=excluded.size, mtime=excluded.mtime, partial_hash=excluded.partial_hash, title=excluded.title, album=excluded.album, artist=excluded.artist, duration=excluded.duration, normalized=excluded.normalized",
+            "INSERT INTO library_files(path,size,mtime,partial_hash,title,album,artist,duration,normalized,year) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(path) DO UPDATE SET size=excluded.size, mtime=excluded.mtime, partial_hash=excluded.partial_hash, title=excluded.title, album=excluded.album, artist=excluded.artist, duration=excluded.duration, normalized=excluded.normalized, year=excluded.year",
             (
                 data["path"],
                 data.get("size"),
@@ -92,6 +105,7 @@ class Database:
                 data.get("artist"),
                 data.get("duration"),
                 data.get("normalized"),
+                data.get("year"),
             ),
         )
 

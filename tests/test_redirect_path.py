@@ -1,10 +1,13 @@
 from spx.auth.spotify_oauth import SpotifyAuth
 
 
-def test_build_redirect_uri_custom_path(monkeypatch, tmp_path):
-    # Basic instantiation just to verify redirect path composition
-    auth = SpotifyAuth(client_id='dummy', redirect_port=5555, scope='user-library-read', cache_file=str(tmp_path / 'tok.json'), redirect_path='/')
-    assert auth.build_redirect_uri() == 'http://localhost:5555/'
-    auth2 = SpotifyAuth(client_id='dummy', redirect_port=5555, scope='user-library-read', cache_file=str(tmp_path / 'tok2.json'), redirect_path='cb')
-    # leading slash should be normalized
-    assert auth2.build_redirect_uri() == 'http://localhost:5555/cb'
+def test_build_redirect_uri_custom_path(tmp_path):
+    # Default host now 127.0.0.1 (loopback IP per updated policy)
+    auth = SpotifyAuth(client_id='dummy', redirect_port=5555, scope='user-library-read', cache_file=str(tmp_path / 'tok.json'), redirect_path='/', redirect_scheme='http')
+    assert auth.build_redirect_uri() == 'http://127.0.0.1:5555/'
+    # leading slash normalization for custom path
+    auth2 = SpotifyAuth(client_id='dummy', redirect_port=5555, scope='user-library-read', cache_file=str(tmp_path / 'tok2.json'), redirect_path='cb', redirect_scheme='http')
+    assert auth2.build_redirect_uri() == 'http://127.0.0.1:5555/cb'
+    # Explicit override of host (simulate legacy localhost usage)
+    auth3 = SpotifyAuth(client_id='dummy', redirect_port=5555, scope='user-library-read', cache_file=str(tmp_path / 'tok3.json'), redirect_path='cb', redirect_scheme='http', redirect_host='localhost')
+    assert auth3.build_redirect_uri() == 'http://localhost:5555/cb'

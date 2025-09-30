@@ -50,3 +50,5 @@ Thumbs.db
 
 # Placeholder directories from exports
 *_placeholders/
+
+*.pem

@@ -1,6 +1,7 @@
 from __future__ import annotations
 from pathlib import Path
 from typing import Iterable, Dict, Any, Sequence
+import os
 
 HEADER = "#EXTM3U"
 
@@ -24,6 +25,9 @@ def export_strict(playlist: Dict[str, Any], tracks: Iterable[Dict[str, Any]], ou
             continue
         lines.append(str(local_path))
     path.write_text('\n'.join(lines), encoding='utf-8')
+    if os.environ.get('SPX_DEBUG'):
+        kept = sum(1 for t in tracks if t.get('local_path'))
+        print(f"[export] strict playlist='{playlist.get('name')}' kept={kept} file={path}")
     return path
 
 
@@ -60,6 +64,9 @@ def export_mirrored(playlist: Dict[str, Any], tracks: Sequence[Dict[str, Any]], 
             name = t.get('name') or ''
             lines.append(f"# MISSING: {artist} - {name}")
     path.write_text('\n'.join(lines), encoding='utf-8')
+    if os.environ.get('SPX_DEBUG'):
+        missing = sum(1 for t in tracks if not t.get('local_path'))
+        print(f"[export] mirrored playlist='{playlist.get('name')}' total={len(tracks)} missing={missing} file={path}")
     return path
 
 
@@ -100,6 +107,9 @@ def export_placeholders(playlist: Dict[str, Any], tracks: Sequence[Dict[str, Any
             lines.append(_extinf_line(t))
             lines.append(str(t['local_path']))
     path.write_text('\n'.join(lines), encoding='utf-8')
+    if os.environ.get('SPX_DEBUG'):
+        placeholders = sum(1 for t in tracks if not t.get('local_path'))
+        print(f"[export] placeholders playlist='{playlist.get('name')}' total={len(tracks)} placeholders={placeholders} file={path}")
     return path
 
 __all__ = [
