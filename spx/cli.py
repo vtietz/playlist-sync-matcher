@@ -223,10 +223,8 @@ def scan(ctx: click.Context):
 def match(ctx: click.Context):
     """Run matching engine and persist matches."""
     cfg = ctx.obj
-    fuzzy_threshold = cfg['matching']['fuzzy_threshold']
-    use_year = cfg['matching'].get('use_year', False)
     with _get_db(cfg) as db:
-        count = match_and_store(db, fuzzy_threshold=fuzzy_threshold, use_year=use_year)
+        count = match_and_store(db, config=cfg)
         click.echo(f'Matched {count} tracks')
 
 
@@ -287,10 +285,38 @@ def export(ctx: click.Context):
     with _get_db(cfg) as db:
         export_dir = Path(cfg['export']['directory'])
         placeholder_ext = cfg['export'].get('placeholder_extension', '.missing')
-        cur = db.conn.execute("SELECT id,name FROM playlists")
+        organize_by_owner = cfg['export'].get('organize_by_owner', False)
+        
+        # Get current user ID for comparison
+        current_user_id = None
+        if organize_by_owner:
+            # Try to get current user ID from database metadata or config
+            current_user_id = db.get_meta('current_user_id')
+        
+        cur = db.conn.execute("SELECT id, name, owner_id, owner_name FROM playlists")
         playlists = cur.fetchall()
         for pl in playlists:
             pl_id = pl['id']
+            owner_id = pl.get('owner_id')
+            owner_name = pl.get('owner_name')
+            
+            # Determine target directory
+            if organize_by_owner:
+                if owner_id and current_user_id and owner_id == current_user_id:
+                    # User's own playlists
+                    target_dir = export_dir / 'my_playlists'
+                elif owner_name:
+                    # Other user's playlists - use sanitized owner name
+                    from .export.playlists import sanitize_filename
+                    folder_name = sanitize_filename(owner_name)
+                    target_dir = export_dir / folder_name
+                else:
+                    # Unknown owner - put in 'other' folder
+                    target_dir = export_dir / 'other'
+            else:
+                # No organization - flat structure
+                target_dir = export_dir
+            
             track_rows = db.conn.execute(
                 """
                 SELECT pt.position, t.id as track_id, t.name, t.artist, t.album, t.duration_ms, lf.path AS local_path
@@ -306,14 +332,14 @@ def export(ctx: click.Context):
             tracks = [dict(r) | {'position': r['position']} for r in track_rows]
             playlist_meta = {'name': pl['name'], 'id': pl_id}
             if mode == 'strict':
-                export_strict(playlist_meta, tracks, export_dir)
+                export_strict(playlist_meta, tracks, target_dir)
             elif mode == 'mirrored':
-                export_mirrored(playlist_meta, tracks, export_dir)
+                export_mirrored(playlist_meta, tracks, target_dir)
             elif mode == 'placeholders':
-                export_placeholders(playlist_meta, tracks, export_dir, placeholder_extension=placeholder_ext)
+                export_placeholders(playlist_meta, tracks, target_dir, placeholder_extension=placeholder_ext)
             else:
                 click.echo(f"Unknown export mode '{mode}', defaulting to strict")
-                export_strict(playlist_meta, tracks, export_dir)
+                export_strict(playlist_meta, tracks, target_dir)
     click.echo('Export complete')
 
 

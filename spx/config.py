@@ -33,11 +33,16 @@ _DEFAULTS: Dict[str, Any] = {
         "exact_bonus": 0.05,
         "album_match_bonus": 0.04,
         "use_year": False,  # when true include year token (if available) in normalization / scoring
+        "duration_tolerance": 2.0,  # seconds tolerance for duration-based filtering (±2s default)
+        "strategies": ["sql_exact", "duration_filter", "fuzzy"],  # ordered list of matching strategies to apply
+        "show_unmatched_tracks": 20,  # number of unmatched tracks to show in debug output
+        "show_unmatched_albums": 20,  # number of unmatched albums to show in debug output
     },
     "export": {
         "directory": "export/playlists",
         "mode": "strict",  # strict | mirrored | placeholders
         "placeholder_extension": ".missing",
+        "organize_by_owner": False,  # when true, organize playlists into folders by owner
     },
     "reports": {
         "directory": "export/reports",

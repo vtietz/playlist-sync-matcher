@@ -85,6 +85,35 @@ SPX__EXPORT__MODE=mirrored run.bat export
 ```
 Placeholders mode creates a sibling directory with placeholder files (extension configurable by `export.placeholder_extension`).
 
+### Folder Organization by Owner
+By default, playlists are exported to a flat directory structure. You can enable folder organization to separate your own playlists from those you follow:
+
+```yaml
+export:
+  organize_by_owner: true
+```
+
+Or via environment variable:
+```
+set SPX__EXPORT__ORGANIZE_BY_OWNER=true
+```
+
+When enabled, playlists are organized as:
+```
+export/playlists/
+├── my_playlists/           # Your own playlists
+│   ├── 2008.m3u8
+│   ├── Summer Mix.m3u8
+│   └── ...
+├── Friend_Name/            # Playlists by a specific user
+│   ├── Party Hits.m3u8
+│   └── ...
+└── other/                  # Playlists with unknown owner
+    └── ...
+```
+
+**Note**: Spotify's Web API doesn't expose playlist folders (those are UI-only), so this feature organizes by playlist owner instead, which helps separate your curated playlists from collaborative or followed ones.
+
 ## Configuration & Environment Overrides
 Load order: defaults <- config.yaml (if present) <- environment <- (future CLI overrides).
 
@@ -99,8 +128,8 @@ set SPX__MATCHING__FUZZY_THRESHOLD=0.82
 Key sections:
 - spotify.client_id, redirect_port, scope, cache_file
 - library.paths, extensions, ignore_patterns
-- matching.fuzzy_threshold
-- export.mode, export.placeholder_extension, export.directory
+- matching.fuzzy_threshold, show_unmatched_tracks, show_unmatched_albums
+- export.mode, export.placeholder_extension, export.directory, export.organize_by_owner
 - reports.directory
 - database.path
 
@@ -306,21 +335,73 @@ library:
 ```
 
 ### Match Performance (Two-Stage Approach)
-The match engine uses a highly optimized two-stage approach:
+The match engine uses a highly optimized multi-strategy approach that is both fast and configurable:
+
+**Default Strategy Pipeline**:
+1. **SQL Exact Matching** (`sql_exact`) - Uses indexed `normalized` columns for O(log n) lookups
+2. **Duration Filtering** (`duration_filter`) - Prefilters candidates by track duration (±2s tolerance)
+3. **Fuzzy Matching** (`fuzzy`) - RapidFuzz `token_set_ratio` on reduced candidate set
 
 **Stage 1: SQL Exact Matching**
 - Uses indexed `normalized` columns for O(log n) lookups
 - Finds 70-95% of matches in <100ms via SQL INNER JOIN
 - Method label: `sql_exact`
 
-**Stage 2: Fuzzy Matching (Unmatched Only)**
+**Stage 2: Duration-Based Candidate Filtering (NEW!)**
+- Filters out impossible matches based on track duration before expensive fuzzy matching
+- Default tolerance: ±2 seconds (configurable via `matching.duration_tolerance`)
+- **Speedup**: Reduces fuzzy matching work by 5-20x depending on library diversity
+- Files without duration metadata are included as candidates (no filtering)
+- This is a preprocessing step that narrows the candidate set for Stage 3
+
+**Stage 3: Fuzzy Matching (Unmatched Only)**
 - RapidFuzz `token_set_ratio` only on remaining unmatched tracks
+- Uses prefiltered candidates from Stage 2 (if enabled)
 - Configurable threshold (default 0.78): `matching.fuzzy_threshold`
 - Method label: `fuzzy`
 - **Real-time progress**: Shows which track is currently being matched, processing speed, and ETA
 
-**Performance**: 5-20x faster than original O(n×m) approach
-- Example: 1000 tracks × 1000 files = 20s → **2.5s**
+**Performance**: 10-50x faster than original O(n×m) approach with duration filtering
+- Example: 1000 tracks × 1000 files = 20s → **<1s** (with duration filtering)
+- Without duration filtering: 20s → **2.5s** (SQL exact only)
+
+**Configurable Strategies**:
+The matching engine now supports configurable strategies that can be enabled/disabled or reordered:
+
+```yaml
+matching:
+  fuzzy_threshold: 0.78          # Minimum fuzzy match score (0.0-1.0)
+  duration_tolerance: 2.0        # Seconds tolerance for duration filtering (±2s)
+  strategies:                    # Ordered list of strategies to apply
+    - sql_exact                  # Fast indexed exact match
+    - duration_filter            # Prefilter by duration (reduces fuzzy work)
+    - fuzzy                      # Expensive fuzzy matching on remaining tracks
+```
+
+Environment overrides:
+```
+set SPX__MATCHING__FUZZY_THRESHOLD=0.82
+set SPX__MATCHING__DURATION_TOLERANCE=3.0
+set SPX__MATCHING__STRATEGIES=["sql_exact","fuzzy"]
+```
+
+**Strategy Customization Examples**:
+- **Maximum speed** (skip duration filter if all files have similar durations):
+  ```yaml
+  matching:
+    strategies: [sql_exact, fuzzy]
+  ```
+- **Maximum accuracy** (strict duration tolerance):
+  ```yaml
+  matching:
+    duration_tolerance: 1.0  # Only ±1 second
+    strategies: [sql_exact, duration_filter, fuzzy]
+  ```
+- **Exact matches only** (no fuzzy):
+  ```yaml
+  matching:
+    strategies: [sql_exact]
+  ```
 
 **Enhanced Normalization** (Better Exact Matches):
 - **Token sorting**: "The Beatles" = "Beatles, The"
@@ -330,15 +411,19 @@ The match engine uses a highly optimized two-stage approach:
 
 Debug output shows stage breakdown:
 ```
+[match] Loaded 1000 tracks and 1000 library files
+[match] Enabled strategies: sql_exact, duration_filter, fuzzy
 [match] Matched 847/1000 tracks (84.7%) - exact=847 fuzzy=0 - 2.34s
-[match] Stage 1 (SQL): 847 matches in 0.12s
+[match] Strategy 'sql_exact': 847 matches
+[match] Strategy 'duration_filter': candidate filtering applied
 ```
 
-With `SPX_DEBUG=1`, you'll also see detailed progress during fuzzy matching:
+With `SPX_DEBUG=1`, you'll also see detailed progress during each strategy:
 ```
 [sql_exact] The Beatles - Hey Jude → Z:\Music\Beatles\Hey Jude.mp3
-[match][stage2] Fuzzy matching 153 unmatched tracks against 1000 files (threshold=0.8)...
-[match][fuzzy] Processing: 15/153 tracks (10%) - 8 matches - 12.3 tracks/sec - ETA 11s
+[duration_filter] Filtering 153 tracks against 1000 files (tolerance=±2.0s)
+[duration_filter] Filtered to 15300 total candidates (avg 100.0 per track, 90.0% reduction) in 0.08s
+[fuzzy] Processing: 15/153 tracks (10%) - 8 matches - 12.3 tracks/sec - ETA 11s
   → Currently matching: Led Zeppelin - Stairway to Heaven
 [fuzzy] Led Zeppelin - Stairway to Heaven → Z:\Music\Zeppelin\Stairway.mp3 (score=0.92)
 [unmatched] Sample tracks (first 3):
@@ -349,6 +434,69 @@ Match color coding:
 - `[sql_exact]` - **Green** (perfect normalized match via SQL)
 - `[fuzzy]` - **Cyan** (score ≥ 0.9), **Yellow** (0.8-0.9), or **Magenta** (< 0.8)
 - `[unmatched]` - **Red** (no match found above threshold)
+
+### Enhanced Unmatched Diagnostics (NEW!)
+After matching, the tool shows detailed diagnostics for unmatched tracks, helping you identify which tracks and albums are missing from your library.
+
+**Unmatched Tracks Display**:
+- Shows top N unmatched tracks (default 50, configurable)
+- Sorted by playlist popularity (how many playlists contain each track)
+- Marks liked tracks with ❤️ emoji
+- Shows how many playlists contain each track
+
+Example output:
+```
+[unmatched] Top 50 unmatched tracks (of 127 total, sorted by playlist popularity):
+  [ 3 playlists] ❤️  The Beatles - Let It Be
+  [ 3 playlists] Led Zeppelin - Stairway to Heaven
+  [ 2 playlists] Pink Floyd - Comfortably Numb
+  [ 1 playlist ] Queen - Bohemian Rhapsody
+  [ 0 playlists] ❤️  Radiohead - Karma Police
+  ... and 77 more unmatched tracks
+```
+
+**Missing Albums Display** (NEW!):
+- Groups unmatched tracks by album
+- Shows total playlist occurrences per album (sum across all tracks in that album)
+- Sorted by popularity to help prioritize which albums to acquire
+- Shows track count per album
+- Configurable display count (default 20)
+
+Example output:
+```
+[unmatched] Top 20 missing albums (of 45 total, by playlist popularity):
+  [ 12 occurrences] The Beatles - Abbey Road (4 tracks)
+  [  8 occurrences] Pink Floyd - The Wall (3 tracks)
+  [  6 occurrences] Led Zeppelin - IV (2 tracks)
+  [  3 occurrences] Queen - A Night at the Opera (1 track)
+  [  0 occurrences] Radiohead - OK Computer (2 tracks)
+  ... and 25 more albums
+```
+
+**Configuration**:
+```yaml
+matching:
+  show_unmatched_tracks: 20   # Number of unmatched tracks to display (0 to disable)
+  show_unmatched_albums: 20   # Number of missing albums to display (0 to disable)
+```
+
+Environment overrides:
+```
+set SPX__MATCHING__SHOW_UNMATCHED_TRACKS=100
+set SPX__MATCHING__SHOW_UNMATCHED_ALBUMS=30
+```
+
+**Interpretation**:
+- **High occurrence count** = Track/album appears in many playlists → high priority to acquire
+- **Liked tracks (❤️)** = You explicitly liked this track → even higher priority
+- **Zero occurrences** = Track not in any playlist but appears in liked tracks only
+- **Album view** = Helps identify which complete albums to acquire rather than individual tracks
+
+This feature helps you:
+1. Identify which tracks are most important to acquire (based on playlist usage)
+2. See which albums you're missing the most tracks from
+3. Prioritize your music acquisition efforts based on actual usage patterns
+4. Spot patterns (e.g., "I'm missing 80% of Pink Floyd's The Wall")
 
 **Note**: For large libraries (10k+ unmatched tracks), Stage 2 fuzzy matching may take 10-20 minutes. The progress output shows you it's not hanging—see `FUZZY_MATCH_PROGRESS.md` for detailed explanation and performance tips.
 

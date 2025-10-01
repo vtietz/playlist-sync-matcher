@@ -28,6 +28,10 @@ class SpotifyClient:
         r.raise_for_status()
         return r.json()
 
+    def current_user_profile(self) -> Dict[str, Any]:
+        """Get current user's profile information."""
+        return self._get('/me')
+
     def current_user_playlists(self, verbose: bool = False) -> Iterator[Dict[str, Any]]:
         limit = 50
         offset = 0
@@ -85,10 +89,29 @@ def ingest_playlists(db, client: SpotifyClient, verbose: bool = False, use_year:
     t0 = time.time()
     processed = 0
     skipped = 0
+    
+    # Get and store current user ID for owner comparison
+    try:
+        user_profile = client.current_user_profile()
+        user_id = user_profile.get('id')
+        if user_id:
+            current_stored_id = db.get_meta('current_user_id')
+            if current_stored_id != user_id:
+                db.set_meta('current_user_id', user_id)
+                db.commit()
+    except Exception as e:
+        if verbose or os.environ.get('SPX_DEBUG'):
+            print(f"[ingest] Could not fetch current user profile: {e}")
+    
     for pl in client.current_user_playlists():
         pid = pl['id']
         name = pl.get('name')
         snapshot_id = pl.get('snapshot_id')
+        # Extract owner information
+        owner = pl.get('owner', {})
+        owner_id = owner.get('id') if owner else None
+        owner_name = owner.get('display_name') if owner else None
+        
         if not db.playlist_snapshot_changed(pid, snapshot_id):
             skipped += 1
             if verbose or os.environ.get('SPX_DEBUG'):
@@ -120,7 +143,7 @@ def ingest_playlists(db, client: SpotifyClient, verbose: bool = False, use_year:
                 'normalized': combo,
                 'year': year,
             })
-        db.upsert_playlist(pid, name, snapshot_id)
+        db.upsert_playlist(pid, name, snapshot_id, owner_id, owner_name)
         db.replace_playlist_tracks(pid, simplified)
         db.commit()
         processed += 1

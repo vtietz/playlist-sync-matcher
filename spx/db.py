@@ -5,7 +5,7 @@ from typing import Iterable, Sequence, Any, Dict, Tuple, Optional
 
 SCHEMA = [
     "PRAGMA journal_mode=WAL;",
-    "CREATE TABLE IF NOT EXISTS playlists (id TEXT PRIMARY KEY, name TEXT NOT NULL, snapshot_id TEXT, last_full_ingest TIMESTAMP);",
+    "CREATE TABLE IF NOT EXISTS playlists (id TEXT PRIMARY KEY, name TEXT NOT NULL, snapshot_id TEXT, last_full_ingest TIMESTAMP, owner_id TEXT, owner_name TEXT);",
     "CREATE TABLE IF NOT EXISTS playlist_tracks (playlist_id TEXT NOT NULL, position INTEGER NOT NULL, track_id TEXT NOT NULL, added_at TEXT, PRIMARY KEY(playlist_id, position));",
     # year column will be added via migration if missing
     "CREATE TABLE IF NOT EXISTS tracks (id TEXT PRIMARY KEY, name TEXT, album TEXT, artist TEXT, isrc TEXT, duration_ms INTEGER, normalized TEXT);",
@@ -46,6 +46,9 @@ class Database:
         # Migrations: add 'year' columns if not exist
         self._ensure_column('tracks', 'year', 'INTEGER')
         self._ensure_column('library_files', 'year', 'INTEGER')
+        # Migrations: add owner info to playlists
+        self._ensure_column('playlists', 'owner_id', 'TEXT')
+        self._ensure_column('playlists', 'owner_name', 'TEXT')
 
     def _ensure_column(self, table: str, column: str, col_type: str):
         cur = self.conn.execute(f"PRAGMA table_info({table})")
@@ -54,10 +57,10 @@ class Database:
             self.conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}")
             self.conn.commit()
 
-    def upsert_playlist(self, pid: str, name: str, snapshot_id: str | None) -> None:
+    def upsert_playlist(self, pid: str, name: str, snapshot_id: str | None, owner_id: str | None = None, owner_name: str | None = None) -> None:
         self.conn.execute(
-            "INSERT INTO playlists(id,name,snapshot_id) VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name, snapshot_id=excluded.snapshot_id",
-            (pid, name, snapshot_id),
+            "INSERT INTO playlists(id,name,snapshot_id,owner_id,owner_name) VALUES(?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name, snapshot_id=excluded.snapshot_id, owner_id=excluded.owner_id, owner_name=excluded.owner_name",
+            (pid, name, snapshot_id, owner_id, owner_name),
         )
         self.conn.commit()
 

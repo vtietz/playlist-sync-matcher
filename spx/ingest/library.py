@@ -87,7 +87,8 @@ def scan_library(db, cfg):
     try:
         for p in iter_music_files(paths, extensions, ignore_patterns, follow_symlinks):
             files_seen += 1
-            path_str = str(p)
+            # Normalize path to use backslashes on Windows (consistent with DB storage)
+            path_str = str(p.resolve())
             seen_paths.add(path_str)  # Track this path as seen
             try:
                 st = p.stat()
@@ -156,7 +157,7 @@ def scan_library(db, cfg):
                     existing = db.conn.execute("SELECT id FROM library_files WHERE path=?", (path_str,)).fetchone()
                 
                 db.add_library_file({
-                    'path': str(p),
+                    'path': path_str,  # Use normalized path_str instead of str(p)
                     'size': st.st_size,
                     'mtime': st.st_mtime,
                     'partial_hash': ph,
@@ -197,13 +198,36 @@ def scan_library(db, cfg):
         deleted = 0
         if os.environ.get('SPX_DEBUG'):
             print("[scan] Checking for deleted files...")
+            print(f"[scan] Seen {len(seen_paths)} files during this scan")
         
         # Get all paths from DB in one query
         rows = db.conn.execute("SELECT id, path FROM library_files").fetchall()
         db_paths = {row['path']: row['id'] for row in rows}
         
+        if os.environ.get('SPX_DEBUG'):
+            print(f"[scan] Database contains {len(db_paths)} files")
+            # Show sample of path formats for debugging
+            if db_paths and seen_paths:
+                db_sample = list(db_paths.keys())[0] if db_paths else None
+                seen_sample = list(seen_paths)[0] if seen_paths else None
+                if db_sample:
+                    print(f"[scan] Sample DB path: {db_sample}")
+                if seen_sample:
+                    print(f"[scan] Sample seen path: {seen_sample}")
+        
         # Find paths in DB but not seen during scan
         deleted_paths = set(db_paths.keys()) - seen_paths
+        
+        if deleted_paths and os.environ.get('SPX_DEBUG'):
+            print(f"[scan] Found {len(deleted_paths)} files to delete")
+            # Show first few for debugging
+            for path in list(deleted_paths)[:3]:
+                print(f"[scan] Will delete: {path}")
+                # Check if a similar path exists in seen_paths (case/slash differences)
+                similar = [sp for sp in seen_paths if sp.lower().replace('/', '\\') == path.lower().replace('/', '\\')]
+                if similar:
+                    print(f"[scan] WARNING: Similar path found in seen_paths: {similar[0]}")
+                    print(f"[scan] This suggests a path normalization issue!")
         
         for path in deleted_paths:
             file_id = db_paths[path]
