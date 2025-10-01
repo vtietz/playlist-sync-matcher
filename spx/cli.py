@@ -1,7 +1,7 @@
 from __future__ import annotations
 import click
 from pathlib import Path
-from .config import load_config
+from .config import load_config, _configure_logging
 import os
 from .db import Database
 from .reporting.generator import write_missing_tracks, write_album_completeness
@@ -22,6 +22,11 @@ def cli(ctx: click.Context, config_file: str | None):
         cfg = ctx.obj
     else:
         cfg = load_config(config_file)
+    
+    # Configure logging based on config
+    log_level = cfg.get('log_level', 'INFO')
+    _configure_logging(log_level)
+    
     ctx.obj = cfg
 
 # type: ignore[arg-type, misc]  # Silence type checker complaints about dynamic decorators
@@ -138,7 +143,6 @@ def _build_auth(cfg):
         redirect_host=cfg['spotify'].get('redirect_host', '127.0.0.1'),
         cert_file=cfg['spotify'].get('cert_file'),
         key_file=cfg['spotify'].get('key_file'),
-        debug=cfg.get('debug', False),
     )
 
 
@@ -167,12 +171,11 @@ def pull(ctx: click.Context, force_auth: bool, verbose: bool):
     if not cfg['spotify']['client_id']:
         raise click.UsageError('spotify.client_id not configured')
     auth = _build_auth(cfg)
-    debug = cfg.get('debug', False)
     start = time.time()
     tok_dict = auth.get_token(force=force_auth)
     if not isinstance(tok_dict, dict) or 'access_token' not in tok_dict:
         raise click.ClickException('Failed to obtain access token')
-    if verbose or debug:
+    if verbose:
         from datetime import datetime
         exp = tok_dict.get('expires_at')
         if exp:
@@ -181,11 +184,10 @@ def pull(ctx: click.Context, force_auth: bool, verbose: bool):
         else:
             click.echo("[pull] Using access token (no expires_at field)")
     client = SpotifyClient(tok_dict['access_token'])
-    debug = cfg.get('debug', False)
     use_year = cfg['matching'].get('use_year', False)
     with _get_db(cfg) as db:
-        ingest_playlists(db, client, verbose=verbose, debug=debug, use_year=use_year)
-        ingest_liked(db, client, verbose=verbose, debug=debug, use_year=use_year)
+        ingest_playlists(db, client, verbose=verbose, use_year=use_year)
+        ingest_liked(db, client, verbose=verbose, use_year=use_year)
         
         # Print summary statistics
         cursor = db.conn.execute("SELECT COUNT(*) FROM playlists")
@@ -202,7 +204,7 @@ def pull(ctx: click.Context, force_auth: bool, verbose: bool):
         
         click.echo(f"\n[summary] Playlists: {playlist_count} | Unique tracks in playlists: {unique_tracks_in_playlists} | Liked tracks: {liked_count} | Total Spotify tracks: {total_tracks}")
     
-    if verbose or debug:
+    if verbose:
         dur = time.time() - start
         click.echo(f"[pull] Completed in {dur:.2f}s")
     click.echo('Pull complete')

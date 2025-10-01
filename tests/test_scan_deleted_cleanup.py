@@ -29,14 +29,15 @@ def test_scan_deleted_cleanup(tmp_path: Path, test_config):
     test_config['spotify']['client_id'] = ''
     test_config['spotify']['cache_file'] = str(tmp_path / 'tokens.json')
     test_config['export']['directory'] = str(tmp_path / 'playlists')
-    test_config['debug'] = True
+    test_config['log_level'] = 'DEBUG'
     
     runner = CliRunner()
     
     # First scan (should insert both files)
     r1 = runner.invoke(cli, ['scan'], obj=test_config)
     assert r1.exit_code == 0, f"First scan failed: {r1.output}"
-    assert '[new]' in r1.output or 'Scan complete' in r1.output
+    # Check for [new] in either stdout or stderr (logger output)
+    assert '[new]' in r1.output or '[new]' in (r1.stderr or '') or 'Scan complete' in r1.output
     
     # Verify both files are in DB
     with Database(db_path) as db:
@@ -58,8 +59,10 @@ def test_scan_deleted_cleanup(tmp_path: Path, test_config):
     assert count == 1, f"Expected 1 file after deletion, found {count}"
     assert str(f1) in remaining_path, f"Expected {f1} to remain, but got {remaining_path}"
     
-    # Check that deleted message appears in output (when debug is on)
-    assert '[deleted]' in r2.output or 'deleted=1' in r2.output, f"Expected deletion log in output: {r2.output}"
+    # Check that deleted message appears in stderr (logger output) or output
+    combined_output = r2.output + (r2.stderr or '')
+    assert '[deleted]' in combined_output or 'deleted=1' in combined_output, \
+        f"Expected deletion log in output: stdout={r2.output}, stderr={r2.stderr}"
 
 
 def test_scan_action_labels(tmp_path: Path, test_config):
@@ -81,14 +84,16 @@ def test_scan_action_labels(tmp_path: Path, test_config):
     test_config['spotify']['client_id'] = ''
     test_config['spotify']['cache_file'] = str(tmp_path / 'tokens.json')
     test_config['export']['directory'] = str(tmp_path / 'playlists')
-    test_config['debug'] = True
+    test_config['log_level'] = 'DEBUG'
     
     runner = CliRunner()
     
     # First scan - should see [new]
     r1 = runner.invoke(cli, ['scan'], obj=test_config)
     assert r1.exit_code == 0
-    assert '[new]' in r1.output, f"Expected [new] label in first scan: {r1.output}"
+    # Check for [new] in either stdout or stderr (logger output)
+    combined_output = r1.output + (r1.stderr or '')
+    assert '[new]' in combined_output, f"Expected [new] label in first scan: stdout={r1.output}, stderr={r1.stderr}"
     
     # Verify DB has exactly one file after first scan
     with Database(db_path) as db:
@@ -98,7 +103,8 @@ def test_scan_action_labels(tmp_path: Path, test_config):
     # Second scan without changes - should see [skip] and verify skip_unchanged behavior
     r2 = runner.invoke(cli, ['scan'], obj=test_config)
     assert r2.exit_code == 0
-    assert '[skip]' in r2.output, f"Expected [skip] label in second scan: {r2.output}"
+    combined_output = r2.output + (r2.stderr or '')
+    assert '[skip]' in combined_output, f"Expected [skip] label in second scan: stdout={r2.output}, stderr={r2.stderr}"
     
     # Verify DB still has exactly one file (skip_unchanged didn't create duplicate)
     with Database(db_path) as db:
@@ -111,7 +117,8 @@ def test_scan_action_labels(tmp_path: Path, test_config):
     f.write_bytes(b'ID3modified')
     r3 = runner.invoke(cli, ['scan'], obj=test_config)
     assert r3.exit_code == 0
-    assert '[updated]' in r3.output, f"Expected [updated] label after modification: {r3.output}"
+    combined_output = r3.output + (r3.stderr or '')
+    assert '[updated]' in combined_output, f"Expected [updated] label after modification: stdout={r3.output}, stderr={r3.stderr}"
     
     # Verify DB still has exactly one file (updated, not inserted new)
     with Database(db_path) as db:

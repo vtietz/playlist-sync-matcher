@@ -15,7 +15,7 @@ def test_config(tmp_path: Path) -> Dict[str, Any]:
     Tests can override individual values using dict update or deep_merge.
     """
     return {
-        'debug': True,
+        'log_level': 'DEBUG',
         'spotify': {
             'client_id': '',
             'redirect_scheme': 'http',

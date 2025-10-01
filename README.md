@@ -188,8 +188,8 @@ Settings are merged in this order (later overrides earlier):
 **Database**:
 - `SPX__DATABASE__PATH` - SQLite file location (default: data/spotify_sync.db)
 
-**Debug**:
-- `SPX__DEBUG` - Enable verbose logging (default: false)
+**Logging**:
+- `SPX__LOG_LEVEL` - Control output verbosity: `DEBUG` (detailed diagnostics), `INFO` (normal progress, default), `WARNING` (quiet, errors only)
 
 See `.env.example` for complete list with explanations.
 
@@ -254,11 +254,11 @@ run.bat pull -v       # Windows
 ./run.sh pull -v      # Linux/Mac
 spx pull -v           # Standalone
 ```
-Or enable persistent debug logging in `.env`:
+Or enable persistent detailed logging in `.env`:
 ```bash
-SPX__DEBUG=true
+SPX__LOG_LEVEL=DEBUG
 ```
-Debug mode provides detailed output for OAuth flow, ingestion, scanning, matching (with match scores), and export summaries.
+Detailed logging provides diagnostic output for OAuth flow, ingestion, scanning, matching (with match scores), and export summaries. Use `INFO` (default) for normal operations or `WARNING` for quiet mode (errors only).
 
 ### Authentication
 
@@ -424,7 +424,7 @@ python -m pytest -q          # Direct (with activated venv)
 - `run.bat config` - View current settings
 - `run.bat redirect-uri` - Show OAuth redirect
 - `.env.example` - All environment variables
-- `SPX__DEBUG=true` - Enable verbose logging
+- `SPX__LOG_LEVEL=DEBUG` - Enable detailed diagnostic logging
 Objects are also supported:
 ```
 set SPX__SPOTIFY__EXTRA={"foo":123}

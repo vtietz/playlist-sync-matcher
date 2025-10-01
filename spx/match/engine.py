@@ -3,9 +3,12 @@ from typing import Iterable, Dict, Any, List, Tuple
 from rapidfuzz import fuzz
 import sqlite3
 import os, time
+import logging
 import click
 from ..utils.normalization import normalize_title_artist
 from .strategies import ExactMatchStrategy, DurationFilterStrategy, FuzzyMatchStrategy
+
+logger = logging.getLogger(__name__)
 
 # Track dict expected keys: id,name,artist,album,isrc,normalized
 # File dict expected keys: id,path,normalized
@@ -24,7 +27,7 @@ def score_fuzzy(t_norm: str, f_norm: str) -> float:
     return fuzz.token_set_ratio(t_norm, f_norm) / 100.0
 
 
-def match_tracks(tracks: Iterable[Dict[str, Any]], files: Iterable[Dict[str, Any]], fuzzy_threshold: float = 0.78, debug: bool = False) -> List[Tuple[str, int, float, str]]:
+def match_tracks(tracks: Iterable[Dict[str, Any]], files: Iterable[Dict[str, Any]], fuzzy_threshold: float = 0.78) -> List[Tuple[str, int, float, str]]:
     """Match tracks to files. Returns list of (track_id, file_id, score, method) tuples.
     
     Logs progress during fuzzy matching to show which track is currently being processed.
@@ -54,13 +57,13 @@ def match_tracks(tracks: Iterable[Dict[str, Any]], files: Iterable[Dict[str, Any
         
         # Slow path: fuzzy matching (only if no exact match)
         # Show which track is being processed
-        if debug and idx % progress_interval == 0:
+        if idx % progress_interval == 0:
             elapsed = time.time() - start_time
             tracks_per_sec = idx / elapsed if elapsed > 0 else 0
             eta = (len(tracks_list) - idx) / tracks_per_sec if tracks_per_sec > 0 else 0
             pct = (idx / len(tracks_list)) * 100
-            print(f"[match][fuzzy] Processing: {idx}/{len(tracks_list)} tracks ({pct:.0f}%) - {len(results)} matches - {tracks_per_sec:.1f} tracks/sec - ETA {eta:.0f}s")
-            print(f"  → Currently matching: {t.get('artist', '')} - {t.get('name', '')}")
+            logger.debug(f"[match][fuzzy] Processing: {idx}/{len(tracks_list)} tracks ({pct:.0f}%) - {len(results)} matches - {tracks_per_sec:.1f} tracks/sec - ETA {eta:.0f}s")
+            logger.debug(f"  → Currently matching: {t.get('artist', '')} - {t.get('name', '')}")
         
         best = (None, 0.0, "")  # file_id, score, method
         for f in files_list:
@@ -92,7 +95,6 @@ def match_and_store(db, config: Dict[str, Any] | None = None, fuzzy_threshold: f
     - fuzzy: RapidFuzz token_set_ratio on remaining unmatched tracks
     """
     start = time.time()
-    debug = config.get('debug', False) if config else False
     
     # Handle config (allow None for backward compatibility)
     if config is None:
@@ -111,8 +113,7 @@ def match_and_store(db, config: Dict[str, Any] | None = None, fuzzy_threshold: f
     duration_tolerance = matching_config.get('duration_tolerance', 2.0)
     
     # Pull candidate sets from DB
-    if debug:
-        print("[match] Loading tracks and files from database...")
+    logger.debug("[match] Loading tracks and files from database...")
     cur_tracks = db.conn.execute("SELECT id, name, artist, album, year, normalized, isrc, duration_ms FROM tracks")
     tracks = [dict(row) for row in cur_tracks.fetchall()]
     cur_files = db.conn.execute("SELECT id, path, normalized, duration, year FROM library_files")
@@ -122,9 +123,8 @@ def match_and_store(db, config: Dict[str, Any] | None = None, fuzzy_threshold: f
     file_by_id = {f['id']: f for f in files}
     track_by_id = {t['id']: t for t in tracks}
     
-    if debug:
-        print(f"[match] Loaded {len(tracks)} tracks and {len(files)} library files")
-        print(f"[match] Enabled strategies: {', '.join(enabled_strategies)}")
+    logger.debug(f"[match] Loaded {len(tracks)} tracks and {len(files)} library files")
+    logger.debug(f"[match] Enabled strategies: {', '.join(enabled_strategies)}")
     
     # Backfill normalization if missing (old ingests)
     backfilled = 0
@@ -139,8 +139,7 @@ def match_and_store(db, config: Dict[str, Any] | None = None, fuzzy_threshold: f
             backfilled += 1
     if backfilled:
         db.commit()
-        if debug:
-            print(f"[match] Backfilled normalization for {backfilled} tracks")
+        logger.debug(f"[match] Backfilled normalization for {backfilled} tracks")
     
     # Track overall matches and timing
     all_matches: List[Tuple[str, int, float, str]] = []
@@ -152,10 +151,9 @@ def match_and_store(db, config: Dict[str, Any] | None = None, fuzzy_threshold: f
     for strategy_name in enabled_strategies:
         if strategy_name == 'sql_exact':
             # Stage 1: SQL-based exact matching
-            if debug:
-                print(f"[match][{strategy_name}] Running SQL exact matching strategy...")
+            logger.debug(f"[match][{strategy_name}] Running SQL exact matching strategy...")
             
-            strategy = ExactMatchStrategy(db, config, debug=debug)
+            strategy = ExactMatchStrategy(db, config)
             matches, new_matched = strategy.match(tracks, files, matched_track_ids)
             
             # Store matches
@@ -169,12 +167,10 @@ def match_and_store(db, config: Dict[str, Any] | None = None, fuzzy_threshold: f
         elif strategy_name == 'duration_filter':
             # Stage 2: Duration filtering (preprocess for fuzzy)
             # This doesn't produce matches itself but filters candidates
-            if debug:
-                print(f"[match][{strategy_name}] Applying duration-based candidate filtering...")
+            logger.debug(f"[match][{strategy_name}] Applying duration-based candidate filtering...")
             
             filter_strategy = DurationFilterStrategy(
-                tolerance_seconds=duration_tolerance,
-                debug=debug
+                tolerance_seconds=duration_tolerance
             )
             # Store candidate map for use by fuzzy strategy
             candidate_file_ids = filter_strategy.filter_candidates(tracks, files, matched_track_ids)
@@ -182,14 +178,13 @@ def match_and_store(db, config: Dict[str, Any] | None = None, fuzzy_threshold: f
         
         elif strategy_name == 'fuzzy':
             # Stage 3: Fuzzy matching (optionally with prefiltered candidates)
-            if debug:
-                print(f"[match][{strategy_name}] Running fuzzy matching strategy...")
+            logger.debug(f"[match][{strategy_name}] Running fuzzy matching strategy...")
             
             # Check if duration_filter was run before this
             candidate_map = candidate_file_ids if 'duration_filter' in enabled_strategies else None
             
             strategy = FuzzyMatchStrategy(
-                db, config, debug=debug,
+                db, config,
                 candidate_file_ids=candidate_map
             )
             matches, new_matched = strategy.match(tracks, files, matched_track_ids)
@@ -203,8 +198,7 @@ def match_and_store(db, config: Dict[str, Any] | None = None, fuzzy_threshold: f
             strategy_stats[strategy_name] = len(matches)
         
         else:
-            if debug:
-                print(f"[match][warn] Unknown strategy '{strategy_name}' - skipping")
+            logger.debug(f"[match][warn] Unknown strategy '{strategy_name}' - skipping")
     
     db.commit()
     
@@ -217,134 +211,132 @@ def match_and_store(db, config: Dict[str, Any] | None = None, fuzzy_threshold: f
     exact_count = strategy_stats.get('sql_exact', 0)
     fuzzy_count = strategy_stats.get('fuzzy', 0)
     
-    print(f"[match] Matched {total_matches}/{len(tracks)} tracks ({match_rate:.1f}%) - "
+    logger.info(f"[match] Matched {total_matches}/{len(tracks)} tracks ({match_rate:.1f}%) - "
           f"exact={exact_count} fuzzy={fuzzy_count} - {dur:.2f}s")
     
     # Detailed debug info
-    if debug:
-        if not files:
-            print("[match][warn] No library files present. Did you run 'scan'? "
-                  "Check library.paths config and that the directory has supported extensions.")
+    if not files:
+        logger.debug("[match][warn] No library files present. Did you run 'scan'? "
+              "Check library.paths config and that the directory has supported extensions.")
+    
+    # Show strategy breakdown
+    for strategy_name in enabled_strategies:
+        stat = strategy_stats.get(strategy_name, 0)
+        if stat == "filtering":
+            logger.debug(f"[match] Strategy '{strategy_name}': candidate filtering applied")
+        else:
+            logger.debug(f"[match] Strategy '{strategy_name}': {stat} matches")
         
-        # Show strategy breakdown
-        for strategy_name in enabled_strategies:
-            stat = strategy_stats.get(strategy_name, 0)
-            if stat == "filtering":
-                print(f"[match] Strategy '{strategy_name}': candidate filtering applied")
-            else:
-                print(f"[match] Strategy '{strategy_name}': {stat} matches")
+    # Unmatched diagnostics: show top N sorted by playlist occurrence count
+    if tracks and len(matched_track_ids) < len(tracks):
+        max_tracks = matching_config.get('show_unmatched_tracks', 50)
+        max_albums = matching_config.get('show_unmatched_albums', 20)
         
-        # Unmatched diagnostics: show top N sorted by playlist occurrence count
-        if tracks and len(matched_track_ids) < len(tracks):
-            max_tracks = matching_config.get('show_unmatched_tracks', 50)
-            max_albums = matching_config.get('show_unmatched_albums', 20)
+        unmatched_ids = [t['id'] for t in tracks if t['id'] not in matched_track_ids]
+        
+        # Get occurrence count for each unmatched track (how many playlists contain it)
+        logger.debug(f"[match] Analyzing {len(unmatched_ids)} unmatched tracks for diagnostics...")
+        
+        # Batch query: get all playlist counts in one query instead of one per track
+        occurrence_counts = {}
+        if unmatched_ids:
+            placeholders = ','.join('?' * len(unmatched_ids))
+            count_rows = db.conn.execute(
+                f"SELECT track_id, COUNT(DISTINCT playlist_id) as count FROM playlist_tracks "
+                f"WHERE track_id IN ({placeholders}) GROUP BY track_id",
+                unmatched_ids
+            ).fetchall()
+            occurrence_counts = {row['track_id']: row['count'] for row in count_rows}
+            # Fill in zero counts for tracks not in any playlist
+            for track_id in unmatched_ids:
+                if track_id not in occurrence_counts:
+                    occurrence_counts[track_id] = 0
+        
+        # Also check if it's a liked track
+        liked_ids = set(row['track_id'] for row in db.conn.execute(
+            "SELECT track_id FROM liked_tracks WHERE track_id IN ({})".format(
+                ','.join('?' * len(unmatched_ids))
+            ), unmatched_ids
+        ).fetchall())
+        
+        # Sort by occurrence count (descending), then by artist/name for ties
+        sorted_unmatched = sorted(
+            unmatched_ids,
+            key=lambda tid: (
+                -occurrence_counts[tid],  # Negative for descending
+                track_by_id.get(tid, {}).get('artist', '').lower(),
+                track_by_id.get(tid, {}).get('name', '').lower()
+            )
+        )
+        
+        # Show top N tracks (or fewer if less unmatched)
+        display_count = min(max_tracks, len(sorted_unmatched))
+        total_unmatched = len(sorted_unmatched)
+        
+        logger.debug(f"{click.style('[unmatched]', fg='red')} Top {display_count} unmatched tracks "
+              f"(of {total_unmatched} total, sorted by playlist popularity):")
+        
+        for track_id in sorted_unmatched[:display_count]:
+            track = track_by_id.get(track_id, {})
+            count = occurrence_counts[track_id]
+            is_liked = track_id in liked_ids
+            liked_marker = " ❤️" if is_liked else ""
             
-            unmatched_ids = [t['id'] for t in tracks if t['id'] not in matched_track_ids]
+            # Show: count, artist - title, (liked marker)
+            logger.debug(f"  [{count:2d} playlist{'s' if count != 1 else ' '}] "
+                  f"{track.get('artist', '')} - {track.get('name', '')}{liked_marker}")
+        
+        if total_unmatched > display_count:
+            logger.debug(f"  ... and {total_unmatched - display_count} more unmatched tracks")
+        
+        # Album analysis: Group unmatched tracks by album and show top N albums
+        if max_albums > 0:
+            album_stats = {}  # album_key -> {'artist': ..., 'album': ..., 'track_count': ..., 'total_occurrences': ...}
             
-            # Get occurrence count for each unmatched track (how many playlists contain it)
-            if debug:
-                print(f"[match] Analyzing {len(unmatched_ids)} unmatched tracks for diagnostics...")
+            for track_id in unmatched_ids:
+                track = track_by_id.get(track_id, {})
+                artist = track.get('artist', '')
+                album = track.get('album', '')
+                
+                if not album or album == '':
+                    continue  # Skip tracks without album info
+                
+                # Use artist + album as key (case-insensitive)
+                album_key = f"{artist.lower()}|{album.lower()}"
+                
+                if album_key not in album_stats:
+                    album_stats[album_key] = {
+                        'artist': artist,
+                        'album': album,
+                        'track_count': 0,
+                        'total_occurrences': 0,
+                    }
+                
+                album_stats[album_key]['track_count'] += 1
+                album_stats[album_key]['total_occurrences'] += occurrence_counts[track_id]
             
-            # Batch query: get all playlist counts in one query instead of one per track
-            occurrence_counts = {}
-            if unmatched_ids:
-                placeholders = ','.join('?' * len(unmatched_ids))
-                count_rows = db.conn.execute(
-                    f"SELECT track_id, COUNT(DISTINCT playlist_id) as count FROM playlist_tracks "
-                    f"WHERE track_id IN ({placeholders}) GROUP BY track_id",
-                    unmatched_ids
-                ).fetchall()
-                occurrence_counts = {row['track_id']: row['count'] for row in count_rows}
-                # Fill in zero counts for tracks not in any playlist
-                for track_id in unmatched_ids:
-                    if track_id not in occurrence_counts:
-                        occurrence_counts[track_id] = 0
-            
-            # Also check if it's a liked track
-            liked_ids = set(row['track_id'] for row in db.conn.execute(
-                "SELECT track_id FROM liked_tracks WHERE track_id IN ({})".format(
-                    ','.join('?' * len(unmatched_ids))
-                ), unmatched_ids
-            ).fetchall())
-            
-            # Sort by occurrence count (descending), then by artist/name for ties
-            sorted_unmatched = sorted(
-                unmatched_ids,
-                key=lambda tid: (
-                    -occurrence_counts[tid],  # Negative for descending
-                    track_by_id.get(tid, {}).get('artist', '').lower(),
-                    track_by_id.get(tid, {}).get('name', '').lower()
-                )
+            # Sort albums by total occurrences (descending), then by track count
+            sorted_albums = sorted(
+                album_stats.items(),
+                key=lambda item: (-item[1]['total_occurrences'], -item[1]['track_count'], item[1]['artist'].lower())
             )
             
-            # Show top N tracks (or fewer if less unmatched)
-            display_count = min(max_tracks, len(sorted_unmatched))
-            total_unmatched = len(sorted_unmatched)
-            
-            print(f"{click.style('[unmatched]', fg='red')} Top {display_count} unmatched tracks "
-                  f"(of {total_unmatched} total, sorted by playlist popularity):")
-            
-            for track_id in sorted_unmatched[:display_count]:
-                track = track_by_id.get(track_id, {})
-                count = occurrence_counts[track_id]
-                is_liked = track_id in liked_ids
-                liked_marker = " ❤️" if is_liked else ""
+            if sorted_albums:
+                display_album_count = min(max_albums, len(sorted_albums))
+                logger.debug(f"\n{click.style('[unmatched]', fg='red')} Top {display_album_count} missing albums "
+                      f"(of {len(sorted_albums)} total, by playlist popularity):")
                 
-                # Show: count, artist - title, (liked marker)
-                print(f"  [{count:2d} playlist{'s' if count != 1 else ' '}] "
-                      f"{track.get('artist', '')} - {track.get('name', '')}{liked_marker}")
-            
-            if total_unmatched > display_count:
-                print(f"  ... and {total_unmatched - display_count} more unmatched tracks")
-            
-            # Album analysis: Group unmatched tracks by album and show top N albums
-            if max_albums > 0:
-                album_stats = {}  # album_key -> {'artist': ..., 'album': ..., 'track_count': ..., 'total_occurrences': ...}
+                for _, album_info in sorted_albums[:display_album_count]:
+                    artist = album_info['artist']
+                    album = album_info['album']
+                    track_count = album_info['track_count']
+                    total_occ = album_info['total_occurrences']
+                    
+                    # Show: total occurrences, artist - album, (track count)
+                    logger.debug(f"  [{total_occ:2d} occurrences] {artist} - {album} ({track_count} track{'s' if track_count != 1 else ''})")
                 
-                for track_id in unmatched_ids:
-                    track = track_by_id.get(track_id, {})
-                    artist = track.get('artist', '')
-                    album = track.get('album', '')
-                    
-                    if not album or album == '':
-                        continue  # Skip tracks without album info
-                    
-                    # Use artist + album as key (case-insensitive)
-                    album_key = f"{artist.lower()}|{album.lower()}"
-                    
-                    if album_key not in album_stats:
-                        album_stats[album_key] = {
-                            'artist': artist,
-                            'album': album,
-                            'track_count': 0,
-                            'total_occurrences': 0,
-                        }
-                    
-                    album_stats[album_key]['track_count'] += 1
-                    album_stats[album_key]['total_occurrences'] += occurrence_counts[track_id]
-                
-                # Sort albums by total occurrences (descending), then by track count
-                sorted_albums = sorted(
-                    album_stats.items(),
-                    key=lambda item: (-item[1]['total_occurrences'], -item[1]['track_count'], item[1]['artist'].lower())
-                )
-                
-                if sorted_albums:
-                    display_album_count = min(max_albums, len(sorted_albums))
-                    print(f"\n{click.style('[unmatched]', fg='red')} Top {display_album_count} missing albums "
-                          f"(of {len(sorted_albums)} total, by playlist popularity):")
-                    
-                    for _, album_info in sorted_albums[:display_album_count]:
-                        artist = album_info['artist']
-                        album = album_info['album']
-                        track_count = album_info['track_count']
-                        total_occ = album_info['total_occurrences']
-                        
-                        # Show: total occurrences, artist - album, (track count)
-                        print(f"  [{total_occ:2d} occurrences] {artist} - {album} ({track_count} track{'s' if track_count != 1 else ''})")
-                    
-                    if len(sorted_albums) > display_album_count:
-                        print(f"  ... and {len(sorted_albums) - display_album_count} more albums")
+                if len(sorted_albums) > display_album_count:
+                    logger.debug(f"  ... and {len(sorted_albums) - display_album_count} more albums")
     
     return total_matches
 

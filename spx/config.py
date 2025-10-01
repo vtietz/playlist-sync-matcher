@@ -1,12 +1,13 @@
 from __future__ import annotations
 import os
 import json
+import logging
 from typing import Any, Dict
 from pathlib import Path
 import copy
 
 _DEFAULTS: Dict[str, Any] = {
-    "debug": False,  # top-level debug flag (enables verbose logging when true)
+    "log_level": "INFO",  # Logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL
     "spotify": {
         "client_id": None,
         "redirect_scheme": "http",  # default to loopback HTTP per updated Spotify guidance
@@ -127,7 +128,31 @@ def load_config(explicit_file: str | None = None, overrides: Dict[str, Any] | No
         cursor[path_parts[-1].lower()] = coerce_scalar(value)
     if overrides:
         cfg = deep_merge(cfg, overrides)
+    
+    # Configure logging based on log_level
+    _configure_logging(cfg.get('log_level', 'INFO'))
+    
     return cfg
+
+
+def _configure_logging(level_str: str) -> None:
+    """Configure Python logging based on configured level."""
+    level_str = level_str.upper()
+    level_map = {
+        'DEBUG': logging.DEBUG,
+        'INFO': logging.INFO,
+        'WARNING': logging.WARNING,
+        'ERROR': logging.ERROR,
+        'CRITICAL': logging.CRITICAL,
+    }
+    level = level_map.get(level_str, logging.INFO)
+    
+    # Configure root logger
+    logging.basicConfig(
+        level=level,
+        format='%(message)s',  # Simple format - just the message
+        force=True  # Reconfigure even if already configured
+    )
 
 
 def coerce_scalar(value: str) -> Any:
