@@ -182,6 +182,22 @@ def pull(ctx: click.Context, force_auth: bool, verbose: bool):
     with _get_db(cfg) as db:
         ingest_playlists(db, client, verbose=verbose, use_year=use_year)
         ingest_liked(db, client, verbose=verbose, use_year=use_year)
+        
+        # Print summary statistics
+        cursor = db.conn.execute("SELECT COUNT(*) FROM playlists")
+        playlist_count = cursor.fetchone()[0]
+        
+        cursor = db.conn.execute("SELECT COUNT(DISTINCT track_id) FROM playlist_tracks")
+        unique_tracks_in_playlists = cursor.fetchone()[0]
+        
+        cursor = db.conn.execute("SELECT COUNT(*) FROM liked_tracks")
+        liked_count = cursor.fetchone()[0]
+        
+        cursor = db.conn.execute("SELECT COUNT(*) FROM tracks")
+        total_tracks = cursor.fetchone()[0]
+        
+        click.echo(f"\n[summary] Playlists: {playlist_count} | Unique tracks in playlists: {unique_tracks_in_playlists} | Liked tracks: {liked_count} | Total Spotify tracks: {total_tracks}")
+    
     if verbose or os.environ.get('SPX_DEBUG'):
         dur = time.time() - start
         click.echo(f"[pull] Completed in {dur:.2f}s")

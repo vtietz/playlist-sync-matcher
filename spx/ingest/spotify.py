@@ -114,6 +114,9 @@ def ingest_playlists(db, client: SpotifyClient, verbose: bool = False, use_year:
         
         if not db.playlist_snapshot_changed(pid, snapshot_id):
             skipped += 1
+            # Still upsert playlist metadata (including owner fields) even when skipped
+            # This ensures new schema fields get populated without reprocessing tracks
+            db.upsert_playlist(pid, name, snapshot_id, owner_id, owner_name)
             if verbose or os.environ.get('SPX_DEBUG'):
                 print(f"[ingest] Skipping unchanged playlist '{name}' ({pid}) snapshot={snapshot_id}")
             continue
