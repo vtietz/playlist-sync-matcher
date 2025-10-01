@@ -9,11 +9,14 @@ class MockClient:
         self._items_map = items_map
         self.calls = {'playlist_items': 0}
 
-    def current_user_playlists(self):
+    def current_user_profile(self):
+        return {'id': 'test_user'}
+
+    def current_user_playlists(self, verbose=False, debug=False):
         for pl in self._playlists:
             yield pl
 
-    def playlist_items(self, pid: str):
+    def playlist_items(self, pid: str, verbose=False, debug=False):
         self.calls['playlist_items'] += 1
         return self._items_map.get(pid, [])
 

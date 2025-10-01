@@ -1,6 +1,5 @@
 from __future__ import annotations
 import os
-import yaml
 import json
 from typing import Any, Dict
 from pathlib import Path
@@ -101,18 +100,8 @@ def _load_dotenv(path: Path) -> Dict[str, str]:
     return values
 
 
-def load_yaml_file(path: Path) -> Dict[str, Any]:
-    if not path.exists():
-        return {}
-    with path.open("r", encoding="utf-8") as fh:
-        data = yaml.safe_load(fh) or {}
-        if not isinstance(data, dict):
-            raise ValueError(f"Config file {path} must contain a mapping at top level")
-        return data  # type: ignore[return-value]
-
-
 def load_config(explicit_file: str | None = None, overrides: Dict[str, Any] | None = None) -> Dict[str, Any]:
-    """Load configuration merging defaults <- file <- .env <- environment <- overrides.
+    """Load configuration merging defaults <- .env <- environment <- overrides.
 
     During test runs (detected via PYTEST_CURRENT_TEST) .env loading is skipped
     unless SPX_ENABLE_DOTENV=1 is set to allow deterministic defaults.
@@ -122,15 +111,10 @@ def load_config(explicit_file: str | None = None, overrides: Dict[str, Any] | No
         dotenv_values = _load_dotenv(Path('.env'))
     # Deep copy defaults to avoid cross-call mutation of nested dicts
     cfg: Dict[str, Any] = copy.deepcopy(_DEFAULTS)
-    file_candidates = []
-    if explicit_file:
-        file_candidates.append(Path(explicit_file))
-    else:
-        file_candidates.extend([Path("config.yaml"), Path("config.yml")])
-    for candidate in file_candidates:
-        if candidate.exists():
-            cfg = deep_merge(cfg, load_yaml_file(candidate))
-            break
+    
+    # Note: explicit_file parameter kept for backward compatibility but no longer used
+    # Configuration now comes only from: defaults -> .env -> environment variables -> overrides
+    
     prefix = "SPX__"
     # Merge .env and real environment (real env wins)
     combined = {**{k: v for k, v in dotenv_values.items() if k.startswith(prefix)},
@@ -143,9 +127,6 @@ def load_config(explicit_file: str | None = None, overrides: Dict[str, Any] | No
         cursor[path_parts[-1].lower()] = coerce_scalar(value)
     if overrides:
         cfg = deep_merge(cfg, overrides)
-    # If top-level debug true, also reflect into process env SPX_DEBUG for modules using it directly
-    if cfg.get('debug') and not os.environ.get('SPX_DEBUG'):
-        os.environ['SPX_DEBUG'] = '1'
     return cfg
 
 

@@ -24,12 +24,11 @@ def score_fuzzy(t_norm: str, f_norm: str) -> float:
     return fuzz.token_set_ratio(t_norm, f_norm) / 100.0
 
 
-def match_tracks(tracks: Iterable[Dict[str, Any]], files: Iterable[Dict[str, Any]], fuzzy_threshold: float = 0.78) -> List[Tuple[str, int, float, str]]:
+def match_tracks(tracks: Iterable[Dict[str, Any]], files: Iterable[Dict[str, Any]], fuzzy_threshold: float = 0.78, debug: bool = False) -> List[Tuple[str, int, float, str]]:
     """Match tracks to files. Returns list of (track_id, file_id, score, method) tuples.
     
     Logs progress during fuzzy matching to show which track is currently being processed.
     """
-    debug = os.environ.get('SPX_DEBUG')
     tracks_list = list(tracks)
     files_list = list(files)
     results: List[Tuple[str, int, float, str]] = []
@@ -93,8 +92,7 @@ def match_and_store(db, config: Dict[str, Any] | None = None, fuzzy_threshold: f
     - fuzzy: RapidFuzz token_set_ratio on remaining unmatched tracks
     """
     start = time.time()
-    debug = os.environ.get('SPX_DEBUG')
-    debug_flag = bool(debug)  # Convert to bool for type safety
+    debug = config.get('debug', False) if config else False
     
     # Handle config (allow None for backward compatibility)
     if config is None:
@@ -157,7 +155,7 @@ def match_and_store(db, config: Dict[str, Any] | None = None, fuzzy_threshold: f
             if debug:
                 print(f"[match][{strategy_name}] Running SQL exact matching strategy...")
             
-            strategy = ExactMatchStrategy(db, config, debug=debug_flag)
+            strategy = ExactMatchStrategy(db, config, debug=debug)
             matches, new_matched = strategy.match(tracks, files, matched_track_ids)
             
             # Store matches
@@ -176,7 +174,7 @@ def match_and_store(db, config: Dict[str, Any] | None = None, fuzzy_threshold: f
             
             filter_strategy = DurationFilterStrategy(
                 tolerance_seconds=duration_tolerance,
-                debug=debug_flag
+                debug=debug
             )
             # Store candidate map for use by fuzzy strategy
             candidate_file_ids = filter_strategy.filter_candidates(tracks, files, matched_track_ids)
@@ -191,7 +189,7 @@ def match_and_store(db, config: Dict[str, Any] | None = None, fuzzy_threshold: f
             candidate_map = candidate_file_ids if 'duration_filter' in enabled_strategies else None
             
             strategy = FuzzyMatchStrategy(
-                db, config, debug=debug_flag,
+                db, config, debug=debug,
                 candidate_file_ids=candidate_map
             )
             matches, new_matched = strategy.match(tracks, files, matched_track_ids)

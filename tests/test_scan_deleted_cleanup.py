@@ -2,10 +2,9 @@ from pathlib import Path
 from click.testing import CliRunner
 from spx.cli import cli
 from spx.db import Database
-import yaml
 
 
-def test_scan_deleted_cleanup(tmp_path: Path):
+def test_scan_deleted_cleanup(tmp_path: Path, test_config):
     """Test that deleted files are removed from DB during scan."""
     # Set up test directory structure
     music_dir = tmp_path / 'music'
@@ -21,33 +20,21 @@ def test_scan_deleted_cleanup(tmp_path: Path):
     reports_dir = tmp_path / 'reports'
     reports_dir.mkdir()
     
-    # Create explicit config file
-    config_file = tmp_path / 'config.yaml'
-    config = {
-        'database': {'path': str(db_path)},
-        'library': {
-            'paths': [str(music_dir)],
-            'extensions': ['.mp3', '.flac', '.m4a', '.ogg'],
-            'skip_unchanged': True,
-            'commit_interval': 10,
-        },
-        'reports': {'directory': str(reports_dir)},
-        'spotify': {
-            'client_id': '',
-            'scope': 'user-library-read playlist-read-private',
-            'cache_file': str(tmp_path / 'tokens.json'),
-            'redirect_port': 8888,
-        },
-        'matching': {'fuzzy_threshold': 0.78},
-        'export': {'mode': 'strict', 'directory': str(tmp_path / 'playlists')},
-        'debug': True,
-    }
-    config_file.write_text(yaml.dump(config), encoding='utf-8')
+    # Update test config with paths
+    test_config['database']['path'] = str(db_path)
+    test_config['library']['paths'] = [str(music_dir)]
+    test_config['library']['skip_unchanged'] = True
+    test_config['library']['commit_interval'] = 10
+    test_config['reports']['directory'] = str(reports_dir)
+    test_config['spotify']['client_id'] = ''
+    test_config['spotify']['cache_file'] = str(tmp_path / 'tokens.json')
+    test_config['export']['directory'] = str(tmp_path / 'playlists')
+    test_config['debug'] = True
     
     runner = CliRunner()
     
     # First scan (should insert both files)
-    r1 = runner.invoke(cli, ['--config-file', str(config_file), 'scan'])
+    r1 = runner.invoke(cli, ['scan'], obj=test_config)
     assert r1.exit_code == 0, f"First scan failed: {r1.output}"
     assert '[new]' in r1.output or 'Scan complete' in r1.output
     
@@ -60,7 +47,7 @@ def test_scan_deleted_cleanup(tmp_path: Path):
     f2.unlink()
     
     # Second scan (should detect deletion and remove from DB)
-    r2 = runner.invoke(cli, ['--config-file', str(config_file), 'scan'])
+    r2 = runner.invoke(cli, ['scan'], obj=test_config)
     assert r2.exit_code == 0, f"Second scan failed: {r2.output}"
     
     # Verify only one file remains in DB
@@ -75,7 +62,7 @@ def test_scan_deleted_cleanup(tmp_path: Path):
     assert '[deleted]' in r2.output or 'deleted=1' in r2.output, f"Expected deletion log in output: {r2.output}"
 
 
-def test_scan_action_labels(tmp_path: Path):
+def test_scan_action_labels(tmp_path: Path, test_config):
     """Test that scan logs show correct action labels: [new], [updated], [skip], and verify DB cardinality."""
     music_dir = tmp_path / 'music'
     music_dir.mkdir()
@@ -86,26 +73,20 @@ def test_scan_action_labels(tmp_path: Path):
     reports_dir = tmp_path / 'reports'
     reports_dir.mkdir()
     
-    config_file = tmp_path / 'config.yaml'
-    config = {
-        'database': {'path': str(db_path)},
-        'library': {
-            'paths': [str(music_dir)],
-            'extensions': ['.mp3'],
-            'skip_unchanged': True,
-        },
-        'reports': {'directory': str(reports_dir)},
-        'spotify': {'client_id': '', 'scope': '', 'cache_file': str(tmp_path / 'tokens.json')},
-        'matching': {'fuzzy_threshold': 0.78},
-        'export': {'mode': 'strict', 'directory': str(tmp_path / 'playlists')},
-        'debug': True,
-    }
-    config_file.write_text(yaml.dump(config), encoding='utf-8')
+    # Update test config with paths
+    test_config['database']['path'] = str(db_path)
+    test_config['library']['paths'] = [str(music_dir)]
+    test_config['library']['skip_unchanged'] = True
+    test_config['reports']['directory'] = str(reports_dir)
+    test_config['spotify']['client_id'] = ''
+    test_config['spotify']['cache_file'] = str(tmp_path / 'tokens.json')
+    test_config['export']['directory'] = str(tmp_path / 'playlists')
+    test_config['debug'] = True
     
     runner = CliRunner()
     
     # First scan - should see [new]
-    r1 = runner.invoke(cli, ['--config-file', str(config_file), 'scan'])
+    r1 = runner.invoke(cli, ['scan'], obj=test_config)
     assert r1.exit_code == 0
     assert '[new]' in r1.output, f"Expected [new] label in first scan: {r1.output}"
     
@@ -115,7 +96,7 @@ def test_scan_action_labels(tmp_path: Path):
     assert count1 == 1, f"Expected 1 file after first scan, found {count1}"
     
     # Second scan without changes - should see [skip] and verify skip_unchanged behavior
-    r2 = runner.invoke(cli, ['--config-file', str(config_file), 'scan'])
+    r2 = runner.invoke(cli, ['scan'], obj=test_config)
     assert r2.exit_code == 0
     assert '[skip]' in r2.output, f"Expected [skip] label in second scan: {r2.output}"
     
@@ -128,7 +109,7 @@ def test_scan_action_labels(tmp_path: Path):
     import time
     time.sleep(1.1)  # Ensure mtime changes beyond epsilon
     f.write_bytes(b'ID3modified')
-    r3 = runner.invoke(cli, ['--config-file', str(config_file), 'scan'])
+    r3 = runner.invoke(cli, ['scan'], obj=test_config)
     assert r3.exit_code == 0
     assert '[updated]' in r3.output, f"Expected [updated] label after modification: {r3.output}"
     
@@ -136,3 +117,4 @@ def test_scan_action_labels(tmp_path: Path):
     with Database(db_path) as db:
         count3 = db.conn.execute('SELECT count(*) FROM library_files').fetchone()[0]
     assert count3 == 1, f"Expected 1 file after update, found {count3}"
+

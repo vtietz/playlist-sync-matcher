@@ -23,30 +23,33 @@ def test_coerce_scalar():
     assert coerce_scalar('foo') == 'foo'
 
 
-def test_load_config_yaml_and_env(tmp_path: Path, monkeypatch):
-    cfg_file = tmp_path / 'config.yaml'
-    cfg_file.write_text(textwrap.dedent('''\
-    export:
-      mode: mirrored
-      directory: custom/export
-    matching:
-      fuzzy_threshold: 0.9
+def test_load_config_dotenv_and_env(tmp_path: Path, monkeypatch):
+    """Test that .env file is loaded and environment variables override it."""
+    env_file = tmp_path / '.env'
+    env_file.write_text(textwrap.dedent('''\
+    SPX__EXPORT__MODE=mirrored
+    SPX__EXPORT__DIRECTORY=custom/export
+    SPX__MATCHING__FUZZY_THRESHOLD=0.9
     '''), encoding='utf-8')
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv('SPX_ENABLE_DOTENV', '1')
     # env override
     monkeypatch.setenv('SPX__EXPORT__MODE', 'placeholders')
     monkeypatch.setenv('SPX__MATCHING__FUZZY_THRESHOLD', '0.85')
     cfg = load_config()
-    # YAML applied
+    # .env applied
     assert cfg['export']['directory'] == 'custom/export'
-    # env override applied after YAML
+    # env override applied after .env
     assert cfg['export']['mode'] == 'placeholders'
     # numeric coercion
     assert abs(cfg['matching']['fuzzy_threshold'] - 0.85) < 1e-9
 
 
-def test_explicit_file_override(tmp_path: Path):
+def test_explicit_file_parameter_ignored(tmp_path: Path):
+    """Test that explicit_file parameter is kept for backward compatibility but ignored."""
     cfg_file = tmp_path / 'alt.yml'
     cfg_file.write_text('export:\n  mode: mirrored\n', encoding='utf-8')
+    # explicit_file parameter is ignored now - always uses .env
     cfg = load_config(explicit_file=str(cfg_file))
-    assert cfg['export']['mode'] == 'mirrored'
+    # Should use default, not the YAML file
+    assert cfg['export']['mode'] == 'strict'

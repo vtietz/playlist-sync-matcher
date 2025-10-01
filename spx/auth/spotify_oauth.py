@@ -74,11 +74,12 @@ class OAuthHandler(BaseHTTPRequestHandler):
 
 
 class SpotifyAuth:
-    def __init__(self, client_id: str, redirect_port: int, scope: str, cache_file: str = "tokens.json", redirect_path: str = "/callback", redirect_scheme: str = "http", redirect_host: str = "127.0.0.1", cert_file: str | None = None, key_file: str | None = None, timeout_seconds: int = 300):
+    def __init__(self, client_id: str, redirect_port: int, scope: str, cache_file: str = "tokens.json", redirect_path: str = "/callback", redirect_scheme: str = "http", redirect_host: str = "127.0.0.1", cert_file: str | None = None, key_file: str | None = None, timeout_seconds: int = 300, debug: bool = False):
         self.client_id = client_id
         self.redirect_port = redirect_port
         self.scope = scope
         self.cache_file = cache_file
+        self.debug = debug
         self.redirect_scheme = redirect_scheme
         self.redirect_host = redirect_host
         # Normalize redirect path; ensure starts with '/'
@@ -95,7 +96,7 @@ class SpotifyAuth:
             try:
                 with open(self.cache_file, 'r', encoding='utf-8') as fh:
                     data = json.load(fh)
-                    if os.environ.get('SPX_DEBUG'):
+                    if self.debug:
                         print(f"[SPX_DEBUG] Loaded token cache from {self.cache_file}")
                     return data
             except Exception:
@@ -106,7 +107,7 @@ class SpotifyAuth:
         try:
             with open(self.cache_file, 'w', encoding='utf-8') as fh:
                 json.dump(data, fh)
-            if os.environ.get('SPX_DEBUG'):
+            if self.debug:
                 abs_path = os.path.abspath(self.cache_file)
                 print(f"[SPX_DEBUG] Saved token cache to {abs_path}")
         except Exception:
@@ -158,7 +159,7 @@ class SpotifyAuth:
         # Generate a state token (mitigate stale/cached session anomalies & CSRF)
         state = base64.urlsafe_b64encode(os.urandom(12)).decode().rstrip('=')
         expected_state = state
-        if os.environ.get('SPX_DEBUG'):
+        if self.debug:
             print(f"[SPX_DEBUG] Beginning auth flow. Redirect URI: {redirect_uri} state={state}")
         # If HTTPS required, ensure cert BEFORE opening browser so user doesn't see invalid URL failure first.
         server = OAuthServer((self.redirect_host, self.redirect_port), OAuthHandler)
@@ -186,7 +187,7 @@ class SpotifyAuth:
             context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
             context.load_cert_chain(certfile=self.cert_file, keyfile=self.key_file)
             server.socket = context.wrap_socket(server.socket, server_side=True)
-            if os.environ.get('SPX_DEBUG'):
+            if self.debug:
                 print(f"[SPX_DEBUG] HTTPS server ready with cert={self.cert_file} key={self.key_file}")
         params = {
             "client_id": self.client_id,
@@ -198,12 +199,12 @@ class SpotifyAuth:
             "state": state,
         }
         url = f"{AUTH_URL}?{urlencode(params)}"
-        if os.environ.get('SPX_DEBUG'):
+        if self.debug:
             print(f"[SPX_DEBUG] Opening browser to: {url}")
         webbrowser.open(url)
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
-        if os.environ.get('SPX_DEBUG'):
+        if self.debug:
             print(f"[SPX_DEBUG] Local server started on port {self.redirect_port}, waiting for authorization code...")
         start = time.time()
         while server.code is None:
@@ -218,7 +219,7 @@ class SpotifyAuth:
                 raise TimeoutError("Authorization timeout expired.")
             time.sleep(0.05)
         server.shutdown()
-        if os.environ.get('SPX_DEBUG'):
+        if self.debug:
             print(f"[SPX_DEBUG] Received authorization code: {server.code}")
         code = server.code
         # Optional basic state validation (ignore if Spotify didn't echo it for some reason)
@@ -232,14 +233,14 @@ class SpotifyAuth:
             "redirect_uri": redirect_uri,
             "code_verifier": verifier,
         }
-        if os.environ.get('SPX_DEBUG'):
+        if self.debug:
             print(f"[SPX_DEBUG] Exchanging code for token at {TOKEN_URL}")
         resp = requests.post(TOKEN_URL, data=data, timeout=30)
         resp.raise_for_status()
         tok = resp.json()
         tok['expires_at'] = time.time() + int(tok.get('expires_in', 3600))
         self._save_cache(tok)
-        if os.environ.get('SPX_DEBUG'):
+        if self.debug:
             print(f"[SPX_DEBUG] Token acquired (expires_in={tok.get('expires_in')})")
         return tok
 

@@ -113,22 +113,98 @@ run.bat test -q             # Run tests (Python source only)
 
 ## Configuration
 
+### Using .env File (Primary Configuration)
+
+Create a `.env` file in the project root (or same directory as executable):
+
+```bash
+# .env - Simple key=value format
+SPX__SPOTIFY__CLIENT_ID=your_client_id_here
+SPX__LIBRARY__PATHS=["C:/Music","D:/Music"]
+SPX__EXPORT__MODE=mirrored
+SPX__EXPORT__ORGANIZE_BY_OWNER=true
+SPX__MATCHING__FUZZY_THRESHOLD=0.82
+SPX__MATCHING__DURATION_TOLERANCE=2.0
+SPX__MATCHING__SHOW_UNMATCHED_TRACKS=50
+SPX__MATCHING__SHOW_UNMATCHED_ALBUMS=20
+```
+
+> **Tip**: Copy `.env.example` to `.env` and edit your values. The tool automatically loads `.env` on startup.
+
+### Temporary Overrides: Environment Variables
+
+Override any setting for a single command without editing `.env`:
+
+**Windows**:
+```bash
+set SPX__EXPORT__MODE=strict
+run.bat export
+```
+
+**Linux/Mac**:
+```bash
+export SPX__EXPORT__MODE=strict
+./run.sh export
+```
+
+**Standalone executable**:
+```bash
+set SPX__EXPORT__MODE=strict    # Windows
+export SPX__EXPORT__MODE=strict # Linux/Mac
+spx export
+```
+
+### Configuration Priority
+
+Settings are merged in this order (later overrides earlier):
+1. **Built-in defaults** (in `spx/config.py`)
+2. **`.env` file** (if exists)
+3. **Shell environment variables** (`set`/`export` commands)
+
+### Key Configuration Options
+
+**Spotify**:
+- `SPX__SPOTIFY__CLIENT_ID` - Your Spotify app client ID (required)
+- `SPX__SPOTIFY__REDIRECT_PORT` - OAuth redirect port (default: 9876)
+
+**Library**:
+- `SPX__LIBRARY__PATHS` - Folders to scan (JSON array, e.g., `["C:/Music"]`)
+- `SPX__LIBRARY__EXTENSIONS` - File types (default: `[".mp3",".flac",".m4a",".ogg"]`)
+- `SPX__LIBRARY__FAST_SCAN` - Skip re-parsing unchanged files (default: true)
+- `SPX__LIBRARY__COMMIT_INTERVAL` - Batch size for DB commits (default: 100)
+
+**Matching**:
+- `SPX__MATCHING__FUZZY_THRESHOLD` - Match sensitivity 0.0-1.0 (default: 0.78)
+- `SPX__MATCHING__DURATION_TOLERANCE` - Duration match tolerance in seconds (default: 2.0)
+- `SPX__MATCHING__SHOW_UNMATCHED_TRACKS` - Diagnostic output count (default: 20)
+- `SPX__MATCHING__SHOW_UNMATCHED_ALBUMS` - Album diagnostic count (default: 20)
+- `SPX__MATCHING__USE_YEAR` - Include year in matching (default: false)
+
+**Export**:
+- `SPX__EXPORT__MODE` - strict | mirrored | placeholders (default: strict)
+- `SPX__EXPORT__ORGANIZE_BY_OWNER` - Group by owner (default: false)
+- `SPX__EXPORT__DIRECTORY` - Output directory (default: export/playlists)
+
+**Database**:
+- `SPX__DATABASE__PATH` - SQLite file location (default: data/spotify_sync.db)
+
+**Debug**:
+- `SPX__DEBUG` - Enable verbose logging (default: false)
+
+See `.env.example` for complete list with explanations.
+
 ### Export Modes
-Three modes available via `export.mode`:
+
 - **strict** (default): Only matched tracks
-- **mirrored**: Full order with markers for missing tracks  
+- **mirrored**: Full order with comments for missing tracks  
 - **placeholders**: Like mirrored but creates placeholder files
 
-```
-set SPX__EXPORT__MODE=mirrored
-```
-
 ### Folder Organization
-Organize playlists by owner instead of flat structure:
 
-```yaml
-export:
-  organize_by_owner: true
+Organize playlists by owner instead of flat structure. Set in `.env`:
+
+```bash
+SPX__EXPORT__ORGANIZE_BY_OWNER=true
 ```
 
 Result:
@@ -163,43 +239,6 @@ This tool uses **HTTP loopback** (recommended by Spotify) with default redirect:
    ```
 
 Token cache is saved to `tokens.json` and refreshed automatically.
-
-### Environment Variables
-
-**Using .env file** (recommended for permanent configuration):
-```bash
-# Create .env file in project root (see .env.example)
-SPX__SPOTIFY__CLIENT_ID=your_client_id_here
-SPX__LIBRARY__PATHS=["C:/Music","D:/Music"]
-SPX__EXPORT__MODE=mirrored
-SPX__EXPORT__ORGANIZE_BY_OWNER=true
-SPX__MATCHING__FUZZY_THRESHOLD=0.82
-```
-
-**Using shell environment** (for one-time overrides):
-```bash
-# Windows
-set SPX__SPOTIFY__CLIENT_ID=your_client_id
-set SPX__EXPORT__MODE=mirrored
-
-# Linux/Mac
-export SPX__SPOTIFY__CLIENT_ID=your_client_id
-export SPX__EXPORT__MODE=mirrored
-```
-
-**Format**: Prefix with `SPX__` and use double underscores for nesting.
-
-Key options:
-- `library.paths` - Folders to scan (JSON array)
-- `library.extensions` - File types (default: mp3, flac, m4a, ogg)
-- `matching.fuzzy_threshold` - Match sensitivity (0.78 default)
-- `matching.show_unmatched_tracks` - Debug output count (20 default)
-- `matching.show_unmatched_albums` - Album diagnostic count (20 default)
-- `export.mode` - strict | mirrored | placeholders
-- `export.organize_by_owner` - Group by owner (false default)
-- `database.path` - SQLite file location
-
-Create a `config.yaml` file for permanent settings or use `.env` (see `.env.example`).
 
 ## Advanced
 
@@ -301,7 +340,7 @@ Other optimizations:
 2. **Duration Filter**: Prefilter candidates by track duration (±2s tolerance)
 3. **Fuzzy Match**: RapidFuzz token_set_ratio on reduced candidate set
 
-Configure fuzzy threshold in `.env` or `config.yaml`:
+Configure fuzzy threshold in `.env`:
 ```bash
 SPX__MATCHING__FUZZY_THRESHOLD=0.82
 SPX__MATCHING__DURATION_TOLERANCE=2.0
@@ -321,16 +360,13 @@ Schema updates automatically via `ALTER TABLE IF NOT EXISTS`.
 
 ### Match Customization
 
-**Strategies** (configurable order):
-```yaml
-matching:
-  strategies:
-    - sql_exact          # Default: fast indexed match
-    - duration_filter    # Default: prefilter by duration
-    - fuzzy              # Default: fuzzy fallback
+**Strategies** (configurable order in `.env`):
+```bash
+# Default: sql_exact, duration_filter, fuzzy
+SPX__MATCHING__STRATEGIES=["sql_exact","duration_filter","fuzzy"]
 ```
 
-Adjust for your library in `.env`:
+Adjust for your library:
 ```bash
 # Skip duration filter if all files similar length:
 SPX__MATCHING__STRATEGIES=["sql_exact","fuzzy"]
