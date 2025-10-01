@@ -21,33 +21,78 @@ def score_fuzzy(t_norm: str, f_norm: str) -> float:
 
 
 def match_tracks(tracks: Iterable[Dict[str, Any]], files: Iterable[Dict[str, Any]], fuzzy_threshold: float = 0.78) -> List[Tuple[str, int, float, str]]:
+    tracks_list = list(tracks)
     files_list = list(files)
     results: List[Tuple[str, int, float, str]] = []
-    for t in tracks:
+    total_tracks = len(tracks_list)
+    
+    # Build a hash map for exact matches (O(1) lookup instead of O(m) scan)
+    file_norm_map: Dict[str, int] = {}
+    for f in files_list:
+        f_norm = f.get("normalized") or ""
+        if f_norm and f_norm not in file_norm_map:
+            file_norm_map[f_norm] = f["id"]
+    
+    # Progress logging
+    debug = os.environ.get('SPX_DEBUG')
+    progress_interval = max(1, total_tracks // 20)  # Report every 5%
+    start_time = time.time()
+    
+    for idx, t in enumerate(tracks_list, 1):
         t_norm = t.get("normalized") or ""
         isrc = t.get("isrc")
-        # ISRC direct match placeholder (needs mapping) - skip for now
+        
+        # Fast path: exact match via hash lookup (O(1) instead of O(m))
+        if t_norm and t_norm in file_norm_map:
+            results.append((t["id"], file_norm_map[t_norm], 1.0, "exact"))
+            # Progress reporting
+            if debug and idx % progress_interval == 0:
+                elapsed = time.time() - start_time
+                pct = (idx / total_tracks) * 100
+                rate = idx / elapsed if elapsed > 0 else 0
+                eta = (total_tracks - idx) / rate if rate > 0 else 0
+                print(f"[match] Progress: {idx}/{total_tracks} tracks ({pct:.0f}%) - {len(results)} matches - {rate:.1f} tracks/sec - ETA {eta:.0f}s")
+            continue
+        
+        # Slow path: fuzzy matching (only if no exact match)
         best = (None, 0.0, "")  # file_id, score, method
         for f in files_list:
             f_norm = f.get("normalized") or ""
-            exact = score_exact(t_norm, f_norm)
-            if exact > best[1]:
-                best = (f["id"], exact, "exact")
-            if best[1] < 1.0:  # only fuzzy if not perfect
-                fuzzy = score_fuzzy(t_norm, f_norm)
-                if fuzzy >= fuzzy_threshold and fuzzy > best[1]:
-                    best = (f["id"], fuzzy, "fuzzy")
+            if not t_norm or not f_norm:
+                continue
+            
+            fuzzy = score_fuzzy(t_norm, f_norm)
+            if fuzzy >= fuzzy_threshold and fuzzy > best[1]:
+                best = (f["id"], fuzzy, "fuzzy")
+        
         if best[0] is not None:
             results.append((t["id"], best[0], best[1], best[2]))
+        
+        # Progress reporting
+        if debug and idx % progress_interval == 0:
+            elapsed = time.time() - start_time
+            pct = (idx / total_tracks) * 100
+            rate = idx / elapsed if elapsed > 0 else 0
+            eta = (total_tracks - idx) / rate if rate > 0 else 0
+            print(f"[match] Progress: {idx}/{total_tracks} tracks ({pct:.0f}%) - {len(results)} matches - {rate:.1f} tracks/sec - ETA {eta:.0f}s")
+    
     return results
 
 def match_and_store(db, fuzzy_threshold: float = 0.78, use_year: bool = False):
     start = time.time()
+    debug = os.environ.get('SPX_DEBUG')
+    
     # Pull candidate sets from DB
+    if debug:
+        print("[match] Loading tracks and files from database...")
     cur_tracks = db.conn.execute("SELECT id, name, artist, year, normalized, isrc FROM tracks")
     tracks = [dict(row) for row in cur_tracks.fetchall()]
     cur_files = db.conn.execute("SELECT id, normalized FROM library_files")
     files = [dict(row) for row in cur_files.fetchall()]
+    
+    if debug:
+        print(f"[match] Loaded {len(tracks)} tracks and {len(files)} library files")
+    
     # Backfill normalization if missing (old ingests)
     backfilled = 0
     for t in tracks:
@@ -61,24 +106,80 @@ def match_and_store(db, fuzzy_threshold: float = 0.78, use_year: bool = False):
             backfilled += 1
     if backfilled:
         db.commit()
-    # need id for files (library_files has id PK autoinc)
-    results = match_tracks(tracks, files, fuzzy_threshold=fuzzy_threshold)
-    for track_id, file_id, score, method in results:
-        db.add_match(track_id, file_id, score, method)
+        if debug:
+            print(f"[match] Backfilled normalization for {backfilled} tracks")
+    
+    # STAGE 1: SQL-based exact matching (leverages indexed normalized columns)
+    if debug:
+        print(f"[match][stage1] SQL exact matching via indexed normalized field...")
+    stage1_start = time.time()
+    
+    # Use SQL JOIN to find exact matches - SQLite will use the normalized indices efficiently
+    sql_exact = """
+        SELECT t.id as track_id, lf.id as file_id
+        FROM tracks t
+        INNER JOIN library_files lf ON t.normalized = lf.normalized
+        WHERE t.normalized IS NOT NULL AND t.normalized != ''
+    """
+    exact_matches = db.conn.execute(sql_exact).fetchall()
+    
+    # Store SQL exact matches
+    matched_track_ids = set()
+    for row in exact_matches:
+        db.add_match(row['track_id'], row['file_id'], 1.0, "sql_exact")
+        matched_track_ids.add(row['track_id'])
+    
+    stage1_duration = time.time() - stage1_start
+    if debug:
+        print(f"[match][stage1] Found {len(exact_matches)} exact matches via SQL in {stage1_duration:.2f}s")
+    
+    # STAGE 2: Fuzzy matching for unmatched tracks only
+    unmatched_tracks = [t for t in tracks if t['id'] not in matched_track_ids]
+    stage2_matches = 0
+    stage2_duration = 0.0
+    
+    if unmatched_tracks:
+        if debug:
+            print(f"[match][stage2] Fuzzy matching {len(unmatched_tracks)} unmatched tracks against {len(files)} files (threshold={fuzzy_threshold})...")
+        stage2_start = time.time()
+        
+        # Run fuzzy matching only on unmatched tracks
+        fuzzy_results = match_tracks(unmatched_tracks, files, fuzzy_threshold=fuzzy_threshold)
+        
+        # Store fuzzy matches
+        for track_id, file_id, score, method in fuzzy_results:
+            db.add_match(track_id, file_id, score, method)
+            matched_track_ids.add(track_id)
+        
+        stage2_matches = len(fuzzy_results)
+        stage2_duration = time.time() - stage2_start
+        if debug:
+            print(f"[match][stage2] Found {stage2_matches} fuzzy matches in {stage2_duration:.2f}s")
+    else:
+        if debug:
+            print(f"[match][stage2] Skipped - all tracks matched in stage 1")
+    
     db.commit()
-    if os.environ.get('SPX_DEBUG'):
-        dur = time.time() - start
-        print(f"[match] tracks={len(tracks)} files={len(files)} matches={len(results)} threshold={fuzzy_threshold} backfilled={backfilled} in {dur:.2f}s")
+    
+    # Summary (always show, not just debug)
+    dur = time.time() - start
+    total_matches = len(exact_matches) + stage2_matches
+    match_rate = (total_matches / len(tracks) * 100) if tracks else 0
+    print(f"[match] Matched {total_matches}/{len(tracks)} tracks ({match_rate:.1f}%) - exact={len(exact_matches)} fuzzy={stage2_matches} - {dur:.2f}s")
+    
+    # Detailed debug info
+    if debug:
         if not files:
             print("[match][warn] No library files present. Did you run 'scan'? Check library.paths config and that the directory has supported extensions.")
-        # Show top 5 matches sample
-        for t_id, f_id, sc, m in results[:5]:
-            print(f"[match] sample t={t_id} f={f_id} score={sc:.3f} method={m}")
+        # Show breakdown
+        print(f"[match] Stage 1 (SQL): {len(exact_matches)} matches in {stage1_duration:.2f}s")
+        if unmatched_tracks:
+            print(f"[match] Stage 2 (Fuzzy): {stage2_matches}/{len(unmatched_tracks)} remaining tracks in {stage2_duration:.2f}s")
         # Unmatched diagnostics: show up to 5 unmatched track ids
-        matched_ids = {r[0] for r in results}
-        if tracks and len(matched_ids) < len(tracks):
-            unmatched = [t['id'] for t in tracks if t['id'] not in matched_ids][:5]
+        if tracks and len(matched_track_ids) < len(tracks):
+            unmatched = [t['id'] for t in tracks if t['id'] not in matched_track_ids][:5]
             print(f"[match] unmatched sample (first {len(unmatched)}): {', '.join(unmatched)}")
-    return len(results)
+    
+    return total_matches
 
 __all__ = ["match_tracks", "match_and_store"]

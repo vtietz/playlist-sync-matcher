@@ -1,0 +1,1 @@
+* Run tests always in the environment - means either by using run.bat or activating the virtualenv first.

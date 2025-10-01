@@ -34,4 +34,5 @@ def test_match_and_store_basic(tmp_path: Path):
     row = db.conn.execute("SELECT track_id, file_id, method FROM matches").fetchone()
     assert row is not None
     assert row['track_id'] == 'track1'
-    assert row['method'] in ('exact', 'fuzzy')
+    # Accept both old and new method names (sql_exact is the new fast path)
+    assert row['method'] in ('exact', 'fuzzy', 'sql_exact')

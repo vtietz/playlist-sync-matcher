@@ -24,6 +24,9 @@ _DEFAULTS: Dict[str, Any] = {
         "extensions": [".mp3", ".flac", ".m4a", ".ogg"],
         "follow_symlinks": False,
         "ignore_patterns": [".*"],
+        "skip_unchanged": True,           # skip files whose size+mtime unchanged (fast path)
+        "fast_scan": True,                # skip audio parsing for unchanged files (massive speedup)
+        "commit_interval": 100,           # commit after N processed (new/updated) files
     },
     "matching": {
         "fuzzy_threshold": 0.78,

@@ -29,11 +29,11 @@ def cli(ctx: click.Context, config_file: str | None):
 def report(ctx: click.Context):
     cfg = ctx.obj
     db_path = Path(cfg['database']['path'])
-    db = Database(db_path)
-    rows = db.get_missing_tracks()
-    out_dir = Path(cfg['reports']['directory'])
-    path = write_missing_tracks(rows, out_dir)
-    click.echo(f"Missing tracks report: {path}")
+    with Database(db_path) as db:
+        rows = db.get_missing_tracks()
+        out_dir = Path(cfg['reports']['directory'])
+        path = write_missing_tracks(rows, out_dir)
+        click.echo(f"Missing tracks report: {path}")
 
 # type: ignore[arg-type, misc]
 @cli.command(name='report-albums')
@@ -42,10 +42,10 @@ def report_albums(ctx: click.Context):
     """Generate album completeness report."""
     cfg = ctx.obj
     db_path = Path(cfg['database']['path'])
-    db = Database(db_path)
-    out_dir = Path(cfg['reports']['directory'])
-    path = write_album_completeness(db, out_dir)
-    click.echo(f"Album completeness report: {path}")
+    with Database(db_path) as db:
+        out_dir = Path(cfg['reports']['directory'])
+        path = write_album_completeness(db, out_dir)
+        click.echo(f"Album completeness report: {path}")
 
 # type: ignore[arg-type, misc]
 @cli.command()
@@ -178,10 +178,10 @@ def pull(ctx: click.Context, force_auth: bool, verbose: bool):
         else:
             click.echo("[pull] Using access token (no expires_at field)")
     client = SpotifyClient(tok_dict['access_token'])
-    db = _get_db(cfg)
     use_year = cfg['matching'].get('use_year', False)
-    ingest_playlists(db, client, verbose=verbose, use_year=use_year)
-    ingest_liked(db, client, verbose=verbose, use_year=use_year)
+    with _get_db(cfg) as db:
+        ingest_playlists(db, client, verbose=verbose, use_year=use_year)
+        ingest_liked(db, client, verbose=verbose, use_year=use_year)
     if verbose or os.environ.get('SPX_DEBUG'):
         dur = time.time() - start
         click.echo(f"[pull] Completed in {dur:.2f}s")
@@ -212,8 +212,8 @@ def login(ctx: click.Context, force: bool):
 def scan(ctx: click.Context):
     """Scan local library into database."""
     cfg = ctx.obj
-    db = _get_db(cfg)
-    scan_library(db, cfg)
+    with _get_db(cfg) as db:
+        scan_library(db, cfg)
     click.echo('Scan complete')
 
 
@@ -223,11 +223,11 @@ def scan(ctx: click.Context):
 def match(ctx: click.Context):
     """Run matching engine and persist matches."""
     cfg = ctx.obj
-    db = _get_db(cfg)
     fuzzy_threshold = cfg['matching']['fuzzy_threshold']
     use_year = cfg['matching'].get('use_year', False)
-    count = match_and_store(db, fuzzy_threshold=fuzzy_threshold, use_year=use_year)
-    click.echo(f'Matched {count} tracks')
+    with _get_db(cfg) as db:
+        count = match_and_store(db, fuzzy_threshold=fuzzy_threshold, use_year=use_year)
+        click.echo(f'Matched {count} tracks')
 
 
 @cli.command(name='match-diagnose')
@@ -242,40 +242,40 @@ def match_diagnose(ctx: click.Context, query: str, limit: int):
     """
     from rapidfuzz import fuzz
     cfg = ctx.obj
-    db = _get_db(cfg)
+    with _get_db(cfg) as db:
     # locate track
-    track_row = None
-    cur = None
-    # exact id first
-    cur = db.conn.execute("SELECT id,name,artist,album,normalized,year FROM tracks WHERE id=?", (query,))
-    track_row = cur.fetchone()
-    if not track_row:
-        like = f"%{query}%"
-        cur = db.conn.execute("SELECT id,name,artist,album,normalized,year FROM tracks WHERE name LIKE ? ORDER BY name LIMIT 1", (like,))
+        track_row = None
+        cur = None
+        # exact id first
+        cur = db.conn.execute("SELECT id,name,artist,album,normalized,year FROM tracks WHERE id=?", (query,))
         track_row = cur.fetchone()
-    if not track_row:
-        click.echo(f"No track found matching '{query}'")
-        return
-    t_norm = track_row['normalized'] or ''
-    click.echo(f"Track: {track_row['id']} | {track_row['artist']} - {track_row['name']} | album={track_row['album']} year={track_row['year']}\nNormalized: '{t_norm}'")
-    # gather files
-    rows = db.conn.execute("SELECT id,path,title,artist,album,normalized,year FROM library_files").fetchall()
-    scored = []
-    for r in rows:
-        f_norm = r['normalized'] or ''
-        exact = 1.0 if f_norm == t_norm and t_norm else 0.0
-        fuzzy = fuzz.token_set_ratio(t_norm, f_norm)/100.0 if t_norm else 0.0
-        scored.append((exact, fuzzy, r))
-    scored.sort(key=lambda x: (x[0], x[1]), reverse=True)
-    click.echo(f"Top candidates (limit={limit}):")
-    for exact, fuzzy, r in scored[:limit]:
-        click.echo(f"  file_id={r['id']} score_exact={exact:.3f} score_fuzzy={fuzzy:.3f} | title='{r['title']}' artist='{r['artist']}' album='{r['album']}' year={r['year']} path={r['path']} norm='{r['normalized']}'")
-    # show if any existing match stored
-    m = db.conn.execute("SELECT file_id, score, method FROM matches WHERE track_id=?", (track_row['id'],)).fetchone()
-    if m:
-        click.echo(f"Existing match: file_id={m['file_id']} score={m['score']:.3f} method={m['method']}")
-    else:
-        click.echo("Existing match: (none)")
+        if not track_row:
+            like = f"%{query}%"
+            cur = db.conn.execute("SELECT id,name,artist,album,normalized,year FROM tracks WHERE name LIKE ? ORDER BY name LIMIT 1", (like,))
+            track_row = cur.fetchone()
+        if not track_row:
+            click.echo(f"No track found matching '{query}'")
+            return
+        t_norm = track_row['normalized'] or ''
+        click.echo(f"Track: {track_row['id']} | {track_row['artist']} - {track_row['name']} | album={track_row['album']} year={track_row['year']}\nNormalized: '{t_norm}'")
+        # gather files
+        rows = db.conn.execute("SELECT id,path,title,artist,album,normalized,year FROM library_files").fetchall()
+        scored = []
+        for r in rows:
+            f_norm = r['normalized'] or ''
+            exact = 1.0 if f_norm == t_norm and t_norm else 0.0
+            fuzzy = fuzz.token_set_ratio(t_norm, f_norm)/100.0 if t_norm else 0.0
+            scored.append((exact, fuzzy, r))
+        scored.sort(key=lambda x: (x[0], x[1]), reverse=True)
+        click.echo(f"Top candidates (limit={limit}):")
+        for exact, fuzzy, r in scored[:limit]:
+            click.echo(f"  file_id={r['id']} score_exact={exact:.3f} score_fuzzy={fuzzy:.3f} | title='{r['title']}' artist='{r['artist']}' album='{r['album']}' year={r['year']} path={r['path']} norm='{r['normalized']}'")
+        # show if any existing match stored
+        m = db.conn.execute("SELECT file_id, score, method FROM matches WHERE track_id=?", (track_row['id'],)).fetchone()
+        if m:
+            click.echo(f"Existing match: file_id={m['file_id']} score={m['score']:.3f} method={m['method']}")
+        else:
+            click.echo("Existing match: (none)")
 
 
 @cli.command()
@@ -284,36 +284,36 @@ def export(ctx: click.Context):
     """Export playlists in configured mode (strict|mirrored|placeholders)."""
     cfg = ctx.obj
     mode = cfg['export']['mode']
-    db = _get_db(cfg)
-    export_dir = Path(cfg['export']['directory'])
-    placeholder_ext = cfg['export'].get('placeholder_extension', '.missing')
-    cur = db.conn.execute("SELECT id,name FROM playlists")
-    playlists = cur.fetchall()
-    for pl in playlists:
-        pl_id = pl['id']
-        track_rows = db.conn.execute(
-            """
-            SELECT pt.position, t.id as track_id, t.name, t.artist, t.album, t.duration_ms, lf.path AS local_path
-            FROM playlist_tracks pt
-            LEFT JOIN tracks t ON t.id = pt.track_id
-            LEFT JOIN matches m ON m.track_id = pt.track_id
-            LEFT JOIN library_files lf ON lf.id = m.file_id
-            WHERE pt.playlist_id=?
-            ORDER BY pt.position
-            """,
-            (pl_id,),
-        ).fetchall()
-        tracks = [dict(r) | {'position': r['position']} for r in track_rows]
-        playlist_meta = {'name': pl['name'], 'id': pl_id}
-        if mode == 'strict':
-            export_strict(playlist_meta, tracks, export_dir)
-        elif mode == 'mirrored':
-            export_mirrored(playlist_meta, tracks, export_dir)
-        elif mode == 'placeholders':
-            export_placeholders(playlist_meta, tracks, export_dir, placeholder_extension=placeholder_ext)
-        else:
-            click.echo(f"Unknown export mode '{mode}', defaulting to strict")
-            export_strict(playlist_meta, tracks, export_dir)
+    with _get_db(cfg) as db:
+        export_dir = Path(cfg['export']['directory'])
+        placeholder_ext = cfg['export'].get('placeholder_extension', '.missing')
+        cur = db.conn.execute("SELECT id,name FROM playlists")
+        playlists = cur.fetchall()
+        for pl in playlists:
+            pl_id = pl['id']
+            track_rows = db.conn.execute(
+                """
+                SELECT pt.position, t.id as track_id, t.name, t.artist, t.album, t.duration_ms, lf.path AS local_path
+                FROM playlist_tracks pt
+                LEFT JOIN tracks t ON t.id = pt.track_id
+                LEFT JOIN matches m ON m.track_id = pt.track_id
+                LEFT JOIN library_files lf ON lf.id = m.file_id
+                WHERE pt.playlist_id=?
+                ORDER BY pt.position
+                """,
+                (pl_id,),
+            ).fetchall()
+            tracks = [dict(r) | {'position': r['position']} for r in track_rows]
+            playlist_meta = {'name': pl['name'], 'id': pl_id}
+            if mode == 'strict':
+                export_strict(playlist_meta, tracks, export_dir)
+            elif mode == 'mirrored':
+                export_mirrored(playlist_meta, tracks, export_dir)
+            elif mode == 'placeholders':
+                export_placeholders(playlist_meta, tracks, export_dir, placeholder_extension=placeholder_ext)
+            else:
+                click.echo(f"Unknown export mode '{mode}', defaulting to strict")
+                export_strict(playlist_meta, tracks, export_dir)
     click.echo('Export complete')
 
 

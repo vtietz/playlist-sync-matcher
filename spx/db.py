@@ -25,9 +25,18 @@ class Database:
         self.path = path
         if not path.parent.exists():
             path.parent.mkdir(parents=True, exist_ok=True)
-        self.conn = sqlite3.connect(path)
+        # Increase timeout to better tolerate brief writer contention, especially on Windows.
+        self.conn = sqlite3.connect(path, timeout=30)
         self.conn.row_factory = sqlite3.Row
+        self._closed = False
         self._init_schema()
+
+    # Context manager support ensures connections are always closed even if an exception bubbles up.
+    def __enter__(self) -> "Database":  # pragma: no cover - trivial
+        return self
+
+    def __exit__(self, exc_type, exc, tb):  # pragma: no cover - trivial
+        self.close()
 
     def _init_schema(self) -> None:
         cur = self.conn.cursor()
@@ -134,7 +143,14 @@ class Database:
         return row[0] if row else None
 
     def close(self):
-        self.conn.commit()
-        self.conn.close()
+        # Make close idempotent to avoid hangs when called multiple times
+        if not self._closed:
+            try:
+                self.conn.commit()
+                self.conn.close()
+            except Exception:
+                pass  # Already closed or in invalid state
+            finally:
+                self._closed = True
 
 __all__ = ["Database"]
