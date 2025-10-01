@@ -3,6 +3,7 @@ from typing import Iterable, Dict, Any, List, Tuple
 from rapidfuzz import fuzz
 import sqlite3
 import os, time
+import click
 from ..utils.normalization import normalize_title_artist
 
 # Track dict expected keys: id,name,artist,album,isrc,normalized
@@ -21,10 +22,14 @@ def score_fuzzy(t_norm: str, f_norm: str) -> float:
 
 
 def match_tracks(tracks: Iterable[Dict[str, Any]], files: Iterable[Dict[str, Any]], fuzzy_threshold: float = 0.78) -> List[Tuple[str, int, float, str]]:
+    """Match tracks to files. Returns list of (track_id, file_id, score, method) tuples.
+    
+    Logs progress during fuzzy matching to show which track is currently being processed.
+    """
+    debug = os.environ.get('SPX_DEBUG')
     tracks_list = list(tracks)
     files_list = list(files)
     results: List[Tuple[str, int, float, str]] = []
-    total_tracks = len(tracks_list)
     
     # Build a hash map for exact matches (O(1) lookup instead of O(m) scan)
     file_norm_map: Dict[str, int] = {}
@@ -33,28 +38,28 @@ def match_tracks(tracks: Iterable[Dict[str, Any]], files: Iterable[Dict[str, Any
         if f_norm and f_norm not in file_norm_map:
             file_norm_map[f_norm] = f["id"]
     
-    # Progress logging
-    debug = os.environ.get('SPX_DEBUG')
-    progress_interval = max(1, total_tracks // 20)  # Report every 5%
+    # Progress tracking
     start_time = time.time()
+    progress_interval = max(1, len(tracks_list) // 100)  # Report every 1% of tracks
     
     for idx, t in enumerate(tracks_list, 1):
         t_norm = t.get("normalized") or ""
-        isrc = t.get("isrc")
         
         # Fast path: exact match via hash lookup (O(1) instead of O(m))
         if t_norm and t_norm in file_norm_map:
             results.append((t["id"], file_norm_map[t_norm], 1.0, "exact"))
-            # Progress reporting
-            if debug and idx % progress_interval == 0:
-                elapsed = time.time() - start_time
-                pct = (idx / total_tracks) * 100
-                rate = idx / elapsed if elapsed > 0 else 0
-                eta = (total_tracks - idx) / rate if rate > 0 else 0
-                print(f"[match] Progress: {idx}/{total_tracks} tracks ({pct:.0f}%) - {len(results)} matches - {rate:.1f} tracks/sec - ETA {eta:.0f}s")
             continue
         
         # Slow path: fuzzy matching (only if no exact match)
+        # Show which track is being processed
+        if debug and idx % progress_interval == 0:
+            elapsed = time.time() - start_time
+            tracks_per_sec = idx / elapsed if elapsed > 0 else 0
+            eta = (len(tracks_list) - idx) / tracks_per_sec if tracks_per_sec > 0 else 0
+            pct = (idx / len(tracks_list)) * 100
+            print(f"[match][fuzzy] Processing: {idx}/{len(tracks_list)} tracks ({pct:.0f}%) - {len(results)} matches - {tracks_per_sec:.1f} tracks/sec - ETA {eta:.0f}s")
+            print(f"  → Currently matching: {t.get('artist', '')} - {t.get('name', '')}")
+        
         best = (None, 0.0, "")  # file_id, score, method
         for f in files_list:
             f_norm = f.get("normalized") or ""
@@ -67,14 +72,6 @@ def match_tracks(tracks: Iterable[Dict[str, Any]], files: Iterable[Dict[str, Any
         
         if best[0] is not None:
             results.append((t["id"], best[0], best[1], best[2]))
-        
-        # Progress reporting
-        if debug and idx % progress_interval == 0:
-            elapsed = time.time() - start_time
-            pct = (idx / total_tracks) * 100
-            rate = idx / elapsed if elapsed > 0 else 0
-            eta = (total_tracks - idx) / rate if rate > 0 else 0
-            print(f"[match] Progress: {idx}/{total_tracks} tracks ({pct:.0f}%) - {len(results)} matches - {rate:.1f} tracks/sec - ETA {eta:.0f}s")
     
     return results
 
@@ -87,8 +84,12 @@ def match_and_store(db, fuzzy_threshold: float = 0.78, use_year: bool = False):
         print("[match] Loading tracks and files from database...")
     cur_tracks = db.conn.execute("SELECT id, name, artist, year, normalized, isrc FROM tracks")
     tracks = [dict(row) for row in cur_tracks.fetchall()]
-    cur_files = db.conn.execute("SELECT id, normalized FROM library_files")
+    cur_files = db.conn.execute("SELECT id, path, normalized FROM library_files")
     files = [dict(row) for row in cur_files.fetchall()]
+    
+    # Build file lookup maps for detailed logging
+    file_by_id = {f['id']: f for f in files}
+    track_by_id = {t['id']: t for t in tracks}
     
     if debug:
         print(f"[match] Loaded {len(tracks)} tracks and {len(files)} library files")
@@ -126,8 +127,16 @@ def match_and_store(db, fuzzy_threshold: float = 0.78, use_year: bool = False):
     # Store SQL exact matches
     matched_track_ids = set()
     for row in exact_matches:
-        db.add_match(row['track_id'], row['file_id'], 1.0, "sql_exact")
-        matched_track_ids.add(row['track_id'])
+        track_id = row['track_id']
+        file_id = row['file_id']
+        db.add_match(track_id, file_id, 1.0, "sql_exact")
+        matched_track_ids.add(track_id)
+        
+        # Detailed logging of each match
+        if debug:
+            track = track_by_id.get(track_id, {})
+            file_path = file_by_id.get(file_id, {}).get('path', 'unknown')
+            print(f"{click.style('[sql_exact]', fg='green')} {track.get('artist', '')} - {track.get('name', '')} → {file_path}")
     
     stage1_duration = time.time() - stage1_start
     if debug:
@@ -146,10 +155,25 @@ def match_and_store(db, fuzzy_threshold: float = 0.78, use_year: bool = False):
         # Run fuzzy matching only on unmatched tracks
         fuzzy_results = match_tracks(unmatched_tracks, files, fuzzy_threshold=fuzzy_threshold)
         
-        # Store fuzzy matches
-        for track_id, file_id, score, method in fuzzy_results:
+        # Store fuzzy matches with detailed logging
+        progress_interval = max(1, len(fuzzy_results) // 100)  # Report every 1% of matches
+        for idx, (track_id, file_id, score, method) in enumerate(fuzzy_results, 1):
             db.add_match(track_id, file_id, score, method)
             matched_track_ids.add(track_id)
+            
+            # Detailed logging of each fuzzy match
+            if debug:
+                track = track_by_id.get(track_id, {})
+                file_path = file_by_id.get(file_id, {}).get('path', 'unknown')
+                # Color code by score: high (cyan), medium (yellow), low (magenta)
+                color = 'cyan' if score >= 0.9 else 'yellow' if score >= fuzzy_threshold else 'magenta'
+                print(f"{click.style('[fuzzy]', fg=color)} {track.get('artist', '')} - {track.get('name', '')} → {file_path} (score={score:.2f})")
+                
+                # Progress update every N matches
+                if idx % progress_interval == 0:
+                    elapsed = time.time() - stage2_start
+                    pct = (idx / len(fuzzy_results)) * 100
+                    print(f"[match][stage2] Progress: {idx}/{len(fuzzy_results)} fuzzy matches stored ({pct:.0f}%) - {elapsed:.1f}s elapsed")
         
         stage2_matches = len(fuzzy_results)
         stage2_duration = time.time() - stage2_start
@@ -178,7 +202,10 @@ def match_and_store(db, fuzzy_threshold: float = 0.78, use_year: bool = False):
         # Unmatched diagnostics: show up to 5 unmatched track ids
         if tracks and len(matched_track_ids) < len(tracks):
             unmatched = [t['id'] for t in tracks if t['id'] not in matched_track_ids][:5]
-            print(f"[match] unmatched sample (first {len(unmatched)}): {', '.join(unmatched)}")
+            print(f"{click.style('[unmatched]', fg='red')} Sample tracks (first {len(unmatched)}):")
+            for track_id in unmatched:
+                track = track_by_id.get(track_id, {})
+                print(f"  - {track.get('artist', '')} - {track.get('name', '')} (normalized: {track.get('normalized', '')})")
     
     return total_matches
 

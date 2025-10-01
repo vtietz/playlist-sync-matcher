@@ -10,6 +10,5 @@ def test_normalize_basic():
 def test_token_removes_stopwords_and_diacritics():
     t = normalize_token("Án Thé (feat. Artist)")
     assert "the" not in t
-    assert "an" not in t
+    assert "an" not in t  # Also verifies diacritics removed (Án → an)
     assert "feat" not in t
-    assert "an" not in t  # diacritics removed

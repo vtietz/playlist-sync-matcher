@@ -23,7 +23,7 @@ Reporting & Export:
 
 Tooling:
 - Click CLI (`run.bat` convenience on Windows)
-- Comprehensive test suite (31 tests including normalization, performance, matching, export)
+- Comprehensive test suite (46 tests with parametrization for config, normalization, performance, matching, export)
 - GitHub Actions CI (Windows + Ubuntu, Python 3.11/3.12)
 
 Performance:
@@ -183,9 +183,11 @@ Disable again by unsetting or setting `SPX__DEBUG=false`.
 When debug mode is active:
 - OAuth flow prints redirect, state, and token exchange milestones.
 - Pull (ingestion) prints pagination, playlist skips/updates, liked-track boundary, and timing.
-- Scan lists each discovered media file (`[scan] <path>`) plus a completion summary.
-- Match / export logging may be expanded in future; for now they remain concise.
-- Match: with debug shows total candidates, match count, duration + up to 5 sample matches.
+- Scan shows colored action labels: `[new]`, `[updated]`, `[skip]`, `[deleted]` with file details.
+- Match shows detailed per-match logging:
+  - `[sql_exact]` (green) - Exact matches via SQL
+  - `[fuzzy]` (cyan/yellow/magenta) - Fuzzy matches with score (color by confidence)
+  - `[unmatched]` (red) - Sample of tracks that couldn't be matched
 - Export: with debug shows per-playlist summary (kept/missing/placeholders) and output file path.
 
 
@@ -275,7 +277,7 @@ Three major optimizations dramatically improve scan speed, especially for large 
 
 Scan behavior details:
 - Files are considered unchanged if both `size` and `mtime` match (within 1-second tolerance for Windows)
-- Debug mode (`SPX_DEBUG=1`) shows action labels: `[scan][new]`, `[scan][updated]`, `[scan][skip]`, `[scan][deleted]`
+- Debug mode (`SPX_DEBUG=1`) shows colored action labels: `[new]` (green), `[updated]` (blue), `[skip]` (yellow), `[deleted]` (red)
 - Deleted files are automatically removed from DB at end of scan
 - Summary includes counts: `files_seen`, `inserted`, `updated`, `skipped_unchanged`, `deleted`, `tag_errors`, `io_errors`
 - Interim commits allow mid-scan interruption without losing progress
@@ -315,6 +317,7 @@ The match engine uses a highly optimized two-stage approach:
 - RapidFuzz `token_set_ratio` only on remaining unmatched tracks
 - Configurable threshold (default 0.78): `matching.fuzzy_threshold`
 - Method label: `fuzzy`
+- **Real-time progress**: Shows which track is currently being matched, processing speed, and ETA
 
 **Performance**: 5-20x faster than original O(n×m) approach
 - Example: 1000 tracks × 1000 files = 20s → **2.5s**
@@ -330,6 +333,24 @@ Debug output shows stage breakdown:
 [match] Matched 847/1000 tracks (84.7%) - exact=847 fuzzy=0 - 2.34s
 [match] Stage 1 (SQL): 847 matches in 0.12s
 ```
+
+With `SPX_DEBUG=1`, you'll also see detailed progress during fuzzy matching:
+```
+[sql_exact] The Beatles - Hey Jude → Z:\Music\Beatles\Hey Jude.mp3
+[match][stage2] Fuzzy matching 153 unmatched tracks against 1000 files (threshold=0.8)...
+[match][fuzzy] Processing: 15/153 tracks (10%) - 8 matches - 12.3 tracks/sec - ETA 11s
+  → Currently matching: Led Zeppelin - Stairway to Heaven
+[fuzzy] Led Zeppelin - Stairway to Heaven → Z:\Music\Zeppelin\Stairway.mp3 (score=0.92)
+[unmatched] Sample tracks (first 3):
+  - Pink Floyd - Echoes (normalized: pink floyd echoes)
+```
+
+Match color coding:
+- `[sql_exact]` - **Green** (perfect normalized match via SQL)
+- `[fuzzy]` - **Cyan** (score ≥ 0.9), **Yellow** (0.8-0.9), or **Magenta** (< 0.8)
+- `[unmatched]` - **Red** (no match found above threshold)
+
+**Note**: For large libraries (10k+ unmatched tracks), Stage 2 fuzzy matching may take 10-20 minutes. The progress output shows you it's not hanging—see `FUZZY_MATCH_PROGRESS.md` for detailed explanation and performance tips.
 
 ### Applying Performance Improvements
 To benefit from enhanced normalization, re-run the pipeline:

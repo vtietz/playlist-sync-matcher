@@ -7,6 +7,7 @@ from ..utils.hashing import partial_hash
 from ..utils.normalization import normalize_title_artist
 import time
 import os
+import click
 
 TAG_CANDIDATES = [
     ("title", ["title", "TIT2"]),
@@ -93,7 +94,7 @@ def scan_library(db, cfg):
             except OSError:
                 io_errors += 1
                 if os.environ.get('SPX_DEBUG'):
-                    print(f"[scan][io-error] {p}")
+                    print(f"{click.style('[io-error]', fg='red')} {p}")
                 continue
 
             # Skip unchanged fast path
@@ -107,7 +108,7 @@ def scan_library(db, cfg):
                     if size_db == st.st_size and abs(mtime_db - st.st_mtime) < 1.0:
                         skipped_unchanged += 1
                         if os.environ.get('SPX_DEBUG'):
-                            print(f"[scan][skip] {p} unchanged (fast mode - no parsing)")
+                            print(f"{click.style('[skip]', fg='yellow')} {p} unchanged (fast mode - no parsing)")
                         continue
                 else:
                     # Normal mode: tuple format
@@ -115,7 +116,7 @@ def scan_library(db, cfg):
                     if size_db == st.st_size and abs(mtime_db - st.st_mtime) < 1.0:
                         skipped_unchanged += 1
                         if os.environ.get('SPX_DEBUG'):
-                            print(f"[scan][skip] {p} unchanged")
+                            print(f"{click.style('[skip]', fg='yellow')} {p} unchanged")
                         continue
 
             try:
@@ -169,24 +170,26 @@ def scan_library(db, cfg):
                 if existing:
                     updated += 1
                     action = "updated"
+                    color = 'blue'
                 else:
                     inserted += 1
                     action = "new"
+                    color = 'green'
                 since_commit += 1
                 if os.environ.get('SPX_DEBUG'):
-                    print(f"[scan][{action}] {p} | title='{title}' artist='{artist}' album='{album}' year={year if year is not None else '-'} dur={duration if duration is not None else '-'} norm='{combo}'")
+                    print(f"{click.style(f'[{action}]', fg=color)} {p} | title='{title}' artist='{artist}' album='{album}' year={year if year is not None else '-'} dur={duration if duration is not None else '-'} norm='{combo}'")
                 if commit_interval and since_commit >= commit_interval:
                     db.commit()
                     if os.environ.get('SPX_DEBUG'):
                         print(f"[scan] interim commit after {since_commit} processed (inserted={inserted} updated={updated} skipped={skipped_unchanged})")
                     since_commit = 0
             except KeyboardInterrupt:
-                print("[scan][interrupt] Caught keyboard interrupt; finalizing partial work...")
+                print(f"{click.style('[interrupt]', fg='magenta')} Caught keyboard interrupt; finalizing partial work...")
                 break
             except Exception as e:
                 other_errors += 1
                 if os.environ.get('SPX_DEBUG'):
-                    print(f"[scan][error] {p} {e}")
+                    print(f"{click.style('[error]', fg='red')} {p} {e}")
                 continue
     finally:
         # Cleanup: remove files from DB that no longer exist on disk
@@ -209,7 +212,7 @@ def scan_library(db, cfg):
             db.conn.execute("DELETE FROM matches WHERE file_id=?", (file_id,))
             deleted += 1
             if os.environ.get('SPX_DEBUG'):
-                print(f"[scan][deleted] {path} (no longer exists)")
+                print(f"{click.style('[deleted]', fg='red')} {path} (no longer exists)")
         
         db.commit()
         dur = time.time() - start

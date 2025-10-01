@@ -49,7 +49,7 @@ def test_scan_deleted_cleanup(tmp_path: Path):
     # First scan (should insert both files)
     r1 = runner.invoke(cli, ['--config-file', str(config_file), 'scan'])
     assert r1.exit_code == 0, f"First scan failed: {r1.output}"
-    assert '[scan][new]' in r1.output or 'Scan complete' in r1.output
+    assert '[new]' in r1.output or 'Scan complete' in r1.output
     
     # Verify both files are in DB
     with Database(db_path) as db:
@@ -72,11 +72,11 @@ def test_scan_deleted_cleanup(tmp_path: Path):
     assert str(f1) in remaining_path, f"Expected {f1} to remain, but got {remaining_path}"
     
     # Check that deleted message appears in output (when debug is on)
-    assert '[scan][deleted]' in r2.output or 'deleted=1' in r2.output, f"Expected deletion log in output: {r2.output}"
+    assert '[deleted]' in r2.output or 'deleted=1' in r2.output, f"Expected deletion log in output: {r2.output}"
 
 
 def test_scan_action_labels(tmp_path: Path):
-    """Test that scan logs show correct action labels: [new], [updated], [skip]."""
+    """Test that scan logs show correct action labels: [new], [updated], [skip], and verify DB cardinality."""
     music_dir = tmp_path / 'music'
     music_dir.mkdir()
     f = music_dir / 'track.mp3'
@@ -107,12 +107,22 @@ def test_scan_action_labels(tmp_path: Path):
     # First scan - should see [new]
     r1 = runner.invoke(cli, ['--config-file', str(config_file), 'scan'])
     assert r1.exit_code == 0
-    assert '[scan][new]' in r1.output, f"Expected [new] label in first scan: {r1.output}"
+    assert '[new]' in r1.output, f"Expected [new] label in first scan: {r1.output}"
     
-    # Second scan without changes - should see [skip]
+    # Verify DB has exactly one file after first scan
+    with Database(db_path) as db:
+        count1 = db.conn.execute('SELECT count(*) FROM library_files').fetchone()[0]
+    assert count1 == 1, f"Expected 1 file after first scan, found {count1}"
+    
+    # Second scan without changes - should see [skip] and verify skip_unchanged behavior
     r2 = runner.invoke(cli, ['--config-file', str(config_file), 'scan'])
     assert r2.exit_code == 0
-    assert '[scan][skip]' in r2.output, f"Expected [skip] label in second scan: {r2.output}"
+    assert '[skip]' in r2.output, f"Expected [skip] label in second scan: {r2.output}"
+    
+    # Verify DB still has exactly one file (skip_unchanged didn't create duplicate)
+    with Database(db_path) as db:
+        count2 = db.conn.execute('SELECT count(*) FROM library_files').fetchone()[0]
+    assert count2 == 1, f"Expected 1 file after skip scan, found {count2} (skip_unchanged failed)"
     
     # Modify file and scan again - should see [updated]
     import time
@@ -120,4 +130,9 @@ def test_scan_action_labels(tmp_path: Path):
     f.write_bytes(b'ID3modified')
     r3 = runner.invoke(cli, ['--config-file', str(config_file), 'scan'])
     assert r3.exit_code == 0
-    assert '[scan][updated]' in r3.output, f"Expected [updated] label after modification: {r3.output}"
+    assert '[updated]' in r3.output, f"Expected [updated] label after modification: {r3.output}"
+    
+    # Verify DB still has exactly one file (updated, not inserted new)
+    with Database(db_path) as db:
+        count3 = db.conn.execute('SELECT count(*) FROM library_files').fetchone()[0]
+    assert count3 == 1, f"Expected 1 file after update, found {count3}"
