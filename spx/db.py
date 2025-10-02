@@ -145,6 +145,37 @@ class Database:
         row = cur.fetchone()
         return row[0] if row else None
 
+    # Summary count methods for reporting
+    def count_playlists(self) -> int:
+        """Return the total number of playlists."""
+        cursor = self.conn.execute("SELECT COUNT(*) FROM playlists")
+        return cursor.fetchone()[0]
+    
+    def count_unique_playlist_tracks(self) -> int:
+        """Return the count of distinct track_ids in playlist_tracks."""
+        cursor = self.conn.execute("SELECT COUNT(DISTINCT track_id) FROM playlist_tracks")
+        return cursor.fetchone()[0]
+    
+    def count_liked_tracks(self) -> int:
+        """Return the total number of liked tracks."""
+        cursor = self.conn.execute("SELECT COUNT(*) FROM liked_tracks")
+        return cursor.fetchone()[0]
+    
+    def count_tracks(self) -> int:
+        """Return the total number of tracks."""
+        cursor = self.conn.execute("SELECT COUNT(*) FROM tracks")
+        return cursor.fetchone()[0]
+    
+    def count_library_files(self) -> int:
+        """Return the total number of library files."""
+        cursor = self.conn.execute("SELECT COUNT(*) FROM library_files")
+        return cursor.fetchone()[0]
+    
+    def count_matches(self) -> int:
+        """Return the total number of matches."""
+        cursor = self.conn.execute("SELECT COUNT(*) FROM matches")
+        return cursor.fetchone()[0]
+
     def close(self):
         # Make close idempotent to avoid hangs when called multiple times
         if not self._closed:

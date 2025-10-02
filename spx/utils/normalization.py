@@ -1,6 +1,7 @@
 from __future__ import annotations
 import re
 import unicodedata
+from functools import lru_cache
 from typing import Tuple
 
 _feat_pattern = re.compile(r"\bfeat\.?|ft\.?|featuring", re.IGNORECASE)
@@ -11,6 +12,7 @@ _punct_pattern = re.compile(r"[\s\-_.]+")
 _stopwords = {"the", "a", "an", "and", "or", "of", "in", "on", "at", "to", "for", "with", "from"}
 
 
+@lru_cache(maxsize=2048)
 def normalize_token(s: str) -> str:
     s = s.lower().strip()
     # Unicode normalization (handle accents, diacritics)

@@ -3,6 +3,7 @@ import click
 from pathlib import Path
 from .config import load_config, _configure_logging
 import os
+import copy
 from .db import Database
 from .reporting.generator import write_missing_tracks, write_album_completeness
 from .auth.spotify_oauth import SpotifyAuth
@@ -12,6 +13,58 @@ from .match.engine import match_and_store
 from .export.playlists import export_strict, export_mirrored, export_placeholders
 import time
 import json as _json
+
+
+def _resolve_export_dir(
+    export_dir: Path,
+    organize_by_owner: bool,
+    owner_id: str | None,
+    owner_name: str | None,
+    current_user_id: str | None
+) -> Path:
+    """Resolve the target directory for playlist export.
+    
+    Args:
+        export_dir: Base export directory
+        organize_by_owner: Whether to organize by playlist owner
+        owner_id: Playlist owner's ID
+        owner_name: Playlist owner's display name
+        current_user_id: Current user's ID for comparison
+        
+    Returns:
+        Resolved target directory path
+    """
+    if not organize_by_owner:
+        return export_dir
+    
+    if owner_id and current_user_id and owner_id == current_user_id:
+        # User's own playlists
+        return export_dir / 'my_playlists'
+    elif owner_name:
+        # Other user's playlists - use sanitized owner name
+        from .export.playlists import sanitize_filename
+        folder_name = sanitize_filename(owner_name)
+        return export_dir / folder_name
+    else:
+        # Unknown owner - put in 'other' folder
+        return export_dir / 'other'
+
+
+def _redact_spotify_config(cfg: dict) -> dict:
+    """Create a deep copy of config and redact sensitive Spotify values.
+    
+    Args:
+        cfg: Configuration dictionary
+        
+    Returns:
+        Deep copy with client_id redacted if present
+    """
+    result = copy.deepcopy(cfg)
+    if 'spotify' in result and isinstance(result['spotify'], dict):
+        if result['spotify'].get('client_id'):
+            result['spotify']['client_id'] = '*** redacted ***'
+    return result
+
 
 @click.group()
 @click.option('--config-file', type=click.Path(exists=False), default=None, help='Deprecated: config file parameter (ignored, use .env instead)')
@@ -74,10 +127,12 @@ def show_config(ctx: click.Context, section: str | None, redact: bool):
         if section not in data:
             raise click.UsageError(f"Unknown section '{section}'. Available: {', '.join(sorted(data.keys()))}")
         data = {section: data[section]}
-    out = _json.loads(_json.dumps(data))  # shallow copy via serialization
-    if redact and 'spotify' in out and isinstance(out['spotify'], dict):
-        if out['spotify'].get('client_id'):
-            out['spotify']['client_id'] = '*** redacted ***'
+    
+    # Use deepcopy instead of JSON round-trip
+    out = copy.deepcopy(data)
+    if redact:
+        out = _redact_spotify_config(out)
+    
     click.echo(_json.dumps(out, indent=2, sort_keys=True))
 
 
@@ -189,18 +244,11 @@ def pull(ctx: click.Context, force_auth: bool, verbose: bool):
         ingest_playlists(db, client, verbose=verbose, use_year=use_year)
         ingest_liked(db, client, verbose=verbose, use_year=use_year)
         
-        # Print summary statistics
-        cursor = db.conn.execute("SELECT COUNT(*) FROM playlists")
-        playlist_count = cursor.fetchone()[0]
-        
-        cursor = db.conn.execute("SELECT COUNT(DISTINCT track_id) FROM playlist_tracks")
-        unique_tracks_in_playlists = cursor.fetchone()[0]
-        
-        cursor = db.conn.execute("SELECT COUNT(*) FROM liked_tracks")
-        liked_count = cursor.fetchone()[0]
-        
-        cursor = db.conn.execute("SELECT COUNT(*) FROM tracks")
-        total_tracks = cursor.fetchone()[0]
+        # Print summary statistics using Database methods
+        playlist_count = db.count_playlists()
+        unique_tracks_in_playlists = db.count_unique_playlist_tracks()
+        liked_count = db.count_liked_tracks()
+        total_tracks = db.count_tracks()
         
         click.echo(f"\n[summary] Playlists: {playlist_count} | Unique tracks in playlists: {unique_tracks_in_playlists} | Liked tracks: {liked_count} | Total Spotify tracks: {total_tracks}")
     
@@ -322,22 +370,14 @@ def export(ctx: click.Context):
             owner_id = pl.get('owner_id')
             owner_name = pl.get('owner_name')
             
-            # Determine target directory
-            if organize_by_owner:
-                if owner_id and current_user_id and owner_id == current_user_id:
-                    # User's own playlists
-                    target_dir = export_dir / 'my_playlists'
-                elif owner_name:
-                    # Other user's playlists - use sanitized owner name
-                    from .export.playlists import sanitize_filename
-                    folder_name = sanitize_filename(owner_name)
-                    target_dir = export_dir / folder_name
-                else:
-                    # Unknown owner - put in 'other' folder
-                    target_dir = export_dir / 'other'
-            else:
-                # No organization - flat structure
-                target_dir = export_dir
+            # Determine target directory using helper
+            target_dir = _resolve_export_dir(
+                export_dir, 
+                organize_by_owner, 
+                owner_id, 
+                owner_name, 
+                current_user_id
+            )
             
             track_rows = db.conn.execute(
                 """
@@ -353,12 +393,17 @@ def export(ctx: click.Context):
             ).fetchall()
             tracks = [dict(r) | {'position': r['position']} for r in track_rows]
             playlist_meta = {'name': pl['name'], 'id': pl_id}
-            if mode == 'strict':
-                export_strict(playlist_meta, tracks, target_dir)
-            elif mode == 'mirrored':
-                export_mirrored(playlist_meta, tracks, target_dir)
-            elif mode == 'placeholders':
-                export_placeholders(playlist_meta, tracks, target_dir, placeholder_extension=placeholder_ext)
+            
+            # Dispatch to export function based on mode
+            export_funcs = {
+                'strict': export_strict,
+                'mirrored': export_mirrored,
+                'placeholders': lambda pm, t, td: export_placeholders(pm, t, td, placeholder_extension=placeholder_ext)
+            }
+            
+            export_func = export_funcs.get(mode)
+            if export_func:
+                export_func(playlist_meta, tracks, target_dir)
             else:
                 click.echo(f"Unknown export mode '{mode}', defaulting to strict")
                 export_strict(playlist_meta, tracks, target_dir)

@@ -17,6 +17,27 @@ import ssl
 
 logger = logging.getLogger(__name__)
 
+# Shared requests session for OAuth token exchanges with connection pooling
+_oauth_session: Optional[requests.Session] = None
+
+
+def _get_oauth_session() -> requests.Session:
+    """Get or create a shared requests session for OAuth operations.
+    
+    Provides connection pooling and reuse for better performance.
+    
+    Returns:
+        Configured requests.Session with common headers
+    """
+    global _oauth_session
+    if _oauth_session is None:
+        _oauth_session = requests.Session()
+        _oauth_session.headers.update({
+            'User-Agent': 'spotify-m3u-sync/1.0'
+        })
+    return _oauth_session
+
+
 try:
     # Local import; keep optional to avoid import cycles during certain test scenarios
     from .certutil import ensure_self_signed  # type: ignore
@@ -128,7 +149,8 @@ class SpotifyAuth:
             'refresh_token': refresh_token,
             'client_id': self.client_id,
         }
-        resp = requests.post(TOKEN_URL, data=data, timeout=30)
+        session = _get_oauth_session()
+        resp = session.post(TOKEN_URL, data=data, timeout=30)
         resp.raise_for_status()
         new_tok = resp.json()
         # keep old refresh if not returned
@@ -228,7 +250,8 @@ class SpotifyAuth:
             "code_verifier": verifier,
         }
         logger.debug(f"[auth] Exchanging code for token at {TOKEN_URL}")
-        resp = requests.post(TOKEN_URL, data=data, timeout=30)
+        session = _get_oauth_session()
+        resp = session.post(TOKEN_URL, data=data, timeout=30)
         resp.raise_for_status()
         tok = resp.json()
         tok['expires_at'] = time.time() + int(tok.get('expires_in', 3600))
