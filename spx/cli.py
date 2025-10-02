@@ -7,47 +7,13 @@ import copy
 from .db import Database
 from .reporting.generator import write_missing_tracks, write_album_completeness
 from .auth.spotify_oauth import SpotifyAuth
-from .ingest.spotify import SpotifyClient, ingest_playlists, ingest_liked
 from .ingest.library import scan_library
-from .match.engine import match_and_store
-from .export.playlists import export_strict, export_mirrored, export_placeholders
+from .services.pull_service import pull_spotify_data
+from .services.match_service import run_matching
+from .services.export_service import export_playlists
 import time
 import json as _json
-
-
-def _resolve_export_dir(
-    export_dir: Path,
-    organize_by_owner: bool,
-    owner_id: str | None,
-    owner_name: str | None,
-    current_user_id: str | None
-) -> Path:
-    """Resolve the target directory for playlist export.
-    
-    Args:
-        export_dir: Base export directory
-        organize_by_owner: Whether to organize by playlist owner
-        owner_id: Playlist owner's ID
-        owner_name: Playlist owner's display name
-        current_user_id: Current user's ID for comparison
-        
-    Returns:
-        Resolved target directory path
-    """
-    if not organize_by_owner:
-        return export_dir
-    
-    if owner_id and current_user_id and owner_id == current_user_id:
-        # User's own playlists
-        return export_dir / 'my_playlists'
-    elif owner_name:
-        # Other user's playlists - use sanitized owner name
-        from .export.playlists import sanitize_filename
-        folder_name = sanitize_filename(owner_name)
-        return export_dir / folder_name
-    else:
-        # Unknown owner - put in 'other' folder
-        return export_dir / 'other'
+from datetime import datetime
 
 
 def _redact_spotify_config(cfg: dict) -> dict:
@@ -225,36 +191,22 @@ def pull(ctx: click.Context, force_auth: bool, verbose: bool):
     cfg = ctx.obj
     if not cfg['spotify']['client_id']:
         raise click.UsageError('spotify.client_id not configured')
-    auth = _build_auth(cfg)
-    start = time.time()
-    tok_dict = auth.get_token(force=force_auth)
-    if not isinstance(tok_dict, dict) or 'access_token' not in tok_dict:
-        raise click.ClickException('Failed to obtain access token')
-    if verbose:
-        from datetime import datetime
-        exp = tok_dict.get('expires_at')
-        if exp:
-            rem = int(exp - time.time())
-            click.echo(f"[pull] Using access token (expires {datetime.fromtimestamp(exp)}; +{rem}s)")
-        else:
-            click.echo("[pull] Using access token (no expires_at field)")
-    client = SpotifyClient(tok_dict['access_token'])
-    use_year = cfg['matching'].get('use_year', False)
+    
     with _get_db(cfg) as db:
-        ingest_playlists(db, client, verbose=verbose, use_year=use_year)
-        ingest_liked(db, client, verbose=verbose, use_year=use_year)
+        # Use service layer
+        result = pull_spotify_data(
+            db=db,
+            spotify_config=cfg['spotify'],
+            matching_config=cfg['matching'],
+            force_auth=force_auth,
+            verbose=verbose
+        )
         
-        # Print summary statistics using Database methods
-        playlist_count = db.count_playlists()
-        unique_tracks_in_playlists = db.count_unique_playlist_tracks()
-        liked_count = db.count_liked_tracks()
-        total_tracks = db.count_tracks()
-        
-        click.echo(f"\n[summary] Playlists: {playlist_count} | Unique tracks in playlists: {unique_tracks_in_playlists} | Liked tracks: {liked_count} | Total Spotify tracks: {total_tracks}")
+        # Print summary
+        click.echo(f"\n[summary] Playlists: {result.playlist_count} | Unique tracks in playlists: {result.unique_playlist_tracks} | Liked tracks: {result.liked_tracks} | Total Spotify tracks: {result.total_tracks}")
     
     if verbose:
-        dur = time.time() - start
-        click.echo(f"[pull] Completed in {dur:.2f}s")
+        click.echo(f"[pull] Completed in {result.duration_seconds:.2f}s")
     click.echo('Pull complete')
 
 
@@ -294,8 +246,8 @@ def match(ctx: click.Context):
     """Run matching engine and persist matches."""
     cfg = ctx.obj
     with _get_db(cfg) as db:
-        count = match_and_store(db, config=cfg)
-        click.echo(f'Matched {count} tracks')
+        result = run_matching(db, config=cfg, verbose=False)
+        click.echo(f'Matched {result.matched} tracks')
 
 
 @cli.command(name='match-diagnose')
@@ -351,62 +303,23 @@ def match_diagnose(ctx: click.Context, query: str, limit: int):
 def export(ctx: click.Context):
     """Export playlists in configured mode (strict|mirrored|placeholders)."""
     cfg = ctx.obj
-    mode = cfg['export']['mode']
+    organize_by_owner = cfg['export'].get('organize_by_owner', False)
+    
     with _get_db(cfg) as db:
-        export_dir = Path(cfg['export']['directory'])
-        placeholder_ext = cfg['export'].get('placeholder_extension', '.missing')
-        organize_by_owner = cfg['export'].get('organize_by_owner', False)
-        
-        # Get current user ID for comparison
+        # Get current user ID if needed
         current_user_id = None
         if organize_by_owner:
-            # Try to get current user ID from database metadata or config
             current_user_id = db.get_meta('current_user_id')
         
-        cur = db.conn.execute("SELECT id, name, owner_id, owner_name FROM playlists")
-        playlists = cur.fetchall()
-        for pl in playlists:
-            pl_id = pl['id']
-            owner_id = pl.get('owner_id')
-            owner_name = pl.get('owner_name')
-            
-            # Determine target directory using helper
-            target_dir = _resolve_export_dir(
-                export_dir, 
-                organize_by_owner, 
-                owner_id, 
-                owner_name, 
-                current_user_id
-            )
-            
-            track_rows = db.conn.execute(
-                """
-                SELECT pt.position, t.id as track_id, t.name, t.artist, t.album, t.duration_ms, lf.path AS local_path
-                FROM playlist_tracks pt
-                LEFT JOIN tracks t ON t.id = pt.track_id
-                LEFT JOIN matches m ON m.track_id = pt.track_id
-                LEFT JOIN library_files lf ON lf.id = m.file_id
-                WHERE pt.playlist_id=?
-                ORDER BY pt.position
-                """,
-                (pl_id,),
-            ).fetchall()
-            tracks = [dict(r) | {'position': r['position']} for r in track_rows]
-            playlist_meta = {'name': pl['name'], 'id': pl_id}
-            
-            # Dispatch to export function based on mode
-            export_funcs = {
-                'strict': export_strict,
-                'mirrored': export_mirrored,
-                'placeholders': lambda pm, t, td: export_placeholders(pm, t, td, placeholder_extension=placeholder_ext)
-            }
-            
-            export_func = export_funcs.get(mode)
-            if export_func:
-                export_func(playlist_meta, tracks, target_dir)
-            else:
-                click.echo(f"Unknown export mode '{mode}', defaulting to strict")
-                export_strict(playlist_meta, tracks, target_dir)
+        # Use service layer
+        result = export_playlists(
+            db=db,
+            export_config=cfg['export'],
+            organize_by_owner=organize_by_owner,
+            current_user_id=current_user_id
+        )
+        
+    click.echo(f'Exported {result.playlist_count} playlists')
     click.echo('Export complete')
 
 
