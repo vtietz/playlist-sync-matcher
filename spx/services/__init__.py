@@ -23,6 +23,12 @@ from .playlist_service import (
     export_single_playlist,
     sync_single_playlist,
 )
+from .analysis_service import (
+    analyze_library_quality,
+    print_quality_report,
+    QualityReport,
+    QualityIssue,
+)
 
 __all__ = [
     'pull_spotify_data',
@@ -32,4 +38,8 @@ __all__ = [
     'match_single_playlist',
     'export_single_playlist',
     'sync_single_playlist',
+    'analyze_library_quality',
+    'print_quality_report',
+    'QualityReport',
+    'QualityIssue',
 ]

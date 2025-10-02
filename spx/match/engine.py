@@ -167,8 +167,40 @@ def match_and_store(db, config: Dict[str, Any] | None = None, fuzzy_threshold: f
             matched_track_ids.update(new_matched)
             strategy_stats[strategy_name] = len(matches)
         
+        elif strategy_name == 'album_match':
+            # Stage 2: Album-based matching
+            logger.debug(f"[match][{strategy_name}] Running album-based matching strategy...")
+            
+            from .strategies.album import AlbumMatchStrategy
+            strategy = AlbumMatchStrategy(db, config, debug=is_debug)
+            matches, new_matched = strategy.match(tracks, files, matched_track_ids)
+            
+            # Store matches
+            for track_id, file_id, score, method in matches:
+                db.add_match(track_id, file_id, score, method)
+            
+            all_matches.extend(matches)
+            matched_track_ids.update(new_matched)
+            strategy_stats[strategy_name] = len(matches)
+        
+        elif strategy_name == 'year_match':
+            # Stage 3: Year-based matching
+            logger.debug(f"[match][{strategy_name}] Running year-based matching strategy...")
+            
+            from .strategies.year import YearMatchStrategy
+            strategy = YearMatchStrategy(db, config, debug=is_debug)
+            matches, new_matched = strategy.match(tracks, files, matched_track_ids)
+            
+            # Store matches
+            for track_id, file_id, score, method in matches:
+                db.add_match(track_id, file_id, score, method)
+            
+            all_matches.extend(matches)
+            matched_track_ids.update(new_matched)
+            strategy_stats[strategy_name] = len(matches)
+        
         elif strategy_name == 'duration_filter':
-            # Stage 2: Duration filtering (preprocess for fuzzy)
+            # Stage: Duration filtering (preprocess for fuzzy)
             # This doesn't produce matches itself but filters candidates
             logger.debug(f"[match][{strategy_name}] Applying duration-based candidate filtering...")
             
@@ -213,10 +245,12 @@ def match_and_store(db, config: Dict[str, Any] | None = None, fuzzy_threshold: f
     
     # Build stats summary
     exact_count = strategy_stats.get('sql_exact', 0)
+    album_count = strategy_stats.get('album_match', 0)
+    year_count = strategy_stats.get('year_match', 0)
     fuzzy_count = strategy_stats.get('fuzzy', 0)
     
     logger.info(f"[match] Matched {total_matches}/{len(tracks)} tracks ({match_rate:.1f}%) - "
-          f"exact={exact_count} fuzzy={fuzzy_count} - {dur:.2f}s")
+          f"exact={exact_count} album={album_count} year={year_count} fuzzy={fuzzy_count} - {dur:.2f}s")
     
     # Detailed debug info
     if not files:

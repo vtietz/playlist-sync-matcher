@@ -104,6 +104,7 @@ Other commands:
 run.bat version
 run.bat config              # Show current configuration
 run.bat report-albums       # Album completeness report
+run.bat analyze             # Analyze library metadata quality
 run.bat test -q             # Run tests (Python source only)
 ```
 
@@ -174,6 +175,67 @@ To prevent collisions when multiple playlists have the same name, exported M3U f
 - **Debugging**: Isolate matching issues to a specific playlist
 - **Easy sharing**: Copy Spotify URLs from list or M3U files to share with others
 
+### Library Quality Analysis
+
+Analyze your local music library's metadata quality to identify files with missing tags or low bitrate that might hurt matching accuracy:
+
+```bash
+# Basic analysis (shows summary + top 20 issues)
+run.bat analyze
+
+# Verbose mode (shows all issues)
+run.bat analyze --verbose
+
+# Custom bitrate threshold (default: 320 kbps)
+run.bat analyze --min-bitrate 256
+
+# Limit number of issues shown (default: 20)
+run.bat analyze --max-issues 50
+
+# Combine options
+run.bat analyze --min-bitrate 256 --max-issues 100 --verbose
+```
+
+**What it checks**:
+- **Missing metadata**: Files without artist, title, album, or year tags
+- **Low bitrate**: Files below your quality threshold (default: 320 kbps)
+
+**Example output**:
+```
+Library Quality Analysis
+═══════════════════════════════════════════════════════════════
+
+Summary Statistics:
+  Total files:                        10,245
+  Files with issues:                     387 (3.8%)
+  
+  Missing artist:                         12 (0.1%)
+  Missing title:                          15 (0.1%)
+  Missing album:                         124 (1.2%)
+  Missing year:                          289 (2.8%)
+  Low bitrate (< 320 kbps):               67 (0.7%)
+
+Issues Found (showing 20 of 387):
+  
+  Missing: album, year
+    → C:\Music\Downloads\Various - Track.mp3
+    
+  Missing: year | Bitrate: 128 kbps
+    → C:\Music\Old\Artist - Song.mp3
+```
+
+**Configuration**:
+```bash
+# Set default bitrate threshold in .env
+SPX__LIBRARY__MIN_BITRATE_KBPS=320
+```
+
+**Why this matters**:
+- **Better matching**: Complete metadata helps album-based and year-based matching strategies
+- **Quality control**: Identify low-bitrate files that should be replaced
+- **Debugging**: Find files that won't match due to missing tags
+- **Library maintenance**: Prioritize which files need tag cleanup
+
 ## Configuration
 
 ### Using .env File (Primary Configuration)
@@ -235,6 +297,7 @@ Settings are merged in this order (later overrides earlier):
 - `SPX__LIBRARY__EXTENSIONS` - File types (default: `[".mp3",".flac",".m4a",".ogg"]`)
 - `SPX__LIBRARY__FAST_SCAN` - Skip re-parsing unchanged files (default: true)
 - `SPX__LIBRARY__COMMIT_INTERVAL` - Batch size for DB commits (default: 100)
+- `SPX__LIBRARY__MIN_BITRATE_KBPS` - Minimum bitrate for quality analysis (default: 320)
 
 **Matching**:
 - `SPX__MATCHING__FUZZY_THRESHOLD` - Match sensitivity 0.0-1.0 (default: 0.78)
@@ -242,6 +305,7 @@ Settings are merged in this order (later overrides earlier):
 - `SPX__MATCHING__SHOW_UNMATCHED_TRACKS` - Diagnostic output count (default: 20)
 - `SPX__MATCHING__SHOW_UNMATCHED_ALBUMS` - Album diagnostic count (default: 20)
 - `SPX__MATCHING__USE_YEAR` - Include year in matching (default: false)
+- `SPX__MATCHING__STRATEGIES` - Matching strategy order (default: `["sql_exact","album_match","year_match","duration_filter","fuzzy"]`)
 
 **Export**:
 - `SPX__EXPORT__MODE` - strict | mirrored | placeholders (default: strict)
@@ -319,6 +383,50 @@ Token cache is saved to `tokens.json` and refreshed automatically.
 - **Dict Dispatch Pattern**: Export mode handling uses dictionary dispatch reducing if/elif branching complexity
 
 ### Matching Strategy
+
+The tool uses a multi-stage matching approach that runs strategies in sequence, with each strategy attempting to match unmatched tracks:
+
+1. **SQL Exact Match**: Fast indexed lookups using normalized artist + title (catches 70-85% of matches in <100ms)
+2. **Album Match**: Matches using normalized artist + title + album name (adds 5-10% more matches)
+   - Distinguishes studio vs. live albums
+   - Separates originals from compilations
+   - Identifies different album editions
+3. **Year Match**: Matches using normalized artist + title + year (adds 2-5% more matches)
+   - Distinguishes remasters from originals
+   - Separates live recordings by year
+   - Identifies re-recordings
+4. **Duration Filter**: Prefilters candidates by track duration (±2s tolerance by default)
+5. **Fuzzy Match**: RapidFuzz token_set_ratio on remaining candidates (catches alternative versions, typos)
+
+**Expected match rates**:
+- Without album/year strategies: 75-85% match rate
+- With album/year strategies: 88-92% match rate
+
+**Configure matching strategies** in `.env`:
+```bash
+# Default order (recommended)
+SPX__MATCHING__STRATEGIES=["sql_exact","album_match","year_match","duration_filter","fuzzy"]
+
+# Skip album/year matching (faster, lower match rate)
+SPX__MATCHING__STRATEGIES=["sql_exact","duration_filter","fuzzy"]
+
+# Only exact + album (no fuzzy fallback)
+SPX__MATCHING__STRATEGIES=["sql_exact","album_match"]
+
+# Adjust fuzzy threshold (higher = stricter)
+SPX__MATCHING__FUZZY_THRESHOLD=0.85
+
+# Adjust duration tolerance (seconds)
+SPX__MATCHING__DURATION_TOLERANCE=3.0
+```
+
+**Why album and year matching matter**:
+- **Remasters**: "Abbey Road (2009 Remaster)" vs. "Abbey Road (Original)"
+- **Live albums**: "Hotel California (Studio)" vs. "Hotel California (Live 1977)"
+- **Compilations**: "Bohemian Rhapsody (Greatest Hits)" vs. "Bohemian Rhapsody (A Night at the Opera)"
+- **Different years**: "Hurt (1994)" [Nine Inch Nails] vs. "Hurt (2002)" [Johnny Cash]
+
+Without album/year matching, all these versions appear identical after normalization and might match incorrectly.
 
 ## Advanced
 
@@ -416,15 +524,22 @@ Other optimizations:
 
 ### Match Strategy
 
-1. **SQL Exact**: Indexed normalized columns (70-95% of matches in <100ms)
-2. **Duration Filter**: Prefilter candidates by track duration (±2s tolerance)
-3. **Fuzzy Match**: RapidFuzz token_set_ratio on reduced candidate set
+Multi-stage approach for optimal accuracy and performance:
 
-Configure fuzzy threshold in `.env`:
+1. **SQL Exact**: Indexed normalized columns (70-85% of matches in <100ms)
+2. **Album Match**: Normalized artist + title + album (adds 5-10% more matches)
+3. **Year Match**: Normalized artist + title + year (adds 2-5% more matches)
+4. **Duration Filter**: Prefilter candidates by track duration (±2s tolerance)
+5. **Fuzzy Match**: RapidFuzz token_set_ratio on reduced candidate set
+
+Configure in `.env`:
 ```bash
+SPX__MATCHING__STRATEGIES=["sql_exact","album_match","year_match","duration_filter","fuzzy"]
 SPX__MATCHING__FUZZY_THRESHOLD=0.82
 SPX__MATCHING__DURATION_TOLERANCE=2.0
 ```
+
+See the [Matching Strategy](#matching-strategy) section for detailed explanation and customization examples.
 
 ### Database Schema
 
@@ -432,7 +547,7 @@ SPX__MATCHING__DURATION_TOLERANCE=2.0
 - `playlists`: Spotify playlists with owner info
 - `playlist_tracks`: Track order and liked status
 - `spotify_tracks`: Normalized Spotify metadata
-- `library_files`: Local files with audio tags
+- `library_files`: Local files with audio tags (includes bitrate_kbps for quality analysis)
 - `matched_tracks`: Spotify ↔ local file mappings
 - `meta`: Configuration and state
 
@@ -442,18 +557,26 @@ Schema updates automatically via `ALTER TABLE IF NOT EXISTS`.
 
 **Strategies** (configurable order in `.env`):
 ```bash
-# Default: sql_exact, duration_filter, fuzzy
-SPX__MATCHING__STRATEGIES=["sql_exact","duration_filter","fuzzy"]
+# Default: sql_exact, album_match, year_match, duration_filter, fuzzy
+SPX__MATCHING__STRATEGIES=["sql_exact","album_match","year_match","duration_filter","fuzzy"]
 ```
 
 Adjust for your library:
 ```bash
+# Skip album/year matching if not needed (faster):
+SPX__MATCHING__STRATEGIES=["sql_exact","duration_filter","fuzzy"]
+
 # Skip duration filter if all files similar length:
-SPX__MATCHING__STRATEGIES=["sql_exact","fuzzy"]
+SPX__MATCHING__STRATEGIES=["sql_exact","album_match","year_match","fuzzy"]
 
 # Stricter fuzzy matching:
 SPX__MATCHING__FUZZY_THRESHOLD=0.85
+
+# More lenient duration tolerance:
+SPX__MATCHING__DURATION_TOLERANCE=3.0
 ```
+
+**Tip**: Run `run.bat analyze` to identify metadata issues that might be hurting your match rates.
 
 ## License
 

@@ -64,7 +64,7 @@ def scan_library(db, cfg):
         # Load all existing file metadata including tags for fast_scan mode
         if fast_scan:
             rows = db.conn.execute(
-                "SELECT path, size, mtime, partial_hash, title, artist, album, year, duration, normalized FROM library_files"
+                "SELECT path, size, mtime, partial_hash, title, artist, album, year, duration, normalized, bitrate_kbps FROM library_files"
             ).fetchall()
             existing_files = {
                 row['path']: {
@@ -77,6 +77,7 @@ def scan_library(db, cfg):
                     'year': row['year'],
                     'duration': row['duration'],
                     'normalized': row['normalized'],
+                    'bitrate_kbps': row['bitrate_kbps'],
                 }
                 for row in rows
             }
@@ -140,6 +141,21 @@ def scan_library(db, cfg):
                 duration = None
                 if audio and getattr(audio, 'info', None) and getattr(audio.info, 'length', None):
                     duration = float(audio.info.length)
+                
+                # Extract bitrate (convert to kbps)
+                bitrate_kbps = None
+                if audio and getattr(audio, 'info', None):
+                    # Try to get bitrate from audio info
+                    if hasattr(audio.info, 'bitrate') and audio.info.bitrate:
+                        bitrate_kbps = int(audio.info.bitrate / 1000)  # Convert bits/sec to kbps
+                    # Some formats use different attribute names
+                    elif hasattr(audio.info, 'sample_rate') and hasattr(audio.info, 'bits_per_sample'):
+                        # Calculate bitrate for lossless formats
+                        sample_rate = audio.info.sample_rate
+                        bits_per_sample = audio.info.bits_per_sample
+                        channels = getattr(audio.info, 'channels', 2)
+                        bitrate_kbps = int((sample_rate * bits_per_sample * channels) / 1000)
+                
                 ph = partial_hash(p)
                 nt, na, combo = normalize_title_artist(title, artist)
                 if use_year and year is not None:
@@ -165,6 +181,7 @@ def scan_library(db, cfg):
                     'duration': duration,
                     'normalized': combo,
                     'year': year,
+                    'bitrate_kbps': bitrate_kbps,
                 })
                 if existing:
                     updated += 1
@@ -175,7 +192,7 @@ def scan_library(db, cfg):
                     action = "new"
                     color = 'green'
                 since_commit += 1
-                logger.debug(f"{click.style(f'[{action}]', fg=color)} {p} | title='{title}' artist='{artist}' album='{album}' year={year if year is not None else '-'} dur={duration if duration is not None else '-'} norm='{combo}'")
+                logger.debug(f"{click.style(f'[{action}]', fg=color)} {p} | title='{title}' artist='{artist}' album='{album}' year={year if year is not None else '-'} dur={duration if duration is not None else '-'} bitrate={bitrate_kbps if bitrate_kbps is not None else '-'} kbps norm='{combo}'")
                 if commit_interval and since_commit >= commit_interval:
                     db.commit()
                     logger.debug(f"[scan] interim commit after {since_commit} processed (inserted={inserted} updated={updated} skipped={skipped_unchanged})")

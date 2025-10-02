@@ -250,6 +250,32 @@ def match(ctx: click.Context):
         click.echo(f'Matched {result.matched} tracks')
 
 
+@cli.command()
+@click.option('--min-bitrate', type=int, help='Minimum acceptable bitrate in kbps (overrides config)')
+@click.option('--verbose', '-v', is_flag=True, help='Show detailed list of problematic files')
+@click.option('--max-issues', type=int, default=50, help='Maximum number of detailed issues to show')
+@click.pass_context
+def analyze(ctx: click.Context, min_bitrate: int | None, verbose: bool, max_issues: int):
+    """Analyze library metadata quality.
+    
+    Reports files with missing metadata (artist, title, album, year)
+    and bitrate issues. Helps identify tagging problems that hurt matching.
+    """
+    from .services.analysis_service import analyze_library_quality, print_quality_report
+    
+    cfg = ctx.obj
+    # Get min_bitrate from config or use default
+    if min_bitrate is None:
+        min_bitrate = cfg.get('library', {}).get('min_bitrate_kbps', 320)
+    
+    # Ensure min_bitrate is an int
+    min_bitrate = int(min_bitrate) if min_bitrate is not None else 320
+    
+    with _get_db(cfg) as db:
+        report = analyze_library_quality(db, min_bitrate_kbps=min_bitrate, max_issues=max_issues)
+        print_quality_report(report, min_bitrate_kbps=min_bitrate, verbose=verbose)
+
+
 @cli.command(name='match-diagnose')
 @click.argument('query')
 @click.option('--limit', type=int, default=10, help='Limit number of candidate files shown')

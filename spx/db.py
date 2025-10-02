@@ -49,6 +49,8 @@ class Database:
         # Migrations: add owner info to playlists
         self._ensure_column('playlists', 'owner_id', 'TEXT')
         self._ensure_column('playlists', 'owner_name', 'TEXT')
+        # Migrations: add bitrate_kbps to library_files
+        self._ensure_column('library_files', 'bitrate_kbps', 'INTEGER')
 
     def _ensure_column(self, table: str, column: str, col_type: str):
         cur = self.conn.execute(f"PRAGMA table_info({table})")
@@ -106,7 +108,7 @@ class Database:
 
     def add_library_file(self, data: Dict[str, Any]):
         self.conn.execute(
-            "INSERT INTO library_files(path,size,mtime,partial_hash,title,album,artist,duration,normalized,year) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(path) DO UPDATE SET size=excluded.size, mtime=excluded.mtime, partial_hash=excluded.partial_hash, title=excluded.title, album=excluded.album, artist=excluded.artist, duration=excluded.duration, normalized=excluded.normalized, year=excluded.year",
+            "INSERT INTO library_files(path,size,mtime,partial_hash,title,album,artist,duration,normalized,year,bitrate_kbps) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(path) DO UPDATE SET size=excluded.size, mtime=excluded.mtime, partial_hash=excluded.partial_hash, title=excluded.title, album=excluded.album, artist=excluded.artist, duration=excluded.duration, normalized=excluded.normalized, year=excluded.year, bitrate_kbps=excluded.bitrate_kbps",
             (
                 data["path"],
                 data.get("size"),
@@ -118,6 +120,7 @@ class Database:
                 data.get("duration"),
                 data.get("normalized"),
                 data.get("year"),
+                data.get("bitrate_kbps"),
             ),
         )
 

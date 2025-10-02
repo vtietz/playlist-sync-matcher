@@ -33,6 +33,7 @@ _DEFAULTS: Dict[str, Any] = {
         "skip_unchanged": True,           # skip files whose size+mtime unchanged (fast path)
         "fast_scan": True,                # skip audio parsing for unchanged files (massive speedup)
         "commit_interval": 100,           # commit after N processed (new/updated) files
+        "min_bitrate_kbps": 320,          # minimum acceptable bitrate for quality analysis
     },
     "matching": {
         "fuzzy_threshold": 0.78,
@@ -40,7 +41,7 @@ _DEFAULTS: Dict[str, Any] = {
         "album_match_bonus": 0.04,
         "use_year": False,  # when true include year token (if available) in normalization / scoring
         "duration_tolerance": 2.0,  # seconds tolerance for duration-based filtering (±2s default)
-        "strategies": ["sql_exact", "duration_filter", "fuzzy"],  # ordered list of matching strategies to apply
+        "strategies": ["sql_exact", "album_match", "year_match", "duration_filter", "fuzzy"],  # ordered list of matching strategies to apply
         "show_unmatched_tracks": 20,  # number of unmatched tracks to show in debug output
         "show_unmatched_albums": 20,  # number of unmatched albums to show in debug output
     },
