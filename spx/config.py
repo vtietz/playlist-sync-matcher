@@ -6,6 +6,12 @@ from typing import Any, Dict
 from pathlib import Path
 import copy
 
+try:
+    from .config_types import TypedConfigDict
+except ImportError:
+    # Fallback for tests or when types not yet available
+    TypedConfigDict = dict  # type: ignore
+
 _DEFAULTS: Dict[str, Any] = {
     "log_level": "INFO",  # Logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL
     "spotify": {
@@ -106,6 +112,9 @@ def load_config(explicit_file: str | None = None, overrides: Dict[str, Any] | No
 
     During test runs (detected via PYTEST_CURRENT_TEST) .env loading is skipped
     unless SPX_ENABLE_DOTENV=1 is set to allow deterministic defaults.
+    
+    Returns:
+        Dictionary configuration (use load_typed_config() for type-safe access)
     """
     dotenv_values: Dict[str, str] = {}
     if os.environ.get('SPX_ENABLE_DOTENV') or not os.environ.get('PYTEST_CURRENT_TEST'):
@@ -133,6 +142,24 @@ def load_config(explicit_file: str | None = None, overrides: Dict[str, Any] | No
     _configure_logging(cfg.get('log_level', 'INFO'))
     
     return cfg
+
+
+def load_typed_config(explicit_file: str | None = None, overrides: Dict[str, Any] | None = None):
+    """Load configuration as typed AppConfig object.
+    
+    This provides type-safe access to configuration with IDE autocomplete support.
+    For backward compatibility, use load_config() which returns a dict.
+    
+    Args:
+        explicit_file: Kept for compatibility, not used
+        overrides: Dictionary of override values
+        
+    Returns:
+        AppConfig: Typed configuration object with .to_dict() for dict conversion
+    """
+    from .config_types import AppConfig
+    dict_config = load_config(explicit_file, overrides)
+    return AppConfig.from_dict(dict_config)
 
 
 def _configure_logging(level_str: str) -> None:

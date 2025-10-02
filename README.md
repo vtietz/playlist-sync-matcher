@@ -240,6 +240,23 @@ This tool uses **HTTP loopback** (recommended by Spotify) with default redirect:
 
 Token cache is saved to `tokens.json` and refreshed automatically.
 
+## Performance & Architecture
+
+### Recent Improvements (Phase 1 Refactoring - October 2025)
+
+**Performance Enhancements**:
+- **LRU Caching**: Normalization functions now use `@lru_cache(maxsize=2048)` to speed up repeated string processing during matching (especially beneficial with large libraries and backfill operations)
+- **Connection Pooling**: OAuth token exchanges now use a shared `requests.Session` for better HTTP connection reuse and reduced latency during authentication
+- **Optimized Queries**: Database count operations extracted into dedicated methods (`count_playlists()`, `count_tracks()`, etc.) for better encapsulation and potential query optimization
+
+**Code Quality & Maintainability**:
+- **Clean Separation**: Export directory resolution logic extracted into testable `_resolve_export_dir()` helper function
+- **Better Encapsulation**: Database summary counts moved from raw SQL in CLI commands to proper `Database` class methods
+- **Maintainable Config**: Config redaction now uses `copy.deepcopy` instead of JSON round-trip serialization (faster and cleaner)
+- **Dict Dispatch Pattern**: Export mode handling uses dictionary dispatch reducing if/elif branching complexity
+
+### Matching Strategy
+
 ## Advanced
 
 ### Enhanced Diagnostics
