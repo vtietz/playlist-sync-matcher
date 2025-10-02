@@ -107,6 +107,73 @@ run.bat report-albums       # Album completeness report
 run.bat test -q             # Run tests (Python source only)
 ```
 
+### Single Playlist Operations
+
+Work with individual playlists instead of syncing everything:
+
+```bash
+# List all playlists with IDs
+run.bat playlists list
+
+# List with Spotify URLs (clickable links)
+run.bat playlists list --show-urls
+
+# Pull a single playlist from Spotify
+run.bat playlist pull <PLAYLIST_ID>
+
+# Match a single playlist against your library
+run.bat playlist match <PLAYLIST_ID>
+
+# Export a single playlist to M3U
+run.bat playlist export <PLAYLIST_ID>
+
+# Sync a single playlist (pull + match + export)
+run.bat playlist sync <PLAYLIST_ID>
+```
+
+**Example workflow**:
+```bash
+# 1. List all playlists to find the ID you want
+run.bat playlists list
+
+# Output example:
+# ID                       Name                 Owner        Tracks
+# -----------------------------------------------------------------------
+# 37i9dQZF1DXcBWIGoYBM5M   Today's Top Hits     Spotify      50
+# 3cEYpjA9oz9GiPac4AsH4n   My Workout Mix       YourName     127
+
+# 2. Get URLs to open playlists in Spotify
+run.bat playlists list --show-urls
+
+# Output shows clickable links:
+#   → https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M
+
+# 3. Sync just your workout playlist
+run.bat playlist sync 3cEYpjA9oz9GiPac4AsH4n
+```
+
+**Spotify URLs in M3U files**:
+All exported M3U files now include the Spotify playlist URL as a comment in the header:
+```m3u
+#EXTM3U
+# Spotify: https://open.spotify.com/playlist/3cEYpjA9oz9GiPac4AsH4n
+#EXTINF:180,Artist - Song Title
+C:\Music\Artist\Song.mp3
+```
+
+**M3U Filename Format**:
+To prevent collisions when multiple playlists have the same name, exported M3U files include a unique identifier:
+- Format: `<PlaylistName>_<First8CharsOfID>.m3u8`
+- Example: `Workout Mix_3cEYpjA9.m3u8`
+- The 8-character suffix is the first 8 characters of the Spotify playlist ID, ensuring each file is unique even if playlist names are identical
+
+**Why use single-playlist commands?**
+- **Faster**: Only process one playlist instead of all
+- **Testing**: Try different settings on one playlist before full sync
+- **Selective updates**: Update frequently-changed playlists without re-processing everything
+- **Debugging**: Isolate matching issues to a specific playlist
+- **Easy sharing**: Copy Spotify URLs from list or M3U files to share with others
+
 ## Configuration
 
 ### Using .env File (Primary Configuration)

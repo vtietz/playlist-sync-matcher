@@ -10,6 +10,12 @@ from .ingest.library import scan_library
 from .services.pull_service import pull_spotify_data
 from .services.match_service import run_matching
 from .services.export_service import export_playlists
+from .services.playlist_service import (
+    pull_single_playlist,
+    match_single_playlist,
+    export_single_playlist,
+    sync_single_playlist,
+)
 import time
 import json as _json
 from datetime import datetime
@@ -327,6 +333,173 @@ def sync(ctx: click.Context):
     ctx.invoke(export)
     ctx.invoke(report)
     click.echo('Sync complete')
+
+
+# Playlist-specific commands
+@cli.group(name='playlists')
+@click.pass_context
+def playlists_group(ctx: click.Context):
+    """List and manage playlists."""
+    pass
+
+
+@playlists_group.command(name='list')
+@click.option('--show-urls', is_flag=True, help='Show Spotify URLs for each playlist')
+@click.pass_context
+def playlists_list(ctx: click.Context, show_urls: bool):
+    """List all playlists with their IDs, names, owners, and track counts."""
+    cfg = ctx.obj
+    with _get_db(cfg) as db:
+        playlists = db.get_all_playlists()
+        
+        if not playlists:
+            click.echo("No playlists found. Run 'spx pull' first.")
+            return
+        
+        # Print header
+        click.echo(f"{'ID':<24} {'Name':<40} {'Owner':<20} {'Tracks':>7}")
+        click.echo("-" * 95)
+        
+        # Print each playlist
+        for pl in playlists:
+            pl_id = pl['id']
+            name = pl['name'][:40]  # Truncate long names
+            owner = (pl['owner_name'] or pl['owner_id'] or 'Unknown')[:20]
+            track_count = pl['track_count']
+            click.echo(f"{pl_id:<24} {name:<40} {owner:<20} {track_count:>7}")
+            
+            if show_urls:
+                url = f"https://open.spotify.com/playlist/{pl_id}"
+                click.echo(f"  → {url}")
+        
+        click.echo(f"\nTotal: {len(playlists)} playlists")
+
+
+@cli.group(name='playlist')
+@click.pass_context
+def playlist_group(ctx: click.Context):
+    """Operations on a single playlist."""
+    pass
+
+
+@playlist_group.command(name='pull')
+@click.argument('playlist_id')
+@click.option('--force-auth', is_flag=True, help='Force full auth flow ignoring cached token')
+@click.option('--verbose', '-v', is_flag=True, help='Verbose logging')
+@click.pass_context
+def playlist_pull(ctx: click.Context, playlist_id: str, force_auth: bool, verbose: bool):
+    """Pull a single playlist from Spotify.
+    
+    PLAYLIST_ID: Spotify playlist ID (get from 'spx playlists list')
+    """
+    cfg = ctx.obj
+    if not cfg['spotify']['client_id']:
+        raise click.UsageError('spotify.client_id not configured')
+    
+    with _get_db(cfg) as db:
+        result = pull_single_playlist(
+            db=db,
+            playlist_id=playlist_id,
+            spotify_config=cfg['spotify'],
+            matching_config=cfg['matching'],
+            force_auth=force_auth,
+            verbose=verbose
+        )
+        
+        click.echo(f"Pulled playlist '{result.playlist_name}' ({result.playlist_id})")
+        click.echo(f"Tracks: {result.tracks_processed}")
+        if verbose:
+            click.echo(f"Duration: {result.duration_seconds:.2f}s")
+
+
+@playlist_group.command(name='match')
+@click.argument('playlist_id')
+@click.option('--verbose', '-v', is_flag=True, help='Verbose logging')
+@click.pass_context
+def playlist_match(ctx: click.Context, playlist_id: str, verbose: bool):
+    """Match tracks from a single playlist against local library.
+    
+    PLAYLIST_ID: Spotify playlist ID (get from 'spx playlists list')
+    """
+    cfg = ctx.obj
+    
+    with _get_db(cfg) as db:
+        result = match_single_playlist(
+            db=db,
+            playlist_id=playlist_id,
+            config=cfg,
+            verbose=verbose
+        )
+        
+        click.echo(f"Matched playlist '{result.playlist_name}' ({result.playlist_id})")
+        click.echo(f"Matched: {result.tracks_matched}/{result.tracks_processed} tracks")
+        if verbose:
+            click.echo(f"Duration: {result.duration_seconds:.2f}s")
+
+
+@playlist_group.command(name='export')
+@click.argument('playlist_id')
+@click.option('--verbose', '-v', is_flag=True, help='Verbose logging')
+@click.pass_context
+def playlist_export(ctx: click.Context, playlist_id: str, verbose: bool):
+    """Export a single playlist to M3U file.
+    
+    PLAYLIST_ID: Spotify playlist ID (get from 'spx playlists list')
+    """
+    cfg = ctx.obj
+    organize_by_owner = cfg['export'].get('organize_by_owner', False)
+    
+    with _get_db(cfg) as db:
+        # Get current user ID if needed
+        current_user_id = None
+        if organize_by_owner:
+            current_user_id = db.get_meta('current_user_id')
+        
+        result = export_single_playlist(
+            db=db,
+            playlist_id=playlist_id,
+            export_config=cfg['export'],
+            organize_by_owner=organize_by_owner,
+            current_user_id=current_user_id,
+            verbose=verbose
+        )
+        
+        click.echo(f"Exported playlist '{result.playlist_name}' ({result.playlist_id})")
+        click.echo(f"File: {result.exported_file}")
+        if verbose:
+            click.echo(f"Duration: {result.duration_seconds:.2f}s")
+
+
+@playlist_group.command(name='sync')
+@click.argument('playlist_id')
+@click.option('--force-auth', is_flag=True, help='Force full auth flow ignoring cached token')
+@click.option('--verbose', '-v', is_flag=True, help='Verbose logging')
+@click.pass_context
+def playlist_sync(ctx: click.Context, playlist_id: str, force_auth: bool, verbose: bool):
+    """Sync a single playlist (pull + match + export).
+    
+    PLAYLIST_ID: Spotify playlist ID (get from 'spx playlists list')
+    """
+    cfg = ctx.obj
+    if not cfg['spotify']['client_id']:
+        raise click.UsageError('spotify.client_id not configured')
+    
+    with _get_db(cfg) as db:
+        result = sync_single_playlist(
+            db=db,
+            playlist_id=playlist_id,
+            spotify_config=cfg['spotify'],
+            config=cfg,
+            force_auth=force_auth,
+            verbose=verbose
+        )
+        
+        click.echo(f"Synced playlist '{result.playlist_name}' ({result.playlist_id})")
+        click.echo(f"Tracks processed: {result.tracks_processed}")
+        click.echo(f"Tracks matched: {result.tracks_matched}")
+        click.echo(f"Exported to: {result.exported_file}")
+        if verbose:
+            click.echo(f"Total duration: {result.duration_seconds:.2f}s")
 
 
 if __name__ == '__main__':  # pragma: no cover

@@ -107,8 +107,12 @@ class FuzzyMatchStrategy(MatchStrategy):
                 matches.append((track_id, best_file_id, best_score, self.get_name()))
                 matched_track_ids.add(track_id)
                 
-                # Only log individual matches if we have very few (to avoid console spam)
-                # For large match sets, rely on summary instead
+                # Log individual matches in debug mode
+                if self.debug:
+                    track = track_by_id.get(track_id, {})
+                    file = file_by_id.get(best_file_id, {})
+                    print(f"[{self.get_name()}] [MATCH] score={best_score:.3f}: "
+                          f"{track.get('artist', '')} - {track.get('name', '')} -> {file.get('path', '')}")
         
         duration = time.time() - start
         

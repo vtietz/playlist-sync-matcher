@@ -16,9 +16,15 @@ def sanitize_filename(name: str) -> str:
 def export_strict(playlist: Dict[str, Any], tracks: Iterable[Dict[str, Any]], out_dir: Path):
     """Strict mode: only include resolved local file paths, omit missing tracks."""
     out_dir.mkdir(parents=True, exist_ok=True)
-    fname = sanitize_filename(playlist.get('name', 'playlist')) + '.m3u8'
+    playlist_id = playlist.get('id', 'unknown')
+    fname = f"{sanitize_filename(playlist.get('name', 'playlist'))}_{playlist_id[:8]}.m3u8"
     path = out_dir / fname
     lines = [HEADER]
+    
+    # Add Spotify URL if playlist ID is available
+    if playlist_id != 'unknown':
+        lines.append(f"# Spotify: https://open.spotify.com/playlist/{playlist_id}")
+    
     for t in tracks:
         local_path = t.get('local_path')
         if not local_path:
@@ -51,9 +57,15 @@ def export_mirrored(playlist: Dict[str, Any], tracks: Sequence[Dict[str, Any]], 
     Missing tracks are annotated but do not create placeholder files.
     """
     out_dir.mkdir(parents=True, exist_ok=True)
-    fname = sanitize_filename(playlist.get('name', 'playlist')) + '.m3u8'
+    playlist_id = playlist.get('id', 'unknown')
+    fname = f"{sanitize_filename(playlist.get('name', 'playlist'))}_{playlist_id[:8]}.m3u8"
     path = out_dir / fname
     lines = [HEADER]
+    
+    # Add Spotify URL if playlist ID is available
+    if playlist_id != 'unknown':
+        lines.append(f"# Spotify: https://open.spotify.com/playlist/{playlist_id}")
+    
     for t in tracks:
         lines.append(_extinf_line(t) + (" (MISSING)" if not t.get('local_path') else ""))
         if t.get('local_path'):
@@ -77,11 +89,17 @@ def export_placeholders(playlist: Dict[str, Any], tracks: Sequence[Dict[str, Any
     is an empty (or tiny) file named using playlist position & track title.
     """
     out_dir.mkdir(parents=True, exist_ok=True)
-    fname = sanitize_filename(playlist.get('name', 'playlist')) + '.m3u8'
+    playlist_id = playlist.get('id', 'unknown')
+    fname = f"{sanitize_filename(playlist.get('name', 'playlist'))}_{playlist_id[:8]}.m3u8"
     path = out_dir / fname
-    placeholders_dir = out_dir / (sanitize_filename(playlist.get('name', 'playlist')) + '_placeholders')
+    placeholders_dir = out_dir / (f"{sanitize_filename(playlist.get('name', 'playlist'))}_{playlist_id[:8]}_placeholders")
     placeholders_dir.mkdir(parents=True, exist_ok=True)
     lines = [HEADER]
+    
+    # Add Spotify URL if playlist ID is available
+    if playlist_id != 'unknown':
+        lines.append(f"# Spotify: https://open.spotify.com/playlist/{playlist_id}")
+    
     used_names = set()
     for t in tracks:
         pos = t.get('position')

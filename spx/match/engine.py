@@ -126,6 +126,9 @@ def match_and_store(db, config: Dict[str, Any] | None = None, fuzzy_threshold: f
     logger.debug(f"[match] Loaded {len(tracks)} tracks and {len(files)} library files")
     logger.debug(f"[match] Enabled strategies: {', '.join(enabled_strategies)}")
     
+    # Check if debug logging is enabled for strategies
+    is_debug = logger.isEnabledFor(logging.DEBUG)
+    
     # Backfill normalization if missing (old ingests)
     backfilled = 0
     for t in tracks:
@@ -153,7 +156,7 @@ def match_and_store(db, config: Dict[str, Any] | None = None, fuzzy_threshold: f
             # Stage 1: SQL-based exact matching
             logger.debug(f"[match][{strategy_name}] Running SQL exact matching strategy...")
             
-            strategy = ExactMatchStrategy(db, config)
+            strategy = ExactMatchStrategy(db, config, debug=is_debug)
             matches, new_matched = strategy.match(tracks, files, matched_track_ids)
             
             # Store matches
@@ -185,6 +188,7 @@ def match_and_store(db, config: Dict[str, Any] | None = None, fuzzy_threshold: f
             
             strategy = FuzzyMatchStrategy(
                 db, config,
+                debug=is_debug,
                 candidate_file_ids=candidate_map
             )
             matches, new_matched = strategy.match(tracks, files, matched_track_ids)

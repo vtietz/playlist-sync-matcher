@@ -54,8 +54,12 @@ class ExactMatchStrategy(MatchStrategy):
             matches.append((track_id, file_id, 1.0, self.get_name()))
             matched_track_ids.add(track_id)
             
-            # Only log matches, no per-match details unless explicitly verbose
-            # (Per-match logging creates too much noise for large libraries)
+            # Log individual matches in debug mode
+            if self.debug:
+                track = track_by_id.get(track_id, {})
+                file = file_by_id.get(file_id, {})
+                print(f"[{self.get_name()}] [MATCH] Exact: "
+                      f"{track.get('artist', '')} - {track.get('name', '')} -> {file.get('path', '')}")
         
         duration = time.time() - start
         

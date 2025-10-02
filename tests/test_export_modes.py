@@ -11,10 +11,12 @@ def _sample_tracks():
 
 
 def test_export_strict(tmp_path: Path):
-    pl = {'name': 'My Playlist'}
+    pl = {'name': 'My Playlist', 'id': 'testid12345678'}
     tracks = _sample_tracks()
     path = export_strict(pl, tracks, tmp_path)
     content = path.read_text(encoding='utf-8').splitlines()
+    # Check filename includes ID (sanitize_filename keeps spaces)
+    assert path.name == 'My Playlist_testid12.m3u8'
     # Only the matched track path appears
     assert 'file1.mp3' in content
     assert '#EXTINF' not in '\n'.join(content)
@@ -22,10 +24,12 @@ def test_export_strict(tmp_path: Path):
 
 
 def test_export_mirrored(tmp_path: Path):
-    pl = {'name': 'Mirror List'}
+    pl = {'name': 'Mirror List', 'id': 'mirrorid123456'}
     tracks = _sample_tracks()
     path = export_mirrored(pl, tracks, tmp_path)
     lines = path.read_text(encoding='utf-8').splitlines()
+    # Check filename includes ID (sanitize_filename keeps spaces)
+    assert path.name == 'Mirror List_mirrorid.m3u8'
     # EXTINF lines count equals 3 tracks
     extinf = [l for l in lines if l.startswith('#EXTINF')]
     assert len(extinf) == 3
@@ -35,11 +39,14 @@ def test_export_mirrored(tmp_path: Path):
 
 
 def test_export_placeholders(tmp_path: Path):
-    pl = {'name': 'Placeholders'}
+    pl = {'name': 'Placeholders', 'id': 'placehold12345'}
     tracks = _sample_tracks()
     path = export_placeholders(pl, tracks, tmp_path, placeholder_extension='.missing')
     lines = path.read_text(encoding='utf-8').splitlines()
-    placeholder_dir = tmp_path / 'Placeholders_placeholders'
+    # Check filename includes ID (first 8 chars of 'placehold12345' = 'placehol')
+    assert path.name == 'Placeholders_placehol.m3u8'
+    # Check placeholder directory name includes ID
+    placeholder_dir = tmp_path / 'Placeholders_placehol_placeholders'
     assert placeholder_dir.exists()
     placeholder_files = list(placeholder_dir.glob('*.missing'))
     # Two missing tracks => two placeholder files, distinct names

@@ -17,9 +17,19 @@ This allows CLI commands to focus on:
 from .pull_service import pull_spotify_data
 from .match_service import run_matching
 from .export_service import export_playlists
+from .playlist_service import (
+    pull_single_playlist,
+    match_single_playlist,
+    export_single_playlist,
+    sync_single_playlist,
+)
 
 __all__ = [
     'pull_spotify_data',
     'run_matching',
     'export_playlists',
+    'pull_single_playlist',
+    'match_single_playlist',
+    'export_single_playlist',
+    'sync_single_playlist',
 ]

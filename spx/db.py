@@ -175,6 +175,52 @@ class Database:
         """Return the total number of matches."""
         cursor = self.conn.execute("SELECT COUNT(*) FROM matches")
         return cursor.fetchone()[0]
+    
+    def get_all_playlists(self) -> list[sqlite3.Row]:
+        """Return all playlists with their metadata and track counts.
+        
+        Returns:
+            List of Row objects with columns: id, name, owner_id, owner_name, snapshot_id, track_count
+        """
+        sql = """
+        SELECT 
+            p.id, 
+            p.name, 
+            p.owner_id, 
+            p.owner_name, 
+            p.snapshot_id,
+            COUNT(pt.track_id) as track_count
+        FROM playlists p
+        LEFT JOIN playlist_tracks pt ON pt.playlist_id = p.id
+        GROUP BY p.id, p.name, p.owner_id, p.owner_name, p.snapshot_id
+        ORDER BY p.name
+        """
+        return self.conn.execute(sql).fetchall()
+    
+    def get_playlist_by_id(self, playlist_id: str) -> Optional[sqlite3.Row]:
+        """Get a single playlist by ID.
+        
+        Args:
+            playlist_id: Spotify playlist ID
+            
+        Returns:
+            Row with columns: id, name, owner_id, owner_name, snapshot_id, or None if not found
+        """
+        sql = "SELECT id, name, owner_id, owner_name, snapshot_id FROM playlists WHERE id=?"
+        cur = self.conn.execute(sql, (playlist_id,))
+        return cur.fetchone()
+    
+    def count_playlist_tracks(self, playlist_id: str) -> int:
+        """Return the number of tracks in a specific playlist.
+        
+        Args:
+            playlist_id: Spotify playlist ID
+            
+        Returns:
+            Number of tracks in the playlist
+        """
+        cursor = self.conn.execute("SELECT COUNT(*) FROM playlist_tracks WHERE playlist_id=?", (playlist_id,))
+        return cursor.fetchone()[0]
 
     def close(self):
         # Make close idempotent to avoid hangs when called multiple times
