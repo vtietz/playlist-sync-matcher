@@ -41,10 +41,6 @@ chmod +x run.sh
 
 > **First run**: The script creates a `.venv` directory and installs dependencies automatically.
 
-### What if Python is not installed?
-- Use **Option 1** (standalone executable) - works without Python
-- Or install Python from [python.org](https://www.python.org/downloads/) for Option 2
-
 ## Quick Start
 
 1. **Get a Spotify Client ID** (see [Setup](#spotify-setup) below)

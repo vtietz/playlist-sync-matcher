@@ -45,7 +45,7 @@ class LibraryConfig:
 @dataclass
 class MatchingConfig:
     """Track matching algorithm configuration."""
-    fuzzy_threshold: int = 85
+    fuzzy_threshold: float = 0.78  # 0.0-1.0 scale (not 0-100)
     use_year: bool = False
     show_unmatched_tracks: int = 20
     show_unmatched_albums: int = 20

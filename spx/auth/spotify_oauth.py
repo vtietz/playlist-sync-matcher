@@ -130,8 +130,9 @@ class SpotifyAuth:
                 json.dump(data, fh)
             abs_path = os.path.abspath(self.cache_file)
             logger.debug(f"[auth] Saved token cache to {abs_path}")
-        except Exception:
-            pass
+        except Exception as e:
+            abs_path = os.path.abspath(self.cache_file)
+            logger.warning(f"[auth] Failed to write token cache to {abs_path}: {e}")
 
     def _needs_refresh(self, tok: Dict[str, Any]) -> bool:
         exp = tok.get('expires_at')
@@ -179,7 +180,6 @@ class SpotifyAuth:
         redirect_uri = self.build_redirect_uri()
         # Generate a state token (mitigate stale/cached session anomalies & CSRF)
         state = base64.urlsafe_b64encode(os.urandom(12)).decode().rstrip('=')
-        expected_state = state
         logger.debug(f"[auth] Beginning auth flow. Redirect URI: {redirect_uri} state={state}")
         # If HTTPS required, ensure cert BEFORE opening browser so user doesn't see invalid URL failure first.
         server = OAuthServer((self.redirect_host, self.redirect_port), OAuthHandler)
@@ -223,21 +223,26 @@ class SpotifyAuth:
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
         logger.debug(f"[auth] Local server started on port {self.redirect_port}, waiting for authorization code...")
-        start = time.time()
-        while server.code is None:
-            # Surface errors early
-            if getattr(server, 'error', None):
-                err = server.error  # type: ignore[attr-defined]
-                desc = getattr(server, 'error_description', '')  # type: ignore[attr-defined]
-                server.shutdown()
-                raise RuntimeError(f"Spotify authorization error: {err} {desc}".strip())
-            if time.time() - start > self.timeout_seconds:
-                server.shutdown()
-                raise TimeoutError("Authorization timeout expired.")
-            time.sleep(0.05)
-        server.shutdown()
-        logger.debug(f"[auth] Received authorization code: {server.code}")
-        code = server.code
+        
+        try:
+            start = time.time()
+            while server.code is None:
+                # Surface errors early
+                if getattr(server, 'error', None):
+                    err = server.error  # type: ignore[attr-defined]
+                    desc = getattr(server, 'error_description', '')  # type: ignore[attr-defined]
+                    raise RuntimeError(f"Spotify authorization error: {err} {desc}".strip())
+                if time.time() - start > self.timeout_seconds:
+                    raise TimeoutError("Authorization timeout expired.")
+                time.sleep(0.05)
+            logger.debug(f"[auth] Received authorization code: {server.code}")
+            code = server.code
+        finally:
+            # Clean shutdown: stop server, join thread, close socket
+            server.shutdown()
+            thread.join(timeout=2.0)
+            server.server_close()
+        
         # Optional basic state validation (ignore if Spotify didn't echo it for some reason)
         # Extract state from server.code path (handler did not store it; extend handler for completeness)
         # NOTE: For minimal intrusion, we re-parse last request URL from handler 'path'

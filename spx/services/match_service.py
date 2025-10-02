@@ -57,8 +57,7 @@ def run_matching(
     cur = db.conn.execute('SELECT COUNT(DISTINCT album) FROM library_files')
     result.library_albums = cur.fetchone()[0]
     
-    result.library_tracks = db.count_tracks()
-    result.spotify_tracks = db.count_tracks()  # Same as library tracks after matching
+    result.spotify_tracks = db.count_tracks()
     result.matched = matched_count
     result.unmatched = result.library_files - result.matched
     
@@ -67,7 +66,7 @@ def run_matching(
         unmatched_cur = db.conn.execute('''
             SELECT artist, album, title
             FROM library_files
-            WHERE file_id NOT IN (SELECT file_id FROM matches)
+            WHERE id NOT IN (SELECT file_id FROM matches)
             ORDER BY artist, album, title
         ''')
         result.unmatched_list = [

@@ -1,8 +1,7 @@
 from __future__ import annotations
 import click
 from pathlib import Path
-from .config import load_config, _configure_logging
-import os
+from .config import load_config
 import copy
 from .db import Database
 from .reporting.generator import write_missing_tracks, write_album_completeness
@@ -41,10 +40,6 @@ def cli(ctx: click.Context, config_file: str | None):
         cfg = ctx.obj
     else:
         cfg = load_config(config_file)
-    
-    # Configure logging based on config
-    log_level = cfg.get('log_level', 'INFO')
-    _configure_logging(log_level)
     
     ctx.obj = cfg
 
@@ -131,17 +126,16 @@ def redirect_uri(ctx: click.Context):
 def token_info(ctx: click.Context):
     """Show token cache file path and expiration (if present)."""
     cfg = ctx.obj
-    auth = _build_auth(cfg)
     path = Path(cfg['spotify']['cache_file']).resolve()
     if not path.exists():
         click.echo(f"Token cache not found: {path}")
         return
     try:
-        import json, time as _time
+        import json
         data = json.loads(path.read_text(encoding='utf-8'))
         exp = data.get('expires_at')
         if exp:
-            remaining = int(exp - _time.time())
+            remaining = int(exp - time.time())
             click.echo(f"Token cache: {path}\nExpires at: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(exp))} (in {remaining}s)")
         else:
             click.echo(f"Token cache: {path}\n(No expires_at field)")
@@ -160,7 +154,7 @@ def _build_auth(cfg):
         redirect_path=cfg['spotify'].get('redirect_path', '/callback'),
         scope=cfg['spotify']['scope'],
         cache_file=cfg['spotify']['cache_file'],
-        redirect_scheme=cfg['spotify'].get('redirect_scheme', 'https'),
+        redirect_scheme=cfg['spotify'].get('redirect_scheme', 'http'),
         redirect_host=cfg['spotify'].get('redirect_host', '127.0.0.1'),
         cert_file=cfg['spotify'].get('cert_file'),
         key_file=cfg['spotify'].get('key_file'),

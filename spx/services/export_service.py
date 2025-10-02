@@ -9,7 +9,7 @@ import logging
 from typing import Dict, Any, List
 from pathlib import Path
 
-from ..export.playlists import export_strict, export_mirrored, export_placeholders
+from ..export.playlists import export_strict, export_mirrored, export_placeholders, sanitize_filename
 from ..db import Database
 
 logger = logging.getLogger(__name__)
@@ -46,11 +46,13 @@ def _resolve_export_dir(
         return base_dir
     
     if owner_id and owner_id == current_user_id:
-        return base_dir / 'my'
+        return base_dir / 'my_playlists'
     elif owner_name:
-        return base_dir / owner_name
+        # Sanitize owner name to avoid invalid path characters
+        folder_name = sanitize_filename(owner_name)
+        return base_dir / folder_name
     else:
-        return base_dir / 'unknown'
+        return base_dir / 'other'
 
 
 def export_playlists(
@@ -75,7 +77,7 @@ def export_playlists(
     # Extract config
     export_dir = Path(export_config['directory'])
     mode = export_config.get('mode', 'strict')
-    placeholder_ext = export_config.get('placeholder_extension', 'txt')
+    placeholder_ext = export_config.get('placeholder_extension', '.missing')
     
     # Get current user ID from metadata if not provided
     if organize_by_owner and current_user_id is None:
@@ -87,8 +89,8 @@ def export_playlists(
     
     for pl in playlists:
         pl_id = pl['id']
-        owner_id = pl.get('owner_id')
-        owner_name = pl.get('owner_name')
+        owner_id = pl['owner_id'] if 'owner_id' in pl.keys() else None
+        owner_name = pl['owner_name'] if 'owner_name' in pl.keys() else None
         
         # Determine target directory
         target_dir = _resolve_export_dir(
