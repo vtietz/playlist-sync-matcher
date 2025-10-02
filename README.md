@@ -5,7 +5,7 @@ Sync your Spotify playlists to M3U8 files matched against your local music libra
 ## Installation
 
 ### Option 1: Standalone Executable (Easiest)
-No Python required! Download pre-built binaries from [Releases](https://github.com/YOUR_USERNAME/spotify-m3u-sync/releases):
+No Python required! Download pre-built binaries from [Releases](https://github.com/vtietz/spotify-m3u-sync/releases):
 
 **Windows**:
 ```bash
