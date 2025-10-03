@@ -1,6 +1,6 @@
 # spotify-m3u-sync
 
-Sync your streaming playlists (currently Spotify) to M3U8 files matched against your local music library, with fast matching and rich reporting. The codebase is provider‑ready (namespaced schema, pluggable provider abstraction) so additional services (Deezer, Tidal, etc.) can be added without redesign.
+Build local playlist artifacts (currently Spotify) as M3U8 files matched against your local music library, with fast matching and rich reporting. The codebase is provider‑ready (namespaced schema, pluggable provider abstraction) so additional services (Deezer, Tidal, etc.) can be added without redesign. (Former command name 'sync' has been removed in favor of clearer 'build' semantics.)
 
 ## Installation
 
@@ -11,18 +11,18 @@ No Python required! Download pre-built binaries from [Releases](https://github.c
 ```bash
 # Download spotify-m3u-sync-windows-amd64.exe
 # Rename to spx.exe for convenience
-spx.exe sync
+spx.exe build
 ```
 
 **Linux/Mac**:
 ```bash
 # Download appropriate binary
 chmod +x spotify-m3u-sync-linux-amd64
-./spotify-m3u-sync-linux-amd64 sync
+./spotify-m3u-sync-linux-amd64 build
 
 # Or rename for convenience:
 mv spotify-m3u-sync-linux-amd64 spx
-./spx sync
+./spx build
 ```
 
 ### Option 2: Python Source (Recommended for Development)
@@ -30,13 +30,15 @@ Requires **Python 3.9+**. The scripts will automatically set up a virtual enviro
 
 **Windows**:
 ```bash
-run.bat sync
+run.bat build
+run.bat install   # (optional explicit dependency install)
 ```
 
 **Linux/Mac**:
 ```bash
 chmod +x run.sh
-./run.sh sync
+./run.sh build
+./run.sh install  # (optional explicit dependency install)
 ```
 
 > **First run**: The script creates a `.venv` directory and installs dependencies automatically.
@@ -56,10 +58,10 @@ chmod +x run.sh
    
    > **Tip**: See `.env.example` for all available options. For one-time overrides, use `set` commands instead.
 
-3. **Run the full sync**:
+3. **Run the full build**:
    ```bash
-   run.bat sync      # Windows
-   ./run.sh sync     # Linux/Mac
+   run.bat build     # Windows
+   ./run.sh build    # Linux/Mac
    ```
 
 This will authenticate with Spotify, scan your library, match tracks, export playlists, and generate reports.
@@ -82,9 +84,9 @@ Clean schema v1 → Composite (id, provider) keys; ready for multi‑provider co
 
 Full pipeline (recommended):
 ```bash
-run.bat sync          # Windows Python
-./run.sh sync         # Linux/Mac Python
-spx sync              # Standalone executable (all platforms)
+run.bat build         # Windows Python
+./run.sh build        # Linux/Mac Python
+spx build             # Standalone executable (all platforms)
 ```
 
 Individual steps:
@@ -99,6 +101,7 @@ run.bat report        # Generate missing tracks CSV
 Other commands:
 ```bash
 run.bat version
+run.bat install            # Install or update dependencies
 run.bat config              # Show current configuration
 run.bat report-albums       # Album completeness report
 run.bat analyze             # Analyze library metadata quality
@@ -125,8 +128,8 @@ run.bat playlist match <PLAYLIST_ID>
 # Export a single playlist to M3U
 run.bat playlist export <PLAYLIST_ID>
 
-# Sync a single playlist (pull + match + export)
-run.bat playlist sync <PLAYLIST_ID>
+# Build a single playlist (pull + match + export)
+run.bat playlist build <PLAYLIST_ID>
 
 # (Experimental) Push local order back to remote (preview then apply)
 run.bat playlist push <PLAYLIST_ID>                # DB mode (uses DB ordering)
@@ -151,8 +154,8 @@ run.bat playlists list --show-urls
 # Output shows clickable links:
 #   → https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M
 
-# 3. Sync just your workout playlist
-run.bat playlist sync 3cEYpjA9oz9GiPac4AsH4n
+# 3. Build just your workout playlist
+run.bat playlist build 3cEYpjA9oz9GiPac4AsH4n
 ```
 
 **Spotify URLs in M3U files**:
@@ -172,12 +175,21 @@ To prevent collisions when multiple playlists have the same name, exported M3U f
 
 **Why use single-playlist commands?**
 - **Faster**: Only process one playlist instead of all
-- **Testing**: Try different settings on one playlist before full sync
+- **Testing**: Try different settings on one playlist before full build
 - **Selective updates**: Update frequently-changed playlists without re-processing everything
 - **Debugging**: Isolate matching issues to a specific playlist
 - **Easy sharing**: Copy Spotify URLs from list or M3U files to share with others
 
 Additional detail & examples moved to: `docs/library_analysis.md`.
+
+### Providers & Capabilities
+
+List registered providers and key capability flags (e.g., whether push/replace is supported):
+```bash
+spx providers capabilities
+run.bat providers capabilities
+```
+Currently only Spotify is registered; additional providers can be added following `docs/providers.md`.
 
 ### Experimental: Reverse Push (Playlist Replace)
 
@@ -321,7 +333,7 @@ This tool uses **HTTP loopback** (recommended by Spotify) with default redirect:
 
 **Steps**:
 1. Go to https://developer.spotify.com/dashboard
-2. Create an app (name: anything, e.g., "Playlist Sync")
+2. Create an app (name: anything, e.g., "Playlist Build")
 3. Add Redirect URI: `http://127.0.0.1:9876/callback`
 4. Copy the Client ID
 5. Add it to your `.env` file:
@@ -362,7 +374,7 @@ Detailed logging provides diagnostic output for OAuth flow, ingestion, scanning,
 
 ### Authentication
 
-**Login without sync**:
+**Login without build**:
 ```bash
 run.bat login         # Windows
 ./run.sh login        # Linux/Mac

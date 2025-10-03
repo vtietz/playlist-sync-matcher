@@ -2,10 +2,15 @@
 
 ## Local Setup
 ```
-run.bat sync   # Windows
-./run.sh sync  # *nix
+run.bat build  # Windows
+./run.sh build # *nix
 ```
-Creates `.venv`, installs deps, runs command.
+Creates `.venv` if missing. Use explicit dependency install when needed:
+```
+run.bat install   # Windows
+./run.sh install  # *nix
+```
+Then run any command (e.g. build, pull, match). This keeps normal invocations fast.
 
 ## Tests
 ```
@@ -42,7 +47,9 @@ git push origin vX.Y.Z
 ## Adding Dependencies
 - Update `requirements.txt`.
 - Favor widely-used libs; justify additions.
+ - Run `run.bat install` (or `./run.sh install`) to apply changes to the virtualenv.
 
 ## Style
 - Type hints encouraged.
 - Avoid premature abstraction; add only when a second implementation exists.
+ - For provider introspection, use `spx providers capabilities` to verify capability flags after modifications.

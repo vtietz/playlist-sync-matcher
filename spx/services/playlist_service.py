@@ -4,7 +4,7 @@ This service handles operations on individual playlists:
 - Pull/ingest a single playlist
 - Match tracks from a single playlist
 - Export a single playlist
-- Sync (pull+match+export) a single playlist
+- Build (pull + match + export) a single playlist (formerly 'sync')
 """
 
 from __future__ import annotations
@@ -320,7 +320,7 @@ def export_single_playlist(
     return result
 
 
-def sync_single_playlist(
+def build_single_playlist(
     db: Database,
     playlist_id: str,
     spotify_config: Dict[str, Any],
@@ -328,11 +328,11 @@ def sync_single_playlist(
     force_auth: bool = False,
     verbose: bool = False
 ) -> SinglePlaylistResult:
-    """Sync a single playlist (pull + match + export).
+    """Build local artifacts for a single playlist (pull + match + export).
     
     Args:
         db: Database instance
-        playlist_id: Spotify playlist ID to sync
+    playlist_id: Spotify playlist ID to build
         spotify_config: Spotify OAuth configuration
         config: Full configuration
         force_auth: Force full authentication flow
@@ -363,7 +363,7 @@ def sync_single_playlist(
     result.duration_seconds = time.time() - start
     
     if verbose:
-        logger.info(f"[playlist] Sync complete for '{result.playlist_name}' in {result.duration_seconds:.2f}s")
+        logger.info(f"[playlist] Build complete for '{result.playlist_name}' in {result.duration_seconds:.2f}s")
     
     return result
 
@@ -373,5 +373,5 @@ __all__ = [
     "pull_single_playlist",
     "match_single_playlist",
     "export_single_playlist",
-    "sync_single_playlist",
+    "build_single_playlist",
 ]

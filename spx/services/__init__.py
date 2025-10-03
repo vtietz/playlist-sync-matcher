@@ -21,7 +21,7 @@ from .playlist_service import (
     pull_single_playlist,
     match_single_playlist,
     export_single_playlist,
-    sync_single_playlist,
+    build_single_playlist,
 )
 from .analysis_service import (
     analyze_library_quality,
@@ -37,7 +37,7 @@ __all__ = [
     'pull_single_playlist',
     'match_single_playlist',
     'export_single_playlist',
-    'sync_single_playlist',
+    'build_single_playlist',
     'analyze_library_quality',
     'print_quality_report',
     'QualityReport',

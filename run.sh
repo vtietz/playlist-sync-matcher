@@ -19,10 +19,17 @@ else
     exit 1
 fi
 
-# Install requirements quietly
-pip install -q -r requirements.txt
+# Optional dependency installer triggered explicitly via 'install' command
 
 # Handle commands
+case "${1:-}" in
+    install)
+        echo "Installing dependencies from requirements.txt ..."
+        pip install -r requirements.txt
+        exit 0
+        ;;
+esac
+
 case "${1:-}" in
     test)
         shift
@@ -32,7 +39,8 @@ case "${1:-}" in
     help)
         echo "Usage: ./run.sh [command]"
         echo "Commands:"
-        echo "  pull | scan | match | export | report | report-albums | sync"
+        echo "  pull | scan | match | export | report | report-albums | build"
+        echo "  install               Install or update dependencies"
         echo "  test [pytest args]    Run test suite (e.g. ./run.sh test -q tests/test_hashing.py)"
         echo "  version               Show CLI version"
         ;;

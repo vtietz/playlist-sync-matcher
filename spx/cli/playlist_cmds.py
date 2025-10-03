@@ -6,7 +6,7 @@ from ..services.playlist_service import (
     pull_single_playlist,
     match_single_playlist,
     export_single_playlist,
-    sync_single_playlist,
+    build_single_playlist,
 )
 from ..services.push_service import push_playlist
 from ..providers.base import get as get_provider, available_providers
@@ -65,18 +65,18 @@ def playlist_export(ctx: click.Context, playlist_id: str, verbose: bool):
         click.echo(f"Duration: {result.duration_seconds:.2f}s")
 
 
-@playlist_group.command(name='sync')
+@playlist_group.command(name='build')
 @click.argument('playlist_id')
 @click.option('--force-auth', is_flag=True)
 @click.option('--verbose', '-v', is_flag=True)
 @click.pass_context
-def playlist_sync(ctx: click.Context, playlist_id: str, force_auth: bool, verbose: bool):
+def playlist_build(ctx: click.Context, playlist_id: str, force_auth: bool, verbose: bool):
     cfg = ctx.obj
     if not cfg['spotify']['client_id']:
         raise click.UsageError('spotify.client_id not configured')
     with get_db(cfg) as db:
-        result = sync_single_playlist(db=db, playlist_id=playlist_id, spotify_config=cfg['spotify'], config=cfg, force_auth=force_auth, verbose=verbose)
-    click.echo(f"Synced playlist '{result.playlist_name}' ({result.playlist_id})")
+        result = build_single_playlist(db=db, playlist_id=playlist_id, spotify_config=cfg['spotify'], config=cfg, force_auth=force_auth, verbose=verbose)
+    click.echo(f"Built playlist '{result.playlist_name}' ({result.playlist_id})")
     click.echo(f"Tracks processed: {result.tracks_processed}")
     click.echo(f"Tracks matched: {result.tracks_matched}")
     click.echo(f"Exported to: {result.exported_file}")

@@ -11,7 +11,7 @@ applyTo: '**'
 - Communication style: Concise, focused on actionable implementation
 
 ## Project Context
-- Current project type: CLI tool for syncing Spotify playlists and local library (export/import prototype)
+- Current project type: CLI tool for building local artifacts from Spotify playlists and local library (export/import prototype)
 - Tech stack: Python (click, requests, sqlite3, rapidfuzz, mutagen)
 - Architecture patterns: Service layer, provider abstraction, DB access encapsulation
 - Key requirements: Multi-provider readiness, provider namespacing in DB, config hygiene, experimental push (single playlist) feature
@@ -44,10 +44,10 @@ applyTo: '**'
 - Communication style: Concise, actionable, progress updates
 
 ## Project Context
-- Current project type: CLI tool for Spotify to local library sync & playlist export
+- Current project type: CLI tool for building local playlist artifacts (formerly 'sync') & playlist export
 - Tech stack: Python 3.11+, sqlite3, click, requests, mutagen, rapidfuzz, tenacity, PyYAML, rich
 - Architecture patterns: Modular packages (auth, ingest, match, export, reporting, utils)
-- Key requirements: Missing tracks report, mirrored playlists (future), incremental sync, config layering
+- Key requirements: Missing tracks report, mirrored playlists (future), efficient build pipeline (pull/scan/match/export/report), config layering
 
 ## Coding Patterns
 - Prefer explicit helper functions (deep_merge, partial_hash, normalization)

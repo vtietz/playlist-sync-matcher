@@ -10,6 +10,7 @@ from ..ingest.library import scan_library
 from ..services.match_service import run_matching
 from ..services.analysis_service import analyze_library_quality, print_quality_report
 from ..services.export_service import export_playlists
+from ..providers.base import available_providers, get as get_provider
 
 
 @cli.command()
@@ -218,14 +219,50 @@ def export(ctx: click.Context):
     click.echo('Export complete')
 
 
-@cli.command()
+@cli.command(name='build')
+@click.option('--no-report', is_flag=True, help='Skip report generation step')
+@click.option('--no-export', is_flag=True, help='Skip playlist export step')
 @click.pass_context
-def sync(ctx: click.Context):
+def build(ctx: click.Context, no_report: bool, no_export: bool):
+    """Run the full one-way pipeline (pull -> scan -> match -> export -> report).
+
+    This replaces the old 'sync' command (removed, no alias) to better reflect
+    that the operation builds local artifacts from remote + local state without
+    mutating the remote provider (push is a separate explicit command).
+    Use --no-export or --no-report to skip those phases for faster iterations.
+    """
     ctx.invoke(pull)
     ctx.invoke(scan)
     ctx.invoke(match)
-    ctx.invoke(export)
-    ctx.invoke(report)
-    click.echo('Sync complete')
+    if not no_export:
+        ctx.invoke(export)
+    if not no_report:
+        ctx.invoke(report)
+    click.echo('Build complete')
 
 __all__ = []
+
+# Providers related commands
+@cli.group(name='providers')
+@click.pass_context
+def providers_group(ctx: click.Context):  # pragma: no cover simple group
+    """Provider related utilities."""
+    pass
+
+
+@providers_group.command(name='capabilities')
+@click.pass_context
+def providers_capabilities(ctx: click.Context):
+    """List registered providers and their capabilities."""
+    rows = []
+    for p in available_providers():
+        cls = get_provider(p)
+        caps = getattr(cls, 'capabilities', None)
+        if not caps:
+            rows.append((p, 'NO CAPABILITY OBJECT'))
+            continue
+        rows.append((p, f"replace_playlist={caps.replace_playlist} supports_isrc={caps.supports_isrc} create_playlist={caps.create_playlist}"))
+    width = max(len(r[0]) for r in rows) if rows else 8
+    click.echo("Providers:")
+    for name, desc in rows:
+        click.echo(f"  {name.ljust(width)}  {desc}")
