@@ -36,6 +36,7 @@ class LibraryConfig:
     skip_unchanged: bool = True
     fast_scan: bool = True
     commit_interval: int = 100
+    min_bitrate_kbps: int = 320
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for backward compatibility."""
@@ -44,14 +45,13 @@ class LibraryConfig:
 
 @dataclass
 class MatchingConfig:
-    """Track matching algorithm configuration."""
-    fuzzy_threshold: float = 0.78  # 0.0-1.0 scale (not 0-100)
+    """Track matching algorithm configuration (aligned with _DEFAULTS)."""
+    fuzzy_threshold: float = 0.78  # 0.0-1.0 scale
     use_year: bool = False
+    duration_tolerance: float = 2.0  # seconds
+    strategies: List[str] = field(default_factory=lambda: ["sql_exact", "album_match", "year_match", "duration_filter", "fuzzy"])
     show_unmatched_tracks: int = 20
     show_unmatched_albums: int = 20
-    enable_isrc: bool = True
-    enable_duration_filter: bool = False
-    duration_tolerance_ms: int = 2000
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for backward compatibility."""
@@ -85,6 +85,7 @@ class ReportsConfig:
 class DatabaseConfig:
     """Database configuration."""
     path: str = "data/spotify_sync.db"
+    pragma_journal_mode: str = "WAL"
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for backward compatibility."""
@@ -95,6 +96,7 @@ class DatabaseConfig:
 class AppConfig:
     """Root application configuration with all subsections."""
     log_level: str = "INFO"
+    provider: str = "spotify"
     spotify: SpotifyConfig = field(default_factory=SpotifyConfig)
     library: LibraryConfig = field(default_factory=LibraryConfig)
     matching: MatchingConfig = field(default_factory=MatchingConfig)
@@ -110,6 +112,7 @@ class AppConfig:
         """
         return {
             "log_level": self.log_level,
+            "provider": self.provider,
             "spotify": self.spotify.to_dict(),
             "library": self.library.to_dict(),
             "matching": self.matching.to_dict(),
@@ -130,6 +133,7 @@ class AppConfig:
         """
         return cls(
             log_level=data.get("log_level", "INFO"),
+            provider=data.get("provider", "spotify"),
             spotify=SpotifyConfig(**data.get("spotify", {})),
             library=LibraryConfig(**data.get("library", {})),
             matching=MatchingConfig(**data.get("matching", {})),

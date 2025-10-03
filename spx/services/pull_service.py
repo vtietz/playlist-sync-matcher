@@ -1,7 +1,10 @@
-"""Pull service: Orchestrate Spotify data ingestion.
+"""Pull service: Orchestrate provider data ingestion (currently Spotify).
 
-This service handles authentication, client creation, and ingestion
-of playlists and liked tracks from Spotify.
+This service presently handles authentication, client creation, and ingestion
+of playlists and liked tracks from Spotify. A provider abstraction layer has
+been introduced (see ``spx.providers``) so additional streaming services can
+be integrated in the future with minimal changes here. For now we still
+construct the concrete Spotify auth & client objects directly.
 """
 
 from __future__ import annotations
@@ -31,39 +34,46 @@ class PullResult:
         self.duration_seconds = 0.0
 
 
-def pull_spotify_data(
+def pull_data(
     db: Database,
-    spotify_config: Dict[str, Any],
+    provider: str,
+    provider_config: Dict[str, Any],
     matching_config: Dict[str, Any],
     force_auth: bool = False,
     verbose: bool = False
 ) -> PullResult:
-    """Pull playlists and liked tracks from Spotify.
-    
-    Args:
-        db: Database instance
-        spotify_config: Spotify OAuth configuration
-        matching_config: Matching configuration (for use_year)
-        force_auth: Force full authentication flow
-        verbose: Enable verbose logging
-        
-    Returns:
-        PullResult with statistics and timing
+    """Ingest playlists and liked tracks for the selected provider.
+
+    Currently only the 'spotify' provider is implemented. The interface is
+    stable so additional providers can be added later without changing callers.
     """
+    if provider != 'spotify':
+        raise NotImplementedError(f"Provider '{provider}' not implemented")
+
     result = PullResult()
     start = time.time()
     
     # Build auth and get token
+    cache_file = provider_config.get('cache_file')
+    if not cache_file:
+        cache_file = f"{provider}_tokens.json"
+    else:
+        # For non-spotify providers (future), auto-prefix filename if it would collide.
+        import os
+        fname = os.path.basename(cache_file)
+        if provider != 'spotify' and provider not in fname:
+            cache_file = os.path.join(os.path.dirname(cache_file) or '.', f"{provider}_{fname}")
+
     auth = SpotifyAuth(
-        client_id=spotify_config['client_id'],
-        redirect_scheme=spotify_config.get('redirect_scheme', 'http'),
-        redirect_host=spotify_config.get('redirect_host', '127.0.0.1'),
-        redirect_port=spotify_config.get('redirect_port', 9876),
-        redirect_path=spotify_config.get('redirect_path', '/callback'),
-        scope=spotify_config.get('scope', 'user-library-read playlist-read-private'),
-        cache_file=spotify_config.get('cache_file', 'tokens.json'),
-        cert_file=spotify_config.get('cert_file', 'cert.pem'),
-        key_file=spotify_config.get('key_file', 'key.pem'),
+        client_id=provider_config['client_id'],
+        redirect_scheme=provider_config.get('redirect_scheme', 'http'),
+        redirect_host=provider_config.get('redirect_host', '127.0.0.1'),
+        redirect_port=provider_config.get('redirect_port', 9876),
+        redirect_path=provider_config.get('redirect_path', '/callback'),
+        scope=provider_config.get('scope', 'user-library-read playlist-read-private'),
+        cache_file=cache_file,
+        cert_file=provider_config.get('cert_file', 'cert.pem'),
+        key_file=provider_config.get('key_file', 'key.pem'),
     )
     
     tok_dict = auth.get_token(force=force_auth)
@@ -91,3 +101,6 @@ def pull_spotify_data(
     result.duration_seconds = time.time() - start
     
     return result
+
+
+__all__ = ["pull_data", "PullResult"]

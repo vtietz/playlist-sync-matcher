@@ -14,7 +14,7 @@ This allows CLI commands to focus on:
 - Output formatting
 """
 
-from .pull_service import pull_spotify_data
+from .pull_service import pull_data
 from .match_service import run_matching
 from .export_service import export_playlists
 from .playlist_service import (
@@ -31,7 +31,7 @@ from .analysis_service import (
 )
 
 __all__ = [
-    'pull_spotify_data',
+    'pull_data',
     'run_matching',
     'export_playlists',
     'pull_single_playlist',

@@ -1,6 +1,6 @@
 # spotify-m3u-sync
 
-Sync your Spotify playlists to M3U8 files matched against your local music library, with detailed reporting on missing tracks and album completeness.
+Sync your streaming playlists (currently Spotify) to M3U8 files matched against your local music library, with fast matching and rich reporting. The codebase is provider‑ready (namespaced schema, pluggable provider abstraction) so additional services (Deezer, Tidal, etc.) can be added without redesign.
 
 ## Installation
 
@@ -64,20 +64,17 @@ chmod +x run.sh
 
 This will authenticate with Spotify, scan your library, match tracks, export playlists, and generate reports.
 
-## What You Get
+## Features
 
-**Playlists**: M3U8 files matching Spotify playlist order
-- **Strict mode**: Only matched tracks
-- **Mirrored mode**: Full order with comments for missing tracks
-- **Placeholders mode**: Creates placeholder files to preserve gaps
-- **Folder organization**: Group playlists by owner (yours vs. others)
-
-**Reports**:
-- **Missing tracks**: CSV of unmatched Spotify tracks sorted by popularity
-- **Album completeness**: Status of your albums (complete/partial/missing)
-- **Diagnostic output**: Top unmatched tracks and albums with playlist counts
-
-**Performance**: Handles 10K+ file libraries efficiently with smart caching and two-stage matching (SQL exact + fuzzy)
+Playlists → Deterministic M3U8 exports preserving order
+Export modes → strict | mirrored | placeholders
+Owner grouping → Organize playlists by owner folders
+Matching pipeline → Multi‑stage (exact / album / year / duration / fuzzy) for high accuracy
+Reporting → Missing tracks CSV + album completeness + unmatched diagnostics
+Library quality analysis → Identify metadata gaps & low bitrate files
+Fast scans → Skip unchanged file re‑parsing (size + mtime heuristic)
+Provider abstraction → Schema + code prepared for additional streaming sources
+Clean schema v1 → Composite (id, provider) keys; ready for multi‑provider coexistence
 
 ## Common Commands
 
@@ -108,7 +105,7 @@ run.bat analyze             # Analyze library metadata quality
 run.bat test -q             # Run tests (Python source only)
 ```
 
-### Single Playlist Operations
+### Single Playlist Operations (Optional)
 
 Work with individual playlists instead of syncing everything:
 
@@ -175,70 +172,11 @@ To prevent collisions when multiple playlists have the same name, exported M3U f
 - **Debugging**: Isolate matching issues to a specific playlist
 - **Easy sharing**: Copy Spotify URLs from list or M3U files to share with others
 
-### Library Quality Analysis
+Additional detail & examples moved to: `docs/library_analysis.md`.
 
-Analyze your local music library's metadata quality to identify files with missing tags or low bitrate that might hurt matching accuracy:
+## Configuration (Summary)
 
-```bash
-# Basic analysis (shows summary + top 20 issues)
-run.bat analyze
-
-# Verbose mode (shows all issues)
-run.bat analyze --verbose
-
-# Custom bitrate threshold (default: 320 kbps)
-run.bat analyze --min-bitrate 256
-
-# Limit number of issues shown (default: 20)
-run.bat analyze --max-issues 50
-
-# Combine options
-run.bat analyze --min-bitrate 256 --max-issues 100 --verbose
-```
-
-**What it checks**:
-- **Missing metadata**: Files without artist, title, album, or year tags
-- **Low bitrate**: Files below your quality threshold (default: 320 kbps)
-
-**Example output**:
-```
-Library Quality Analysis
-═══════════════════════════════════════════════════════════════
-
-Summary Statistics:
-  Total files:                        10,245
-  Files with issues:                     387 (3.8%)
-  
-  Missing artist:                         12 (0.1%)
-  Missing title:                          15 (0.1%)
-  Missing album:                         124 (1.2%)
-  Missing year:                          289 (2.8%)
-  Low bitrate (< 320 kbps):               67 (0.7%)
-
-Issues Found (showing 20 of 387):
-  
-  Missing: album, year
-    → C:\Music\Downloads\Various - Track.mp3
-    
-  Missing: year | Bitrate: 128 kbps
-    → C:\Music\Old\Artist - Song.mp3
-```
-
-**Configuration**:
-```bash
-# Set default bitrate threshold in .env
-SPX__LIBRARY__MIN_BITRATE_KBPS=320
-```
-
-**Why this matters**:
-- **Better matching**: Complete metadata helps album-based and year-based matching strategies
-- **Quality control**: Identify low-bitrate files that should be replaced
-- **Debugging**: Find files that won't match due to missing tags
-- **Library maintenance**: Prioritize which files need tag cleanup
-
-## Configuration
-
-### Using .env File (Primary Configuration)
+### Using .env File
 
 Create a `.env` file in the project root (or same directory as executable):
 
@@ -256,7 +194,7 @@ SPX__MATCHING__SHOW_UNMATCHED_ALBUMS=20
 
 > **Tip**: Copy `.env.example` to `.env` and edit your values. The tool automatically loads `.env` on startup.
 
-### Temporary Overrides: Environment Variables
+### Temporary Overrides
 
 Override any setting for a single command without editing `.env`:
 
@@ -279,14 +217,14 @@ export SPX__EXPORT__MODE=strict # Linux/Mac
 spx export
 ```
 
-### Configuration Priority
+### Priority Order
 
 Settings are merged in this order (later overrides earlier):
 1. **Built-in defaults** (in `spx/config.py`)
 2. **`.env` file** (if exists)
 3. **Shell environment variables** (`set`/`export` commands)
 
-### Key Configuration Options
+### Key Options (See docs/configuration.md for full list)
 
 **Spotify**:
 - `SPX__SPOTIFY__CLIENT_ID` - Your Spotify app client ID (required)
@@ -367,70 +305,11 @@ This tool uses **HTTP loopback** (recommended by Spotify) with default redirect:
 
 Token cache is saved to `tokens.json` and refreshed automatically.
 
-## Performance & Architecture
+Detailed architecture & matching docs moved to: `docs/architecture.md` and `docs/matching.md`.
 
-### Recent Improvements (Phase 1 Refactoring - October 2025)
+## Advanced (See docs for details)
 
-**Performance Enhancements**:
-- **LRU Caching**: Normalization functions now use `@lru_cache(maxsize=2048)` to speed up repeated string processing during matching (especially beneficial with large libraries and backfill operations)
-- **Connection Pooling**: OAuth token exchanges now use a shared `requests.Session` for better HTTP connection reuse and reduced latency during authentication
-- **Optimized Queries**: Database count operations extracted into dedicated methods (`count_playlists()`, `count_tracks()`, etc.) for better encapsulation and potential query optimization
-
-**Code Quality & Maintainability**:
-- **Clean Separation**: Export directory resolution logic extracted into testable `_resolve_export_dir()` helper function
-- **Better Encapsulation**: Database summary counts moved from raw SQL in CLI commands to proper `Database` class methods
-- **Maintainable Config**: Config redaction now uses `copy.deepcopy` instead of JSON round-trip serialization (faster and cleaner)
-- **Dict Dispatch Pattern**: Export mode handling uses dictionary dispatch reducing if/elif branching complexity
-
-### Matching Strategy
-
-The tool uses a multi-stage matching approach that runs strategies in sequence, with each strategy attempting to match unmatched tracks:
-
-1. **SQL Exact Match**: Fast indexed lookups using normalized artist + title (catches 70-85% of matches in <100ms)
-2. **Album Match**: Matches using normalized artist + title + album name (adds 5-10% more matches)
-   - Distinguishes studio vs. live albums
-   - Separates originals from compilations
-   - Identifies different album editions
-3. **Year Match**: Matches using normalized artist + title + year (adds 2-5% more matches)
-   - Distinguishes remasters from originals
-   - Separates live recordings by year
-   - Identifies re-recordings
-4. **Duration Filter**: Prefilters candidates by track duration (±2s tolerance by default)
-5. **Fuzzy Match**: RapidFuzz token_set_ratio on remaining candidates (catches alternative versions, typos)
-
-**Expected match rates**:
-- Without album/year strategies: 75-85% match rate
-- With album/year strategies: 88-92% match rate
-
-**Configure matching strategies** in `.env`:
-```bash
-# Default order (recommended)
-SPX__MATCHING__STRATEGIES=["sql_exact","album_match","year_match","duration_filter","fuzzy"]
-
-# Skip album/year matching (faster, lower match rate)
-SPX__MATCHING__STRATEGIES=["sql_exact","duration_filter","fuzzy"]
-
-# Only exact + album (no fuzzy fallback)
-SPX__MATCHING__STRATEGIES=["sql_exact","album_match"]
-
-# Adjust fuzzy threshold (higher = stricter)
-SPX__MATCHING__FUZZY_THRESHOLD=0.85
-
-# Adjust duration tolerance (seconds)
-SPX__MATCHING__DURATION_TOLERANCE=3.0
-```
-
-**Why album and year matching matter**:
-- **Remasters**: "Abbey Road (2009 Remaster)" vs. "Abbey Road (Original)"
-- **Live albums**: "Hotel California (Studio)" vs. "Hotel California (Live 1977)"
-- **Compilations**: "Bohemian Rhapsody (Greatest Hits)" vs. "Bohemian Rhapsody (A Night at the Opera)"
-- **Different years**: "Hurt (1994)" [Nine Inch Nails] vs. "Hurt (2002)" [Johnny Cash]
-
-Without album/year matching, all these versions appear identical after normalization and might match incorrectly.
-
-## Advanced
-
-### Enhanced Diagnostics
+### Diagnostics
 
 When running `run.bat match`, the tool shows:
 - Top 20 unmatched tracks (configurable via `matching.show_unmatched_tracks`)
@@ -516,67 +395,23 @@ Other optimizations:
 
 ## Technical Details
 
-### Architecture
+Condensed overview (see `docs/architecture.md` for full explanation):
 
-**Database**: SQLite with normalized metadata and automatic schema migration
-**Matching**: Two-stage approach (SQL exact + fuzzy fallback with duration filtering)
-**Performance**: Fast scan mode + bulk operations + set-based deletion checks
+- Database: SQLite, composite (id, provider) keys for tracks & playlists
+- Matching: Ordered strategies (exact → album → year → duration → fuzzy)
+- Performance: LRU normalization cache, fast scan, bulk inserts, indexed normalized/isrc columns
+- Schema versioning: `meta` table entry `schema_version=1` (clean baseline)
 
-### Match Strategy
+## Multi-Provider Architecture
 
-Multi-stage approach for optimal accuracy and performance:
+Implemented: provider column + composite keys, provider registry, config key `provider`.
+Next steps (external contributions welcome):
+- Additional provider client(s)
+- Optional ISRC-centric canonical cross-provider table
+- Playlist cloning between providers
+- Rate limiting & unified error model
 
-1. **SQL Exact**: Indexed normalized columns (70-85% of matches in <100ms)
-2. **Album Match**: Normalized artist + title + album (adds 5-10% more matches)
-3. **Year Match**: Normalized artist + title + year (adds 2-5% more matches)
-4. **Duration Filter**: Prefilter candidates by track duration (±2s tolerance)
-5. **Fuzzy Match**: RapidFuzz token_set_ratio on reduced candidate set
-
-Configure in `.env`:
-```bash
-SPX__MATCHING__STRATEGIES=["sql_exact","album_match","year_match","duration_filter","fuzzy"]
-SPX__MATCHING__FUZZY_THRESHOLD=0.82
-SPX__MATCHING__DURATION_TOLERANCE=2.0
-```
-
-See the [Matching Strategy](#matching-strategy) section for detailed explanation and customization examples.
-
-### Database Schema
-
-**Tables**:
-- `playlists`: Spotify playlists with owner info
-- `playlist_tracks`: Track order and liked status
-- `spotify_tracks`: Normalized Spotify metadata
-- `library_files`: Local files with audio tags (includes bitrate_kbps for quality analysis)
-- `matched_tracks`: Spotify ↔ local file mappings
-- `meta`: Configuration and state
-
-Schema updates automatically via `ALTER TABLE IF NOT EXISTS`.
-
-### Match Customization
-
-**Strategies** (configurable order in `.env`):
-```bash
-# Default: sql_exact, album_match, year_match, duration_filter, fuzzy
-SPX__MATCHING__STRATEGIES=["sql_exact","album_match","year_match","duration_filter","fuzzy"]
-```
-
-Adjust for your library:
-```bash
-# Skip album/year matching if not needed (faster):
-SPX__MATCHING__STRATEGIES=["sql_exact","duration_filter","fuzzy"]
-
-# Skip duration filter if all files similar length:
-SPX__MATCHING__STRATEGIES=["sql_exact","album_match","year_match","fuzzy"]
-
-# Stricter fuzzy matching:
-SPX__MATCHING__FUZZY_THRESHOLD=0.85
-
-# More lenient duration tolerance:
-SPX__MATCHING__DURATION_TOLERANCE=3.0
-```
-
-**Tip**: Run `run.bat analyze` to identify metadata issues that might be hurting your match rates.
+See: `docs/providers.md` for full integration guide.
 
 ## License
 
@@ -584,52 +419,23 @@ MIT License
 
 ---
 
-## For Developers
+## Developer Docs
 
-### Building Standalone Executables Locally
+Development, release process, and provider extension details live in the `docs/` directory:
 
-Install PyInstaller:
-```bash
-pip install pyinstaller
-```
-
-Build:
-```bash
-pyinstaller spx.spec
-```
-
-The executable will be in `dist/spx` (or `dist/spx.exe` on Windows).
-
-### Creating Releases
-
-The project uses GitHub Actions to automatically build executables for Windows, Linux, and macOS:
-
-1. Update version in `spx/cli.py`
-2. Commit and push
-3. Create and push a version tag:
-   ```bash
-   git tag v1.0.0
-   git push origin v1.0.0
-   ```
-4. GitHub Actions will build binaries and create a release automatically
-
-### Running Tests
-
-```bash
-run.bat test -q              # Windows
-./run.sh test -q             # Linux/Mac
-python -m pytest -q          # Direct (with activated venv)
-```
+- `docs/architecture.md`
+- `docs/matching.md`
+- `docs/configuration.md`
+- `docs/library_analysis.md`
+- `docs/troubleshooting.md`
+- `docs/development.md`
+- `docs/providers.md`
 
 ---
 
-**Need Help?** Check:
+**Need Help?** Quick references:
 - `run.bat config` - View current settings
 - `run.bat redirect-uri` - Show OAuth redirect
 - `.env.example` - All environment variables
 - `SPX__LOG_LEVEL=DEBUG` - Enable detailed diagnostic logging
-Objects are also supported:
-```
-set SPX__SPOTIFY__EXTRA={"foo":123}
-```
-Values starting with `[` or `{` are parsed as JSON; otherwise normal scalar coercion applies.
+Values starting with `[` or `{` are parsed as JSON; objects are supported (see configuration docs).

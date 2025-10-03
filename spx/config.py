@@ -13,51 +13,45 @@ except ImportError:
     TypedConfigDict = dict  # type: ignore
 
 _DEFAULTS: Dict[str, Any] = {
-    "log_level": "INFO",  # Logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL
+    "log_level": "INFO",
+    "provider": "spotify",
     "spotify": {
         "client_id": None,
-        "redirect_scheme": "http",  # default to loopback HTTP per updated Spotify guidance
-        "redirect_host": "127.0.0.1",  # explicit loopback host (use 127.0.0.1 instead of 'localhost')
+        "redirect_scheme": "http",
+        "redirect_host": "127.0.0.1",
         "redirect_port": 9876,
-        "redirect_path": "/callback",  # can change to '/' if Spotify dashboard rejects
+        "redirect_path": "/callback",
         "scope": "user-library-read playlist-read-private playlist-read-collaborative",
         "cache_file": "tokens.json",
-        "cert_file": "cert.pem",  # self-signed cert path (generated on demand)
-        "key_file": "key.pem",   # self-signed key path (generated on demand)
+        "cert_file": "cert.pem",
+        "key_file": "key.pem",
     },
     "library": {
         "paths": ["music"],
         "extensions": [".mp3", ".flac", ".m4a", ".ogg"],
         "follow_symlinks": False,
         "ignore_patterns": [".*"],
-        "skip_unchanged": True,           # skip files whose size+mtime unchanged (fast path)
-        "fast_scan": True,                # skip audio parsing for unchanged files (massive speedup)
-        "commit_interval": 100,           # commit after N processed (new/updated) files
-        "min_bitrate_kbps": 320,          # minimum acceptable bitrate for quality analysis
+        "skip_unchanged": True,
+        "fast_scan": True,
+        "commit_interval": 100,
+        "min_bitrate_kbps": 320,
     },
     "matching": {
         "fuzzy_threshold": 0.78,
-        "exact_bonus": 0.05,
-        "album_match_bonus": 0.04,
-        "use_year": False,  # when true include year token (if available) in normalization / scoring
-        "duration_tolerance": 2.0,  # seconds tolerance for duration-based filtering (±2s default)
-        "strategies": ["sql_exact", "album_match", "year_match", "duration_filter", "fuzzy"],  # ordered list of matching strategies to apply
-        "show_unmatched_tracks": 20,  # number of unmatched tracks to show in debug output
-        "show_unmatched_albums": 20,  # number of unmatched albums to show in debug output
+        "use_year": False,
+        "duration_tolerance": 2.0,
+        "strategies": ["sql_exact", "album_match", "year_match", "duration_filter", "fuzzy"],
+        "show_unmatched_tracks": 20,
+        "show_unmatched_albums": 20,
     },
     "export": {
         "directory": "export/playlists",
-        "mode": "strict",  # strict | mirrored | placeholders
+        "mode": "strict",
         "placeholder_extension": ".missing",
-        "organize_by_owner": False,  # when true, organize playlists into folders by owner
+        "organize_by_owner": False,
     },
-    "reports": {
-        "directory": "export/reports",
-    },
-    "database": {
-        "path": "data/spotify_sync.db",
-        "pragma_journal_mode": "WAL",
-    },
+    "reports": {"directory": "export/reports"},
+    "database": {"path": "data/spotify_sync.db", "pragma_journal_mode": "WAL"},
 }
 
 
@@ -108,7 +102,7 @@ def _load_dotenv(path: Path) -> Dict[str, str]:
     return values
 
 
-def load_config(explicit_file: str | None = None, overrides: Dict[str, Any] | None = None) -> Dict[str, Any]:
+def load_config(explicit_file: str | None = None, overrides: Dict[str, Any] | None = None) -> Dict[str, Any]:  # deprecated path; retained for tests
     """Load configuration merging defaults <- .env <- environment <- overrides.
 
     During test runs (detected via PYTEST_CURRENT_TEST) .env loading is skipped
@@ -208,4 +202,4 @@ def coerce_scalar(value: str) -> Any:
     except Exception:
         return txt
 
-__all__ = ["load_config", "deep_merge"]
+__all__ = ["load_config", "deep_merge", "load_typed_config"]

@@ -1,13 +1,13 @@
 from __future__ import annotations
 import click
 from pathlib import Path
-from .config import load_config
+from .config import load_typed_config
 import copy
 from .db import Database
 from .reporting.generator import write_missing_tracks, write_album_completeness
 from .auth.spotify_oauth import SpotifyAuth
 from .ingest.library import scan_library
-from .services.pull_service import pull_spotify_data
+from .services.pull_service import pull_data
 from .services.match_service import run_matching
 from .services.export_service import export_playlists
 from .services.playlist_service import (
@@ -42,12 +42,10 @@ def _redact_spotify_config(cfg: dict) -> dict:
 @click.pass_context
 def cli(ctx: click.Context, config_file: str | None):
     # Allow tests to inject config via context object
-    if hasattr(ctx, 'obj') and isinstance(ctx.obj, dict):
-        cfg = ctx.obj
+    if hasattr(ctx, 'obj') and isinstance(ctx.obj, dict):  # test injection path
+        ctx.obj = ctx.obj  # keep as-is for tests that still inject raw dict
     else:
-        cfg = load_config(config_file)
-    
-    ctx.obj = cfg
+        ctx.obj = load_typed_config(config_file).to_dict()  # store dict form for backward compatibility in commands
 
 # type: ignore[arg-type, misc]  # Silence type checker complaints about dynamic decorators
 @cli.command()
@@ -154,16 +152,17 @@ def _get_db(cfg):
 
 
 def _build_auth(cfg):
+    sp = cfg['spotify']
     return SpotifyAuth(
-        client_id=cfg['spotify']['client_id'],
-        redirect_port=cfg['spotify']['redirect_port'],
-        redirect_path=cfg['spotify'].get('redirect_path', '/callback'),
-        scope=cfg['spotify']['scope'],
-        cache_file=cfg['spotify']['cache_file'],
-        redirect_scheme=cfg['spotify'].get('redirect_scheme', 'http'),
-        redirect_host=cfg['spotify'].get('redirect_host', '127.0.0.1'),
-        cert_file=cfg['spotify'].get('cert_file'),
-        key_file=cfg['spotify'].get('key_file'),
+        client_id=sp['client_id'],
+        redirect_port=sp['redirect_port'],
+        redirect_path=sp.get('redirect_path', '/callback'),
+        scope=sp['scope'],
+        cache_file=sp['cache_file'],
+        redirect_scheme=sp.get('redirect_scheme', 'http'),
+        redirect_host=sp.get('redirect_host', '127.0.0.1'),
+        cert_file=sp.get('cert_file'),
+        key_file=sp.get('key_file'),
     )
 
 
@@ -189,21 +188,26 @@ def pull(ctx: click.Context, force_auth: bool, verbose: bool):
       - Timing summary
     """
     cfg = ctx.obj
-    if not cfg['spotify']['client_id']:
-        raise click.UsageError('spotify.client_id not configured')
-    
+    provider = cfg.get('provider', 'spotify')
+    if provider == 'spotify':
+        if not cfg['spotify']['client_id']:
+            raise click.UsageError('spotify.client_id not configured')
+        provider_cfg = cfg['spotify']
+    else:
+        raise click.UsageError(f"Provider '{provider}' not supported yet")
+
     with _get_db(cfg) as db:
-        # Use service layer
-        result = pull_spotify_data(
+        result = pull_data(
             db=db,
-            spotify_config=cfg['spotify'],
+            provider=provider,
+            provider_config=provider_cfg,
             matching_config=cfg['matching'],
             force_auth=force_auth,
-            verbose=verbose
+            verbose=verbose,
         )
         
         # Print summary
-        click.echo(f"\n[summary] Playlists: {result.playlist_count} | Unique tracks in playlists: {result.unique_playlist_tracks} | Liked tracks: {result.liked_tracks} | Total Spotify tracks: {result.total_tracks}")
+    click.echo(f"\n[summary] Provider={provider} | Playlists: {result.playlist_count} | Unique playlist tracks: {result.unique_playlist_tracks} | Liked tracks: {result.liked_tracks} | Total tracks: {result.total_tracks}")
     
     if verbose:
         click.echo(f"[pull] Completed in {result.duration_seconds:.2f}s")
