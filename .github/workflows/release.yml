@@ -40,7 +40,7 @@ jobs:
 
       - name: Build executable with PyInstaller
         run: |
-          pyinstaller --name spx --onefile --console spx/cli.py
+          pyinstaller --name spx --onefile --console -m spx.cli
 
       - name: Test executable (smoke test)
         run: |

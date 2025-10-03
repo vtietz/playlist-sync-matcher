@@ -4,7 +4,7 @@ This document expands on the concise overview in the README.
 
 ## Layers
 
-- CLI (spx/cli.py): Argument parsing, user I/O only.
+- CLI (spx/cli package): Argument parsing & command wiring only (thin). `spx/cli.py` is now removed; entry point logic lives under `spx/cli/` modules (`helpers.py`, `core.py`, `playlists.py`, `playlist_cmds.py`).
 - Services (spx/services/*): Orchestrate workflows (pull, scan, match, export, reporting).
 - Providers (spx/providers/*): Abstraction layer for streaming sources. Registry based.
 - Match Engine (spx/match/*): Strategy pipeline; order configured via config.

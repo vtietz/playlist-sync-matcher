@@ -1,6 +1,6 @@
 from __future__ import annotations
 import requests
-from typing import Iterator, Dict, Any, List
+from typing import Iterator, Dict, Any, List, Sequence
 import time
 import logging
 from tenacity import retry, stop_after_attempt, wait_random_exponential
@@ -28,6 +28,36 @@ class SpotifyClient:
             raise Exception("rate limit retry")
         r.raise_for_status()
         return r.json()
+
+    def _put(self, path: str, json: Dict[str, Any]) -> Dict[str, Any]:  # pragma: no cover (simple network wrapper)
+        r = requests.put(API_BASE + path, headers=self._headers(), json=json, timeout=30)
+        if r.status_code == 429:
+            ra = int(r.headers.get("Retry-After", "1"))
+            import time
+            time.sleep(ra)
+            raise Exception("rate limit retry")
+        r.raise_for_status()
+        if r.text:
+            try:
+                return r.json()
+            except Exception:
+                return {}
+        return {}
+
+    def _post(self, path: str, json: Dict[str, Any]) -> Dict[str, Any]:  # pragma: no cover
+        r = requests.post(API_BASE + path, headers=self._headers(), json=json, timeout=30)
+        if r.status_code == 429:
+            ra = int(r.headers.get("Retry-After", "1"))
+            import time
+            time.sleep(ra)
+            raise Exception("rate limit retry")
+        r.raise_for_status()
+        if r.text:
+            try:
+                return r.json()
+            except Exception:
+                return {}
+        return {}
 
     def current_user_profile(self) -> Dict[str, Any]:
         """Get current user's profile information."""
@@ -61,6 +91,34 @@ class SpotifyClient:
                 break
             offset += limit
         return tracks
+
+    # ---------------- Write / detail helpers (used by push service) -----------------
+    def get_playlist(self, playlist_id: str) -> Dict[str, Any]:  # pragma: no cover
+        return self._get(f'/playlists/{playlist_id}')
+
+    def replace_playlist_tracks_remote(self, playlist_id: str, track_ids: Sequence[str]):  # pragma: no cover
+        """Full replace remote playlist tracks.
+
+        Spotify's PUT replace endpoint accepts at most 100 URIs. For >100 we
+        clear (empty replace) then batch POST add.
+        """
+        if not track_ids:
+            # Clear playlist
+            self._put(f'/playlists/{playlist_id}/tracks', json={'uris': []})
+            return
+        # Helper to chunk
+        def chunks(seq, size):
+            for i in range(0, len(seq), size):
+                yield seq[i:i+size]
+        if len(track_ids) <= 100:
+            uris = [f'spotify:track:{tid}' for tid in track_ids]
+            self._put(f'/playlists/{playlist_id}/tracks', json={'uris': uris})
+            return
+        # >100 – clear then add in batches
+        self._put(f'/playlists/{playlist_id}/tracks', json={'uris': []})
+        for batch in chunks(track_ids, 100):
+            uris = [f'spotify:track:{tid}' for tid in batch]
+            self._post(f'/playlists/{playlist_id}/tracks', json={'uris': uris})
 
     def liked_tracks(self, verbose: bool = False) -> Iterator[Dict[str, Any]]:
         limit = 50

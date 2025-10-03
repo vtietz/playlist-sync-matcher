@@ -24,7 +24,7 @@ pyinstaller spx.spec
 Outputs: `dist/`.
 
 ## Versioning & Release
-1. Update version string in `spx/cli.py`.
+1. (If adding a formal version constant later, update it in a dedicated version module; current prototype prints a static string.)
 2. Commit & push.
 3. Tag & push tag:
 ```
@@ -34,7 +34,7 @@ git push origin vX.Y.Z
 4. GitHub Actions builds & attaches binaries.
 
 ## Coding Guidelines
-- Keep CLI thin; move logic to services.
+- Keep CLI thin; move logic to services. All commands live in `spx/cli/` submodules; avoid reintroducing logic into the top-level shim.
 - Return data from services (no prints) for testability.
 - Provider additions: follow `docs/providers.md` and minimal interface.
 - Maintain consistent defaults across `config.py` and docs.

@@ -54,6 +54,8 @@ class ProviderCapabilities:
     batch_add: bool = False
     supports_isrc: bool = True
     max_batch_size: int = 100
+    # Indicates provider can fully replace (overwrite) playlist track ordering
+    replace_playlist: bool = False
 
 # ---------------- Provider client protocol -----------------
 

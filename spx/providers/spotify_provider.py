@@ -20,7 +20,8 @@ class SpotifyProviderClient(SpotifyClient):  # type: ignore[misc]
         create_playlist=False, # creation not implemented in legacy code
         batch_add=False,       # batch add not implemented
         supports_isrc=True,
-        max_batch_size=100
+        max_batch_size=100,
+        replace_playlist=True, # write support (experimental push)
     )
     # The SpotifyClient already supplies the ingestion methods used by services.
     # We inherit directly and rely on its existing methods: current_user_profile,

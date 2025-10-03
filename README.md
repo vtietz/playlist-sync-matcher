@@ -127,6 +127,11 @@ run.bat playlist export <PLAYLIST_ID>
 
 # Sync a single playlist (pull + match + export)
 run.bat playlist sync <PLAYLIST_ID>
+
+# (Experimental) Push local order back to remote (preview then apply)
+run.bat playlist push <PLAYLIST_ID>                # DB mode (uses DB ordering)
+run.bat playlist push <PLAYLIST_ID> --file exported.m3u8   # File mode (derive from M3U)
+run.bat playlist push <PLAYLIST_ID> --apply        # Apply changes (after preview)
 ```
 
 **Example workflow**:
@@ -173,6 +178,34 @@ To prevent collisions when multiple playlists have the same name, exported M3U f
 - **Easy sharing**: Copy Spotify URLs from list or M3U files to share with others
 
 Additional detail & examples moved to: `docs/library_analysis.md`.
+
+### Experimental: Reverse Push (Playlist Replace)
+
+You can now push a single playlist's ordering back to Spotify (full replace semantics). Two modes:
+
+1. **DB Mode (no file)** – Omit `--file`; the ordering stored in the database (from last pull) becomes the desired ordering.
+2. **File Mode** – Provide `--file path/to/playlist.m3u8`; the tool parses local file paths, maps them back to Spotify track IDs using existing matches, and constructs the desired list.
+
+Safety & Behavior:
+- Preview only by default – shows positional changes, additions, removals.
+- Use `--apply` to perform the remote replace.
+- Ownership enforced – refuses to modify playlists not owned by the current user.
+- Full replace only – no incremental diff patching (simpler & deterministic).
+- Unresolved file paths (not matched to a track ID) are skipped and counted.
+
+Examples:
+```bash
+# Preview changes using DB ordering
+run.bat playlist push 3cEYpjA9oz9GiPac4AsH4n
+
+# Preview from exported M3U file
+run.bat playlist push 3cEYpjA9oz9GiPac4AsH4n --file export/playlists/MyList_xxxxxxxx.m3u8
+
+# Apply changes after reviewing preview output
+run.bat playlist push 3cEYpjA9oz9GiPac4AsH4n --apply
+```
+
+This feature is experimental and currently implemented only for Spotify; provider abstraction keeps the path open for future services.
 
 ## Configuration (Summary)
 
