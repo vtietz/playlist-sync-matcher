@@ -1,6 +1,23 @@
 # spotify-m3u-sync
 
-Build local playlist artifacts (currently Spotify) as M3U8 files matched against your local music library, with fast matching and rich reporting. The codebase is provider‑ready (namespaced schema, pluggable provider abstraction) so additional services (Deezer, Tidal, etc.) can be added without redesign. (Former command name 'sync' has been removed in favor of clearer 'build' semantics.)
+Turn your streaming playlists into M3U playlist files that point to your actual local music files.
+
+## What it does
+Instead of just getting a list of song names, you get working playlists that:
+- **Link to your local files** – Each playlist entry points to the real MP3/FLAC file on your drive
+- **Show what's missing** – Clear reports of tracks and albums you don't have locally
+- **Work everywhere** – Standard M3U files that any music player can use
+
+Perfect for syncing to devices, offline listening, or just organizing your collection around your streaming habits.
+
+## How it works
+1. **Reads your Spotify playlists** – Pulls all your playlist info  
+2. **Scans your music folders** – Finds all the music files you own
+3. **Matches them up** – Smart matching connects streaming tracks to local files
+4. **Creates M3U playlists** – Generates playlist files pointing to your actual music
+5. **Reports what's missing** – Shows you exactly what tracks and albums to download
+
+No more manually recreating playlists or wondering what you're missing from your collection.
 
 ## Installation
 
@@ -68,15 +85,17 @@ This will authenticate with Spotify, scan your library, match tracks, export pla
 
 ## Features
 
-Playlists → Deterministic M3U8 exports preserving order
-Export modes → strict | mirrored | placeholders
-Owner grouping → Organize playlists by owner folders
-Matching pipeline → Multi‑stage (exact / album / year / duration / fuzzy) for high accuracy
-Reporting → Missing tracks CSV + album completeness + unmatched diagnostics
-Library quality analysis → Identify metadata gaps & low bitrate files
-Fast scans → Skip unchanged file re‑parsing (size + mtime heuristic)
-Provider abstraction → Schema + code prepared for additional streaming sources
-Clean schema v1 → Composite (id, provider) keys; ready for multi‑provider coexistence
+| Capability | Value |
+|------------|-------|
+| Deterministic playlist exports | Stable M3U8 ordering, collision‑safe filenames |
+| Multiple export modes | strict, mirrored, placeholders |
+| Owner grouping (optional) | Organize playlists into folders by owner |
+| Layered matching engine | exact → album → year → duration → fuzzy for precision+recall |
+| Rich reporting | Missing tracks, album completeness, unmatched diagnostics |
+| Library quality analysis | Surface metadata gaps & low bitrate files |
+| Fast scan mode | Skips unchanged files (mtime+size) to save minutes on large libraries |
+| Provider‑ready architecture | Pluggable registry & namespaced schema |
+| Clean schema v1 | Composite (id, provider) keys for future multi‑provider coexistence |
 
 ## Common Commands
 

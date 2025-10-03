@@ -4,7 +4,7 @@ This service handles operations on individual playlists:
 - Pull/ingest a single playlist
 - Match tracks from a single playlist
 - Export a single playlist
-- Build (pull + match + export) a single playlist (formerly 'sync')
+- Build (pull + match + export) a single playlist
 """
 
 from __future__ import annotations

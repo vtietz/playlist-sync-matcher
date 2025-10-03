@@ -44,7 +44,7 @@ applyTo: '**'
 - Communication style: Concise, actionable, progress updates
 
 ## Project Context
-- Current project type: CLI tool for building local playlist artifacts (formerly 'sync') & playlist export
+- Current project type: CLI tool for building local playlist artifacts & playlist export
 - Tech stack: Python 3.11+, sqlite3, click, requests, mutagen, rapidfuzz, tenacity, PyYAML, rich
 - Architecture patterns: Modular packages (auth, ingest, match, export, reporting, utils)
 - Key requirements: Missing tracks report, mirrored playlists (future), efficient build pipeline (pull/scan/match/export/report), config layering

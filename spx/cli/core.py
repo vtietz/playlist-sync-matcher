@@ -226,10 +226,8 @@ def export(ctx: click.Context):
 def build(ctx: click.Context, no_report: bool, no_export: bool):
     """Run the full one-way pipeline (pull -> scan -> match -> export -> report).
 
-    This replaces the old 'sync' command (removed, no alias) to better reflect
-    that the operation builds local artifacts from remote + local state without
-    mutating the remote provider (push is a separate explicit command).
-    Use --no-export or --no-report to skip those phases for faster iterations.
+    Builds local artifacts from remote + local state without mutating the
+    provider. Use --no-export or --no-report to skip phases for faster iteration.
     """
     ctx.invoke(pull)
     ctx.invoke(scan)
