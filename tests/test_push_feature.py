@@ -61,7 +61,7 @@ def test_push_db_mode_no_change(tmp_path: Path):
     db.replace_playlist_tracks('pl1', [(0, 't1', None), (1, 't2', None)])
     db.commit()
     client = StubClient(['t1', 't2'])
-    preview = push_playlist(db=db, playlist_id='pl1', client=client, m3u_path=None, apply=False, verbose=True)
+    preview = push_playlist(db=db, playlist_id='pl1', client=client, m3u_path=None, apply=False)
     assert preview.changed is False
     assert preview.applied is False
     assert client.replaced_with is None
@@ -76,7 +76,7 @@ def test_push_db_mode_apply_change(tmp_path: Path):
     db.replace_playlist_tracks('pl1', [(0, 't1', None), (1, 't2', None), (2, 't3', None)])
     db.commit()
     client = StubClient(['t3', 't2', 't1'])  # reversed remote ordering
-    preview = push_playlist(db=db, playlist_id='pl1', client=client, m3u_path=None, apply=True, verbose=False)
+    preview = push_playlist(db=db, playlist_id='pl1', client=client, m3u_path=None, apply=True)
     assert preview.changed is True
     assert preview.applied is True
     assert client.replaced_with == ['t1', 't2', 't3']
@@ -92,7 +92,7 @@ def test_push_capability_enforced(tmp_path: Path):
     # Client that does NOT advertise replace capability
     client = StubClient(['t1', 'x2'], replace_cap=False)
     with pytest.raises(RuntimeError):
-        push_playlist(db=db, playlist_id='pl1', client=client, m3u_path=None, apply=True, verbose=False)
+        push_playlist(db=db, playlist_id='pl1', client=client, m3u_path=None, apply=True)
 
 
 def test_push_file_mode_with_unresolved(tmp_path: Path):
@@ -112,7 +112,7 @@ def test_push_file_mode_with_unresolved(tmp_path: Path):
     m3u = tmp_path / 'pl1.m3u'
     m3u.write_text('#EXTM3U\n' + str(file1) + '\n' + str(unresolved_file) + '\n')
     client = StubClient([])
-    preview = push_playlist(db=db, playlist_id='pl1', client=client, m3u_path=m3u, apply=False, verbose=False)
+    preview = push_playlist(db=db, playlist_id='pl1', client=client, m3u_path=m3u, apply=False)
     assert preview.unmatched_file_paths == 1
     assert preview.new_count == 1  # only one track id resolved
 
@@ -123,4 +123,4 @@ def test_push_permission_denied(tmp_path: Path):
     db.upsert_playlist('pl1', 'Foreign', snapshot_id='s1', owner_id='other', owner_name='Other')
     client = StubClient(['t1'], owner_id='other')
     with pytest.raises(PermissionError):
-        push_playlist(db=db, playlist_id='pl1', client=client, m3u_path=None, apply=False, verbose=False)
+        push_playlist(db=db, playlist_id='pl1', client=client, m3u_path=None, apply=False)

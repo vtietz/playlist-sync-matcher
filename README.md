@@ -379,13 +379,8 @@ When running `run.bat match`, the tool shows:
 - Top 20 unmatched tracks (configurable via `matching.show_unmatched_tracks`)
 - Top 20 unmatched albums (configurable via `matching.show_unmatched_albums`)
 
-**Verbose Mode**:
-```bash
-run.bat pull -v       # Windows
-./run.sh pull -v      # Linux/Mac
-psm pull -v           # Standalone
-```
-Or enable persistent detailed logging in `.env`:
+**Detailed Logging**:
+Enable persistent detailed logging in `.env`:
 ```bash
 PSM__LOG_LEVEL=DEBUG
 ```

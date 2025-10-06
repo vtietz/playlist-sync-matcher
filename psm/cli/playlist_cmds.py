@@ -1,5 +1,6 @@
 from __future__ import annotations
 import click
+import logging
 from pathlib import Path
 from .helpers import get_db, cli, get_token
 from ..services.playlist_service import (
@@ -11,6 +12,8 @@ from ..services.playlist_service import (
 from ..services.push_service import push_playlist
 from ..providers.base import get as get_provider, available_providers
 
+logger = logging.getLogger(__name__)
+
 
 @cli.group(name='playlist')
 @click.pass_context
@@ -21,76 +24,67 @@ def playlist_group(ctx: click.Context):  # pragma: no cover - simple container
 @playlist_group.command(name='pull')
 @click.argument('playlist_id')
 @click.option('--force-auth', is_flag=True)
-@click.option('--verbose', '-v', is_flag=True)
 @click.pass_context
-def playlist_pull(ctx: click.Context, playlist_id: str, force_auth: bool, verbose: bool):
+def playlist_pull(ctx: click.Context, playlist_id: str, force_auth: bool):
     cfg = ctx.obj
     if not cfg['spotify']['client_id']:
         raise click.UsageError('spotify.client_id not configured')
     with get_db(cfg) as db:
-        result = pull_single_playlist(db=db, playlist_id=playlist_id, spotify_config=cfg['spotify'], matching_config=cfg['matching'], force_auth=force_auth, verbose=verbose)
+        result = pull_single_playlist(db=db, playlist_id=playlist_id, spotify_config=cfg['spotify'], matching_config=cfg['matching'], force_auth=force_auth)
         click.echo(f"Pulled playlist '{result.playlist_name}' ({result.playlist_id})")
         click.echo(f"Tracks: {result.tracks_processed}")
-        if verbose:
-            click.echo(f"Duration: {result.duration_seconds:.2f}s")
+        logger.debug(f"Duration: {result.duration_seconds:.2f}s")
 
 
 @playlist_group.command(name='match')
 @click.argument('playlist_id')
-@click.option('--verbose', '-v', is_flag=True)
 @click.pass_context
-def playlist_match(ctx: click.Context, playlist_id: str, verbose: bool):
+def playlist_match(ctx: click.Context, playlist_id: str):
     cfg = ctx.obj
     with get_db(cfg) as db:
-        result = match_single_playlist(db=db, playlist_id=playlist_id, config=cfg, verbose=verbose)
+        result = match_single_playlist(db=db, playlist_id=playlist_id, config=cfg)
         click.echo(f"Matched playlist '{result.playlist_name}' ({result.playlist_id})")
         click.echo(f"Matched: {result.tracks_matched}/{result.tracks_processed} tracks")
-        if verbose:
-            click.echo(f"Duration: {result.duration_seconds:.2f}s")
+        logger.debug(f"Duration: {result.duration_seconds:.2f}s")
 
 
 @playlist_group.command(name='export')
 @click.argument('playlist_id')
-@click.option('--verbose', '-v', is_flag=True)
 @click.pass_context
-def playlist_export(ctx: click.Context, playlist_id: str, verbose: bool):
+def playlist_export(ctx: click.Context, playlist_id: str):
     cfg = ctx.obj
     organize_by_owner = cfg['export'].get('organize_by_owner', False)
     with get_db(cfg) as db:
         current_user_id = db.get_meta('current_user_id') if organize_by_owner else None
-        result = export_single_playlist(db=db, playlist_id=playlist_id, export_config=cfg['export'], organize_by_owner=organize_by_owner, current_user_id=current_user_id, verbose=verbose)
+        result = export_single_playlist(db=db, playlist_id=playlist_id, export_config=cfg['export'], organize_by_owner=organize_by_owner, current_user_id=current_user_id)
     click.echo(f"Exported playlist '{result.playlist_name}' ({result.playlist_id})")
     click.echo(f"File: {result.exported_file}")
-    if verbose:
-        click.echo(f"Duration: {result.duration_seconds:.2f}s")
+    logger.debug(f"Duration: {result.duration_seconds:.2f}s")
 
 
 @playlist_group.command(name='build')
 @click.argument('playlist_id')
 @click.option('--force-auth', is_flag=True)
-@click.option('--verbose', '-v', is_flag=True)
 @click.pass_context
-def playlist_build(ctx: click.Context, playlist_id: str, force_auth: bool, verbose: bool):
+def playlist_build(ctx: click.Context, playlist_id: str, force_auth: bool):
     cfg = ctx.obj
     if not cfg['spotify']['client_id']:
         raise click.UsageError('spotify.client_id not configured')
     with get_db(cfg) as db:
-        result = build_single_playlist(db=db, playlist_id=playlist_id, spotify_config=cfg['spotify'], config=cfg, force_auth=force_auth, verbose=verbose)
+        result = build_single_playlist(db=db, playlist_id=playlist_id, spotify_config=cfg['spotify'], config=cfg, force_auth=force_auth)
     click.echo(f"Built playlist '{result.playlist_name}' ({result.playlist_id})")
     click.echo(f"Tracks processed: {result.tracks_processed}")
     click.echo(f"Tracks matched: {result.tracks_matched}")
     click.echo(f"Exported to: {result.exported_file}")
-    if verbose:
-        click.echo(f"Total duration: {result.duration_seconds:.2f}s")
+    logger.debug(f"Total duration: {result.duration_seconds:.2f}s")
 
 
 @playlist_group.command(name='push')
 @click.argument('playlist_id')
 @click.option('--file', 'file_path', type=click.Path(exists=True, dir_okay=False, path_type=Path), required=False, help='Exported M3U file (file mode). Omit for DB mode.')
 @click.option('--apply', is_flag=True, help='Apply changes (otherwise preview only)')
-@click.option('--verbose', '-v', is_flag=True, help='Verbose logging (adds debug details)')
 @click.pass_context
-def playlist_push(ctx: click.Context, playlist_id: str, file_path: Path | None, apply: bool, verbose: bool):
+def playlist_push(ctx: click.Context, playlist_id: str, file_path: Path | None, apply: bool):
     """Preview (and optionally apply) a remote playlist full replace."""
     cfg = ctx.obj
     provider = cfg.get('provider', 'spotify')
@@ -123,7 +117,6 @@ def playlist_push(ctx: click.Context, playlist_id: str, file_path: Path | None, 
             client=client,
             m3u_path=file_path,
             apply=apply,
-            verbose=verbose,
         )
     click.echo(f"Playlist: {preview.playlist_name or playlist_id}")
     click.echo(f"Current tracks: {preview.current_count} | New tracks: {preview.new_count}")

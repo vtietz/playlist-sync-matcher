@@ -135,14 +135,13 @@ def analyze_library_quality(db, min_bitrate_kbps: int = 320, max_issues: int = 5
     return report
 
 
-def print_quality_report(report: QualityReport, min_bitrate_kbps: int = 320, verbose: bool = False):
+def print_quality_report(report: QualityReport, min_bitrate_kbps: int = 320):
     """
     Print formatted quality report to console.
     
     Args:
         report: QualityReport instance
         min_bitrate_kbps: Minimum bitrate threshold used
-        verbose: If True, show detailed issue list
     """
     stats = report.get_summary_stats()
     
@@ -164,8 +163,8 @@ def print_quality_report(report: QualityReport, min_bitrate_kbps: int = 320, ver
     logger.info(f"  No bitrate info: {stats['files_without_bitrate']} files")
     logger.info("=" * 70)
     
-    # Show detailed issues if verbose
-    if verbose and report.issues:
+    # Show detailed issues if debug logging is enabled
+    if report.issues and logging.getLogger().isEnabledFor(logging.DEBUG):
         logger.info("")
         logger.info(f"Detailed Issues (showing first {len(report.issues)}):")
         logger.info("")

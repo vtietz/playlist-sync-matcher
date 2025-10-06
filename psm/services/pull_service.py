@@ -39,8 +39,7 @@ def pull_data(
     provider: str,
     provider_config: Dict[str, Any],
     matching_config: Dict[str, Any],
-    force_auth: bool = False,
-    verbose: bool = False
+    force_auth: bool = False
 ) -> PullResult:
     """Ingest playlists and liked tracks for the selected provider.
 
@@ -82,16 +81,16 @@ def pull_data(
     
     result.token_expiry = tok_dict.get('expires_at')
     
-    if verbose and result.token_expiry:
+    if result.token_expiry:
         remaining = int(result.token_expiry - time.time())
-        logger.info(f"[pull] Using access token (expires {datetime.fromtimestamp(result.token_expiry)}; +{remaining}s)")
+        logger.debug(f"[pull] Using access token (expires {datetime.fromtimestamp(result.token_expiry)}; +{remaining}s)")
     
     # Build client and ingest data
     client = SpotifyClient(tok_dict['access_token'])
     use_year = matching_config.get('use_year', False)
     
-    ingest_playlists(db, client, verbose=verbose, use_year=use_year)
-    ingest_liked(db, client, verbose=verbose, use_year=use_year)
+    ingest_playlists(db, client, use_year=use_year)
+    ingest_liked(db, client, use_year=use_year)
     
     # Gather statistics
     result.playlist_count = db.count_playlists()

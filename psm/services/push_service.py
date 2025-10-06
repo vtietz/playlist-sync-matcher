@@ -135,7 +135,6 @@ def push_playlist(
     client,
     m3u_path: Path | None = None,
     apply: bool = False,
-    verbose: bool = False,
 ) -> PushPreview:
     """Preview (and optionally apply) a push.
 
@@ -176,7 +175,7 @@ def push_playlist(
     logger.info(
         f"[push] preview playlist={playlist_id} name='{preview.playlist_name}' current={preview.current_count} new={preview.new_count} positional={positional_changes} added={added} removed={removed} unresolved_paths={unresolved} changed={changed}"
     )
-    if verbose and changed:
+    if changed:
         # Optionally log first few differences for diagnostics
         logger.debug("[push] detailed diff logging not yet implemented (future enhancement)")
     if apply:

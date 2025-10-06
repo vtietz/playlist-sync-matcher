@@ -1,5 +1,6 @@
 from __future__ import annotations
 import click
+import logging
 from pathlib import Path
 import json as _json
 import time
@@ -11,6 +12,8 @@ from ..services.match_service import run_matching
 from ..services.analysis_service import analyze_library_quality, print_quality_report
 from ..services.export_service import export_playlists
 from ..providers.base import available_providers, get as get_provider
+
+logger = logging.getLogger(__name__)
 
 
 @cli.command()
@@ -97,9 +100,8 @@ def token_info(ctx: click.Context):
 
 @cli.command()
 @click.option('--force-auth', is_flag=True, help='Force full auth flow ignoring cached token')
-@click.option('--verbose', '-v', is_flag=True, help='Verbose pull logging')
 @click.pass_context
-def pull(ctx: click.Context, force_auth: bool, verbose: bool):
+def pull(ctx: click.Context, force_auth: bool):
     cfg = ctx.obj
     provider = cfg.get('provider', 'spotify')
     if provider == 'spotify':
@@ -109,10 +111,9 @@ def pull(ctx: click.Context, force_auth: bool, verbose: bool):
     else:
         raise click.UsageError(f"Provider '{provider}' not supported yet")
     with get_db(cfg) as db:
-        result = pull_data(db=db, provider=provider, provider_config=provider_cfg, matching_config=cfg['matching'], force_auth=force_auth, verbose=verbose)
+        result = pull_data(db=db, provider=provider, provider_config=provider_cfg, matching_config=cfg['matching'], force_auth=force_auth)
     click.echo(f"\n[summary] Provider={provider} | Playlists: {result.playlist_count} | Unique playlist tracks: {result.unique_playlist_tracks} | Liked tracks: {result.liked_tracks} | Total tracks: {result.total_tracks}")
-    if verbose:
-        click.echo(f"[pull] Completed in {result.duration_seconds:.2f}s")
+    logger.debug(f"[pull] Completed in {result.duration_seconds:.2f}s")
     click.echo('Pull complete')
 
 
@@ -152,17 +153,16 @@ def match(ctx: click.Context):
 
 @cli.command()
 @click.option('--min-bitrate', type=int, help='Minimum acceptable bitrate in kbps (overrides config)')
-@click.option('--verbose', '-v', is_flag=True, help='Verbose file issue list')
 @click.option('--max-issues', type=int, default=50, help='Max number of detailed issues to show')
 @click.pass_context
-def analyze(ctx: click.Context, min_bitrate: int | None, verbose: bool, max_issues: int):
+def analyze(ctx: click.Context, min_bitrate: int | None, max_issues: int):
     cfg = ctx.obj
     if min_bitrate is None:
         min_bitrate = cfg.get('library', {}).get('min_bitrate_kbps', 320)
     min_bitrate = int(min_bitrate) if min_bitrate is not None else 320
     with get_db(cfg) as db:
         report = analyze_library_quality(db, min_bitrate_kbps=min_bitrate, max_issues=max_issues)
-        print_quality_report(report, min_bitrate_kbps=min_bitrate, verbose=verbose)
+        print_quality_report(report, min_bitrate_kbps=min_bitrate)
 
 
 @cli.command(name='match-diagnose')

@@ -1,6 +1,6 @@
 """Playlist service: Single-playlist operations.
 
-This service handles operations on individual playlists:
+Handles operations on individual playlists:
 - Pull/ingest a single playlist
 - Match tracks from a single playlist
 - Export a single playlist
@@ -50,8 +50,7 @@ def pull_single_playlist(
     playlist_id: str,
     spotify_config: Dict[str, Any],
     matching_config: Dict[str, Any],
-    force_auth: bool = False,
-    verbose: bool = False
+    force_auth: bool = False
 ) -> SinglePlaylistResult:
     """Pull a single playlist from Spotify.
     
@@ -101,11 +100,10 @@ def pull_single_playlist(
     
     result.playlist_name = pl_name
     
-    if verbose:
-        logger.info(f"[playlist] Pulling '{pl_name}' ({playlist_id})")
+    logger.debug(f"[playlist] Pulling '{pl_name}' ({playlist_id})")
     
     # Fetch tracks
-    tracks = client.playlist_items(playlist_id, verbose=verbose)
+    tracks = client.playlist_items(playlist_id)
     simplified = []
     
     for idx, item in enumerate(tracks):
@@ -143,8 +141,7 @@ def pull_single_playlist(
     result.tracks_processed = len(simplified)
     result.duration_seconds = time.time() - start
     
-    if verbose:
-        logger.info(f"[playlist] Pulled {result.tracks_processed} tracks in {result.duration_seconds:.2f}s")
+    logger.debug(f"[playlist] Pulled {result.tracks_processed} tracks in {result.duration_seconds:.2f}s")
     
     return result
 
@@ -152,8 +149,7 @@ def pull_single_playlist(
 def match_single_playlist(
     db: Database,
     playlist_id: str,
-    config: Dict[str, Any],
-    verbose: bool = False
+    config: Dict[str, Any]
 ) -> SinglePlaylistResult:
     """Match tracks from a single playlist against local library.
     
@@ -177,8 +173,7 @@ def match_single_playlist(
     
     result.playlist_name = pl['name']
     
-    if verbose:
-        logger.info(f"[playlist] Matching '{result.playlist_name}' ({playlist_id})")
+    logger.debug(f"[playlist] Matching '{result.playlist_name}' ({playlist_id})")
     
     # Get matching config
     fuzzy_threshold = config.get('matching', {}).get('fuzzy_threshold', 0.78)
@@ -217,8 +212,7 @@ def match_single_playlist(
     result.tracks_matched = matched_count
     result.duration_seconds = time.time() - start
     
-    if verbose:
-        logger.info(f"[playlist] Matched {matched_count}/{len(tracks_list)} tracks in {result.duration_seconds:.2f}s")
+    logger.debug(f"[playlist] Matched {matched_count}/{len(tracks_list)} tracks in {result.duration_seconds:.2f}s")
     
     return result
 
@@ -228,8 +222,7 @@ def export_single_playlist(
     playlist_id: str,
     export_config: Dict[str, Any],
     organize_by_owner: bool = False,
-    current_user_id: str | None = None,
-    verbose: bool = False
+    current_user_id: str | None = None
 ) -> SinglePlaylistResult:
     """Export a single playlist to M3U file.
     
@@ -255,8 +248,7 @@ def export_single_playlist(
     
     result.playlist_name = pl['name']
     
-    if verbose:
-        logger.info(f"[playlist] Exporting '{result.playlist_name}' ({playlist_id})")
+    logger.debug(f"[playlist] Exporting '{result.playlist_name}' ({playlist_id})")
     
     # Extract config
     export_dir = Path(export_config['directory'])
@@ -314,8 +306,7 @@ def export_single_playlist(
     result.tracks_processed = len(tracks)
     result.duration_seconds = time.time() - start
     
-    if verbose:
-        logger.info(f"[playlist] Exported to {result.exported_file} in {result.duration_seconds:.2f}s")
+    logger.debug(f"[playlist] Exported to {result.exported_file} in {result.duration_seconds:.2f}s")
     
     return result
 
@@ -325,8 +316,7 @@ def build_single_playlist(
     playlist_id: str,
     spotify_config: Dict[str, Any],
     config: Dict[str, Any],
-    force_auth: bool = False,
-    verbose: bool = False
+    force_auth: bool = False
 ) -> SinglePlaylistResult:
     """Build local artifacts for a single playlist (pull + match + export).
     
@@ -346,24 +336,23 @@ def build_single_playlist(
     start = time.time()
     
     # Pull
-    pull_result = pull_single_playlist(db, playlist_id, spotify_config, config['matching'], force_auth, verbose)
+    pull_result = pull_single_playlist(db, playlist_id, spotify_config, config['matching'], force_auth)
     result.playlist_name = pull_result.playlist_name
     result.tracks_processed = pull_result.tracks_processed
     
     # Match
-    match_result = match_single_playlist(db, playlist_id, config, verbose)
+    match_result = match_single_playlist(db, playlist_id, config)
     result.tracks_matched = match_result.tracks_matched
     
     # Export
     organize_by_owner = config['export'].get('organize_by_owner', False)
     current_user_id = db.get_meta('current_user_id') if organize_by_owner else None
-    export_result = export_single_playlist(db, playlist_id, config['export'], organize_by_owner, current_user_id, verbose)
+    export_result = export_single_playlist(db, playlist_id, config['export'], organize_by_owner, current_user_id)
     result.exported_file = export_result.exported_file
     
     result.duration_seconds = time.time() - start
     
-    if verbose:
-        logger.info(f"[playlist] Build complete for '{result.playlist_name}' in {result.duration_seconds:.2f}s")
+    logger.debug(f"[playlist] Build complete for '{result.playlist_name}' in {result.duration_seconds:.2f}s")
     
     return result
 

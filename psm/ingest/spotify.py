@@ -63,21 +63,20 @@ class SpotifyClient:
         """Get current user's profile information."""
         return self._get('/me')
 
-    def current_user_playlists(self, verbose: bool = False) -> Iterator[Dict[str, Any]]:
+    def current_user_playlists(self) -> Iterator[Dict[str, Any]]:
         limit = 50
         offset = 0
         while True:
             data = self._get('/me/playlists', params={'limit': limit, 'offset': offset})
             items = data.get('items', [])
-            if verbose:
-                logger.info(f"[ingest] Fetched {len(items)} playlists (offset={offset})")
+            logger.debug(f"[ingest] Fetched {len(items)} playlists (offset={offset})")
             for pl in items:
                 yield pl
             if len(items) < limit:
                 break
             offset += limit
 
-    def playlist_items(self, playlist_id: str, verbose: bool = False) -> List[Dict[str, Any]]:
+    def playlist_items(self, playlist_id: str) -> List[Dict[str, Any]]:
         tracks: List[Dict[str, Any]] = []
         limit = 100
         offset = 0
@@ -85,8 +84,7 @@ class SpotifyClient:
             data = self._get(f'/playlists/{playlist_id}/tracks', params={'limit': limit, 'offset': offset})
             items = data.get('items', [])
             tracks.extend(items)
-            if verbose:
-                logger.debug(f"[ingest] Playlist {playlist_id} page fetched {len(items)} tracks (offset={offset})")
+            logger.debug(f"[ingest] Playlist {playlist_id} page fetched {len(items)} tracks (offset={offset})")
             if len(items) < limit:
                 break
             offset += limit
@@ -120,14 +118,13 @@ class SpotifyClient:
             uris = [f'spotify:track:{tid}' for tid in batch]
             self._post(f'/playlists/{playlist_id}/tracks', json={'uris': uris})
 
-    def liked_tracks(self, verbose: bool = False) -> Iterator[Dict[str, Any]]:
+    def liked_tracks(self) -> Iterator[Dict[str, Any]]:
         limit = 50
         offset = 0
         while True:
             data = self._get('/me/tracks', params={'limit': limit, 'offset': offset})
             items = data.get('items', [])
-            if verbose:
-                logger.debug(f"[ingest] Fetched {len(items)} liked tracks (offset={offset})")
+            logger.debug(f"[ingest] Fetched {len(items)} liked tracks (offset={offset})")
             for t in items:
                 yield t
             if len(items) < limit:
@@ -144,13 +141,12 @@ def _extract_year(release_date: str | None):
     return None
 
 
-def ingest_playlists(db, client: SpotifyClient, verbose: bool = False, use_year: bool = False):
+def ingest_playlists(db, client: SpotifyClient, use_year: bool = False):
     """Ingest playlists from Spotify API into database.
     
     Args:
         db: Database instance
         client: SpotifyClient instance
-        verbose: Print progress messages at INFO level
         use_year: Include year in normalization (from config matching.use_year)
     """
     t0 = time.time()
@@ -169,7 +165,7 @@ def ingest_playlists(db, client: SpotifyClient, verbose: bool = False, use_year:
     except Exception as e:
         logger.debug(f"[ingest] Could not fetch current user profile: {e}")
     
-    for pl in client.current_user_playlists(verbose=verbose):
+    for pl in client.current_user_playlists():
         pid = pl['id']
         name = pl.get('name')
         snapshot_id = pl.get('snapshot_id')
@@ -185,7 +181,7 @@ def ingest_playlists(db, client: SpotifyClient, verbose: bool = False, use_year:
             db.upsert_playlist(pid, name, snapshot_id, owner_id, owner_name)
             logger.debug(f"[ingest] Skipping unchanged playlist '{name}' ({pid}) snapshot={snapshot_id}")
             continue
-        tracks = client.playlist_items(pid, verbose=verbose)
+        tracks = client.playlist_items(pid)
         simplified = []
         for idx, item in enumerate(tracks):
             track = item.get('track') or {}
@@ -215,26 +211,24 @@ def ingest_playlists(db, client: SpotifyClient, verbose: bool = False, use_year:
         db.replace_playlist_tracks(pid, simplified)
         db.commit()
         processed += 1
-        if verbose:
-            logger.info(f"[ingest] Updated playlist '{name}' ({pid}) tracks={len(simplified)} snapshot={snapshot_id}")
+        logger.debug(f"[ingest] Updated playlist '{name}' ({pid}) tracks={len(simplified)} snapshot={snapshot_id}")
     
     logger.info(f"[ingest] Playlists ingestion complete: updated={processed} (skipped={skipped}) in {time.time()-t0:.2f}s")
 
 
-def ingest_liked(db, client: SpotifyClient, verbose: bool = False, use_year: bool = False):
+def ingest_liked(db, client: SpotifyClient, use_year: bool = False):
     """Ingest liked tracks from Spotify API into database.
     
     Args:
         db: Database instance
         client: SpotifyClient instance
-        verbose: Print progress messages at INFO level
         use_year: Include year in normalization (from config matching.use_year)
     """
     last_added_at = db.get_meta('liked_last_added_at')
     newest_seen = last_added_at
     t0 = time.time()
     ingested = 0
-    for item in client.liked_tracks(verbose=verbose):
+    for item in client.liked_tracks():
         added_at = item.get('added_at')
         track = item.get('track') or {}
         if not track:
