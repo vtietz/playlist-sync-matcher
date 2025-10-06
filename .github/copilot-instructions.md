@@ -23,6 +23,8 @@
 
 ## Testing & Validation
 * **Run Tests in Environment**: Always activate virtualenv first (use `run.bat` or `.venv\Scripts\activate`).
+* **Use Project Runner for Python**: Invoke Python via `run.bat py ...` (Windows) or `./run.sh py ...` to ensure the virtualenv is active (e.g., `run.bat py -m psm.cli --version`). Avoid calling the system `python` directly in automation.
+* **Module Execution**: For `python -m psm.cli`, a `psm/cli/__main__.py` exists; ensure dependencies are installed via `run.bat install` before executing.
 * **Test Behavior, Not Logging**: Tests should verify functional correctness (database state, file existence) rather than checking for specific log messages, which may not be captured by test runners.
 * **Backward Compatibility**: When refactoring, ensure all existing tests pass. Add new tests for new functionality.
 * **All Tests Must Pass**: Run full test suite after any changes. Never leave tests failing.
@@ -46,3 +48,4 @@
 5. ✅ Error handling includes proper logging
 6. ✅ Resources cleaned up properly (threads, sockets, files)
 7. ✅ README updated if functionality changed
+8. ✅ Any new workflow steps use virtualenv-safe invocation (`run.bat` or install + python -m) and avoid raw system Python when project dependencies are required.

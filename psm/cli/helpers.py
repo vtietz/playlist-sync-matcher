@@ -3,6 +3,7 @@ import click
 from pathlib import Path
 import copy
 from ..config import load_typed_config
+from ..version import __version__
 from ..db import Database
 from ..auth.spotify_oauth import SpotifyAuth
 
@@ -16,6 +17,7 @@ def _redact_spotify_config(cfg: dict) -> dict:
 
 
 @click.group()
+@click.version_option(version=__version__, prog_name="playlist-sync-matcher")
 @click.option('--config-file', type=click.Path(exists=False), default=None, help='Deprecated: config file parameter (ignored; use .env)')
 @click.pass_context
 def cli(ctx: click.Context, config_file: str | None):

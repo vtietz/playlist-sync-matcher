@@ -34,10 +34,6 @@ def report_albums(ctx: click.Context):
         click.echo(f"Album completeness report: {path}")
 
 
-@cli.command()
-@click.pass_context
-def version(ctx: click.Context):  # pragma: no cover
-    click.echo("spotify-m3u-sync prototype")
 
 
 @cli.command(name='config')
