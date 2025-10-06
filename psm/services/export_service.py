@@ -9,6 +9,8 @@ import logging
 from typing import Dict, Any, List
 from pathlib import Path
 
+import click
+
 from ..export.playlists import export_strict, export_mirrored, export_placeholders, sanitize_filename
 from ..db import Database
 
@@ -74,6 +76,9 @@ def export_playlists(
     """
     result = ExportResult()
     
+    # Print operation header
+    print(click.style("=== Exporting playlists to M3U ===", fg='cyan', bold=True))
+    
     # Extract config
     export_dir = Path(export_config['directory'])
     mode = export_config.get('mode', 'strict')
@@ -131,4 +136,9 @@ def export_playlists(
         result.exported_files.append(str(target_dir / f"{pl['name']}.m3u"))
     
     result.playlist_count = len(playlists)
+    logger.info(
+        f"{click.style('✓', fg='green')} Exported "
+        f"{click.style(f'{len(playlists)} playlists', fg='green')} "
+        f"to {export_dir}"
+    )
     return result

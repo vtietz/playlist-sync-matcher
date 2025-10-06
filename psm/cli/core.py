@@ -119,7 +119,7 @@ def pull(ctx: click.Context, force_auth: bool):
     with get_db(cfg) as db:
         result = pull_data(db=db, provider=provider, provider_config=provider_cfg, matching_config=cfg['matching'], force_auth=force_auth)
     click.echo(f"\n[summary] Provider={provider} | Playlists: {result.playlist_count} | Unique playlist tracks: {result.unique_playlist_tracks} | Liked tracks: {result.liked_tracks} | Total tracks: {result.total_tracks}")
-    logger.debug(f"[pull] Completed in {result.duration_seconds:.2f}s")
+    logger.debug(f"Completed in {result.duration_seconds:.2f}s")
     click.echo('Pull complete')
 
 

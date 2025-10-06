@@ -83,7 +83,7 @@ def pull_data(
     
     if result.token_expiry:
         remaining = int(result.token_expiry - time.time())
-        logger.debug(f"[pull] Using access token (expires {datetime.fromtimestamp(result.token_expiry)}; +{remaining}s)")
+        logger.debug(f"Using access token (expires {datetime.fromtimestamp(result.token_expiry)}; +{remaining}s)")
     
     # Build client and ingest data
     client = SpotifyClient(tok_dict['access_token'])

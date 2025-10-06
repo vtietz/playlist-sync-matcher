@@ -109,7 +109,7 @@ def _fetch_playlist_meta(client, db: Database, playlist_id: str) -> Dict[str, An
             meta.setdefault('owner_id', owner.get('id'))
             meta.setdefault('owner_name', owner.get('display_name'))
     except Exception as e:  # pragma: no cover (network variability)
-        logger.debug(f"[push] Could not fetch playlist detail: {e}")
+        logger.debug(f"Could not fetch playlist detail: {e}")
     return meta
 
 
@@ -173,14 +173,14 @@ def push_playlist(
 
     # Always log a summary (even if not verbose) for visibility
     logger.info(
-        f"[push] preview playlist={playlist_id} name='{preview.playlist_name}' current={preview.current_count} new={preview.new_count} positional={positional_changes} added={added} removed={removed} unresolved_paths={unresolved} changed={changed}"
+        f"preview playlist={playlist_id} name='{preview.playlist_name}' current={preview.current_count} new={preview.new_count} positional={positional_changes} added={added} removed={removed} unresolved_paths={unresolved} changed={changed}"
     )
     if changed:
         # Optionally log first few differences for diagnostics
-        logger.debug("[push] detailed diff logging not yet implemented (future enhancement)")
+        logger.debug("detailed diff logging not yet implemented (future enhancement)")
     if apply:
         if not changed:
-            logger.info('[push] No changes detected; skipping apply')
+            logger.info('No changes detected; skipping apply')
         else:
             # Enforce capability if advertised
             if hasattr(client, 'capabilities'):
@@ -188,7 +188,7 @@ def push_playlist(
                 if not getattr(caps, 'replace_playlist', False):
                     raise RuntimeError('Provider does not advertise replace_playlist capability')
             _apply_remote_replace(client, playlist_id, desired)
-            logger.info(f"[push] applied replace playlist={playlist_id} new_count={len(desired)}")
+            logger.info(f"applied replace playlist={playlist_id} new_count={len(desired)}")
             preview.applied = True
     return preview
 

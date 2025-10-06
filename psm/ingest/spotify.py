@@ -3,9 +3,11 @@ import requests
 from typing import Iterator, Dict, Any, List, Sequence
 import time
 import logging
+import click
 from tenacity import retry, stop_after_attempt, wait_random_exponential
 from datetime import datetime
 from ..utils.normalization import normalize_title_artist
+from ..utils.logging_helpers import format_summary
 
 logger = logging.getLogger(__name__)
 API_BASE = "https://api.spotify.com/v1"
@@ -69,7 +71,7 @@ class SpotifyClient:
         while True:
             data = self._get('/me/playlists', params={'limit': limit, 'offset': offset})
             items = data.get('items', [])
-            logger.debug(f"[ingest] Fetched {len(items)} playlists (offset={offset})")
+            logger.debug(f"Fetched {len(items)} playlists (offset={offset})")
             for pl in items:
                 yield pl
             if len(items) < limit:
@@ -84,7 +86,7 @@ class SpotifyClient:
             data = self._get(f'/playlists/{playlist_id}/tracks', params={'limit': limit, 'offset': offset})
             items = data.get('items', [])
             tracks.extend(items)
-            logger.debug(f"[ingest] Playlist {playlist_id} page fetched {len(items)} tracks (offset={offset})")
+            logger.debug(f"Playlist {playlist_id} page fetched {len(items)} tracks (offset={offset})")
             if len(items) < limit:
                 break
             offset += limit
@@ -124,7 +126,7 @@ class SpotifyClient:
         while True:
             data = self._get('/me/tracks', params={'limit': limit, 'offset': offset})
             items = data.get('items', [])
-            logger.debug(f"[ingest] Fetched {len(items)} liked tracks (offset={offset})")
+            logger.debug(f"Fetched {len(items)} liked tracks (offset={offset})")
             for t in items:
                 yield t
             if len(items) < limit:
@@ -149,9 +151,11 @@ def ingest_playlists(db, client: SpotifyClient, use_year: bool = False):
         client: SpotifyClient instance
         use_year: Include year in normalization (from config matching.use_year)
     """
+    click.echo(click.style("=== Pulling playlists from Spotify ===", fg='cyan', bold=True))
     t0 = time.time()
-    processed = 0
-    skipped = 0
+    new_playlists = 0
+    updated_playlists = 0
+    unchanged_playlists = 0
     
     # Get and store current user ID for owner comparison
     try:
@@ -163,7 +167,7 @@ def ingest_playlists(db, client: SpotifyClient, use_year: bool = False):
                 db.set_meta('current_user_id', user_id)
                 db.commit()
     except Exception as e:
-        logger.debug(f"[ingest] Could not fetch current user profile: {e}")
+        logger.error(f"Could not fetch current user profile: {e}")
     
     for pl in client.current_user_playlists():
         pid = pl['id']
@@ -174,13 +178,20 @@ def ingest_playlists(db, client: SpotifyClient, use_year: bool = False):
         owner_id = owner.get('id') if owner else None
         owner_name = owner.get('display_name') if owner else None
         
+        # Check if this is a new playlist or existing
+        existing_playlist = db.conn.execute(
+            "SELECT snapshot_id FROM playlists WHERE id = ?", (pid,)
+        ).fetchone()
+        
         if not db.playlist_snapshot_changed(pid, snapshot_id):
-            skipped += 1
+            unchanged_playlists += 1
             # Still upsert playlist metadata (including owner fields) even when skipped
             # This ensures new schema fields get populated without reprocessing tracks
             db.upsert_playlist(pid, name, snapshot_id, owner_id, owner_name)
-            logger.debug(f"[ingest] Skipping unchanged playlist '{name}' ({pid}) snapshot={snapshot_id}")
+            track_count = pl.get('tracks', {}).get('total', 0) if isinstance(pl.get('tracks'), dict) else 0
+            logger.info(f"{click.style('[skip]', fg='yellow')} {name} ({track_count} tracks) - unchanged snapshot")
             continue
+        
         tracks = client.playlist_items(pid)
         simplified = []
         for idx, item in enumerate(tracks):
@@ -210,10 +221,29 @@ def ingest_playlists(db, client: SpotifyClient, use_year: bool = False):
         db.upsert_playlist(pid, name, snapshot_id, owner_id, owner_name)
         db.replace_playlist_tracks(pid, simplified)
         db.commit()
-        processed += 1
-        logger.debug(f"[ingest] Updated playlist '{name}' ({pid}) tracks={len(simplified)} snapshot={snapshot_id}")
+        
+        # Determine if new or updated
+        if existing_playlist:
+            updated_playlists += 1
+            action = "updated"
+            color = "blue"
+        else:
+            new_playlists += 1
+            action = "new"
+            color = "green"
+        
+        logger.info(f"{click.style(f'[{action}]', fg=color)} {name} ({len(simplified)} tracks) | owner={owner_name or owner_id or 'unknown'}")
     
-    logger.info(f"[ingest] Playlists ingestion complete: updated={processed} (skipped={skipped}) in {time.time()-t0:.2f}s")
+    total_processed = new_playlists + updated_playlists
+    t1 = time.time()
+    summary = format_summary(
+        new=new_playlists,
+        updated=updated_playlists,
+        unchanged=unchanged_playlists,
+        duration_seconds=t1 - t0,
+        item_name="Playlists"
+    )
+    logger.info(summary)
 
 
 def ingest_liked(db, client: SpotifyClient, use_year: bool = False):
@@ -224,10 +254,13 @@ def ingest_liked(db, client: SpotifyClient, use_year: bool = False):
         client: SpotifyClient instance
         use_year: Include year in normalization (from config matching.use_year)
     """
+    click.echo(click.style("=== Pulling liked tracks ===", fg='cyan', bold=True))
     last_added_at = db.get_meta('liked_last_added_at')
     newest_seen = last_added_at
     t0 = time.time()
-    ingested = 0
+    new_tracks = 0
+    updated_tracks = 0
+    
     for item in client.liked_tracks():
         added_at = item.get('added_at')
         track = item.get('track') or {}
@@ -235,11 +268,17 @@ def ingest_liked(db, client: SpotifyClient, use_year: bool = False):
             continue
         if last_added_at and added_at <= last_added_at:
             # already ingested due to sorting newest-first assumption
-            logger.debug(f"[ingest] Reached previously ingested liked track boundary at {added_at}; stopping.")
+            logger.info(f"Reached previously ingested liked track boundary at {added_at}; stopping.")
             break
         t_id = track.get('id')
         if not t_id:
             continue
+        
+        # Check if track already exists in database
+        existing_track = db.conn.execute(
+            "SELECT id FROM tracks WHERE id = ?", (t_id,)
+        ).fetchone()
+        
         artist_names = ', '.join(a['name'] for a in track.get('artists', []) if a.get('name'))
         nt, na, combo = normalize_title_artist(track.get('name') or '', artist_names)
         year = _extract_year(((track.get('album') or {}).get('release_date')))
@@ -256,11 +295,38 @@ def ingest_liked(db, client: SpotifyClient, use_year: bool = False):
             'year': year,
         })
         db.upsert_liked(t_id, added_at)
+        
+        # Determine if new or updated
+        if existing_track:
+            updated_tracks += 1
+            action = "updated"
+            color = "blue"
+        else:
+            new_tracks += 1
+            action = "new"
+            color = "green"
+        
+        track_name = track.get('name', 'Unknown')
+        logger.debug(f"{click.style(f'[{action}]', fg=color)} ❤️  {track_name} | {artist_names}")
+        
         if (not newest_seen) or added_at > newest_seen:
             newest_seen = added_at
-        ingested += 1
     
-    logger.info(f"[ingest] Liked tracks ingested={ingested} (newest_seen={newest_seen}) in {time.time()-t0:.2f}s")
+    total_ingested = new_tracks + updated_tracks
+    t1 = time.time()
+    summary = format_summary(
+        new=new_tracks,
+        updated=updated_tracks,
+        unchanged=0,  # Liked tracks don't track unchanged
+        duration_seconds=t1 - t0,
+        item_name="Liked tracks"
+    )
+    
+    # Add newest timestamp info if available
+    if newest_seen:
+        summary += f" (newest={newest_seen})"
+    
+    logger.info(summary)
     if newest_seen and newest_seen != last_added_at:
         db.set_meta('liked_last_added_at', newest_seen)
     db.commit()

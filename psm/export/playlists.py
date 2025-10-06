@@ -2,6 +2,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Iterable, Dict, Any, Sequence
 import os
+import click
 
 HEADER = "#EXTM3U"
 
@@ -33,7 +34,7 @@ def export_strict(playlist: Dict[str, Any], tracks: Iterable[Dict[str, Any]], ou
     path.write_text('\n'.join(lines), encoding='utf-8')
     if os.environ.get('PSM_DEBUG'):
         kept = sum(1 for t in tracks if t.get('local_path'))
-        print(f"[export] strict playlist='{playlist.get('name')}' kept={kept} file={path}")
+        print(f"{click.style('[exported]', fg='green')} strict playlist='{playlist.get('name')}' kept={kept} file={path}")
     return path
 
 
@@ -78,7 +79,7 @@ def export_mirrored(playlist: Dict[str, Any], tracks: Sequence[Dict[str, Any]], 
     path.write_text('\n'.join(lines), encoding='utf-8')
     if os.environ.get('PSM_DEBUG'):
         missing = sum(1 for t in tracks if not t.get('local_path'))
-        print(f"[export] mirrored playlist='{playlist.get('name')}' total={len(tracks)} missing={missing} file={path}")
+        print(f"{click.style('[exported]', fg='green')} mirrored playlist='{playlist.get('name')}' total={len(tracks)} missing={missing} file={path}")
     return path
 
 
@@ -127,7 +128,7 @@ def export_placeholders(playlist: Dict[str, Any], tracks: Sequence[Dict[str, Any
     path.write_text('\n'.join(lines), encoding='utf-8')
     if os.environ.get('PSM_DEBUG'):
         placeholders = sum(1 for t in tracks if not t.get('local_path'))
-        print(f"[export] placeholders playlist='{playlist.get('name')}' total={len(tracks)} placeholders={placeholders} file={path}")
+        print(f"{click.style('[exported]', fg='green')} placeholders playlist='{playlist.get('name')}' total={len(tracks)} placeholders={placeholders} file={path}")
     return path
 
 __all__ = [

@@ -46,6 +46,41 @@ Each strategy can mark matches; unmatched set shrinks between steps.
 - Batched DB commits (configurable).
 - Indexed normalized fields to accelerate lookups & fuzzy candidate narrowing.
 
+## Concurrency & Database Safety
+
+The database uses SQLite's **Write-Ahead Logging (WAL)** mode, which provides safe concurrent access:
+
+**Implementation**:
+```python
+# psm/db.py
+SCHEMA = [
+    "PRAGMA journal_mode=WAL;",  # Enable WAL mode
+    # ... table definitions
+]
+
+# Connection with automatic retry on lock conflicts
+self.conn = sqlite3.connect(path, timeout=30)
+```
+
+**Benefits**:
+- Multiple processes can read simultaneously
+- Readers don't block writers and vice versa
+- Automatic retry on transient lock conflicts (30-second timeout)
+- No custom locking code needed - SQLite handles it
+
+**Safe concurrent patterns**:
+- ✅ `pull` + `scan` in parallel (different tables)
+- ✅ `scan` + `match` in parallel (match reads library_files, scan writes it)
+- ✅ Multiple `scan` processes on different paths
+- ✅ `pull` + `match` in parallel (pull writes tracks, match reads them)
+
+**Isolation semantics**:
+- Operations see a consistent snapshot of data at the time they start
+- Changes from concurrent operations become visible after they commit
+- No partial/torn reads or writes
+
+**No explicit locking required**: Previous implementation used a custom `DatabaseLock` with polling, which has been removed in favor of relying entirely on SQLite's built-in WAL concurrency.
+
 ## Configuration Model
 
 Environment-first loading:

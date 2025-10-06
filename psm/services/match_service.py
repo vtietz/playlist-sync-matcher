@@ -9,8 +9,11 @@ import time
 import logging
 from typing import Dict, Any, List
 
+import click
+
 from ..match.scoring import ScoringConfig, evaluate_pair, MatchConfidence
 from ..db import Database
+from ..utils.logging_helpers import log_progress
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +49,9 @@ def run_matching(
     """
     result = MatchResult()
     start = time.time()
+    
+    # Print operation header
+    print(click.style("=== Matching tracks to library files ===", fg='cyan', bold=True))
     
     # Always use scoring engine (legacy strategy pipeline removed)
     matched_count = _run_scoring_engine(db, config)
@@ -110,6 +116,38 @@ def _jaccard_similarity(set1: set, set2: set) -> float:
     return intersection / union if union > 0 else 0.0
 
 
+def _get_confidence_summary(db: Database, total_matches: int) -> str:
+    """Get a summary of match confidence distribution.
+    
+    Returns a colored string showing counts for each confidence tier.
+    """
+    if total_matches == 0:
+        return "none"
+    
+    # Query match methods to extract confidence levels
+    rows = db.conn.execute(
+        "SELECT method FROM matches WHERE method LIKE 'score:%'"
+    ).fetchall()
+    
+    # Count by confidence tier
+    certain = sum(1 for r in rows if 'CERTAIN' in r[0])
+    high = sum(1 for r in rows if 'HIGH' in r[0])
+    medium = sum(1 for r in rows if 'MEDIUM' in r[0])
+    low = sum(1 for r in rows if 'LOW' in r[0])
+    
+    parts = []
+    if certain > 0:
+        parts.append(click.style(f'{certain} certain', fg='green'))
+    if high > 0:
+        parts.append(click.style(f'{high} high', fg='blue'))
+    if medium > 0:
+        parts.append(click.style(f'{medium} medium', fg='yellow'))
+    if low > 0:
+        parts.append(click.style(f'{low} low', fg='red'))
+    
+    return ", ".join(parts) if parts else "none"
+
+
 def _run_scoring_engine(db: Database, config: Dict[str, Any]) -> int:
     """Run scoring-based engine and persist matches (authoritative engine)."""
     start = time.time()
@@ -121,6 +159,9 @@ def _run_scoring_engine(db: Database, config: Dict[str, Any]) -> int:
 
     cfg = ScoringConfig()
     matches = 0
+    processed = 0
+    progress_interval = 100  # Log progress every N tracks
+    last_progress_log = 0
 
     # Optional simple duration prefilter to reduce candidate set size
     dur_tol = config.get('matching', {}).get('duration_tolerance', 2.0)
@@ -128,6 +169,7 @@ def _run_scoring_engine(db: Database, config: Dict[str, Any]) -> int:
 
     max_candidates = int(config.get('matching', {}).get('max_candidates_per_track', 500))
     for t in tracks:
+        processed += 1
         # Enable detailed logging if DEBUG level is active
         debug_logging = logger.isEnabledFor(logging.DEBUG)
         
@@ -159,7 +201,7 @@ def _run_scoring_engine(db: Database, config: Dict[str, Any]) -> int:
         for local in candidate_list:
             breakdown = evaluate_pair(t, local, cfg)
             if debug_logging:
-                logger.debug(f"[match][debug] track={t['id']} vs file={local['id']} raw={breakdown.raw_score:.1f} conf={breakdown.confidence} notes={breakdown.notes}")
+                logger.debug(f"track={t['id']} vs file={local['id']} raw={breakdown.raw_score:.1f} conf={breakdown.confidence} notes={breakdown.notes}")
             if breakdown.confidence == MatchConfidence.REJECTED:
                 continue
             if breakdown.raw_score > best_score:
@@ -173,10 +215,37 @@ def _run_scoring_engine(db: Database, config: Dict[str, Any]) -> int:
             continue
         db.add_match(t['id'], best_local_id, best_breakdown.raw_score / 100.0, f"score:{best_breakdown.confidence}")
         matches += 1
+        
+        # Log progress every N tracks
+        if processed - last_progress_log >= progress_interval:
+            elapsed = time.time() - start
+            match_rate = (matches / processed * 100) if processed > 0 else 0
+            log_progress(
+                processed=processed,
+                total=len(tracks),
+                new=matches,
+                updated=0,
+                skipped=processed - matches,
+                elapsed_seconds=elapsed,
+                item_name="tracks"
+            )
+            logger.info(f"  Match rate: {click.style(f'{match_rate:.1f}%', fg='cyan')} | Confidence breakdown: {_get_confidence_summary(db, matches)}")
+            last_progress_log = processed
 
     db.commit()
     dur = time.time() - start
-    logger.info(f"[match] Matched {matches}/{len(tracks)} tracks using scoring engine in {dur:.2f}s")
+    match_rate = (matches / len(tracks) * 100) if tracks else 0
+    
+    # Get confidence breakdown for final summary
+    confidence_summary = _get_confidence_summary(db, matches)
+    
+    logger.info(
+        f"{click.style('✓', fg='green')} Matched "
+        f"{click.style(f'{matches}/{len(tracks)}', fg='green')} tracks "
+        f"({match_rate:.1f}%) in {dur:.2f}s"
+    )
+    if matches > 0:
+        logger.info(f"  Confidence: {confidence_summary}")
     return matches
 
 

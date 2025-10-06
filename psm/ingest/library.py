@@ -5,6 +5,7 @@ import mutagen
 from ..utils.fs import iter_music_files
 from ..utils.hashing import partial_hash
 from ..utils.normalization import normalize_title_artist
+from ..utils.logging_helpers import log_progress, format_summary
 import time
 import logging
 import click
@@ -47,6 +48,7 @@ def scan_library(db, cfg):
     commit_interval = int(lib_cfg.get('commit_interval', 100) or 0)
     use_year = cfg.get('matching', {}).get('use_year')
 
+    click.echo(click.style("=== Scanning local library ===", fg='cyan', bold=True))
     start = time.time()
     files_seen = 0
     inserted = 0
@@ -57,6 +59,8 @@ def scan_library(db, cfg):
     other_errors = 0
     since_commit = 0
     seen_paths = set()  # Track files we've seen during scan for efficient deletion detection
+    progress_interval = 100  # Log progress every N files
+    last_progress_log = 0
     
     # Batch load existing file metadata for skip-unchanged checks (avoids per-file queries)
     existing_files = {}
@@ -84,7 +88,7 @@ def scan_library(db, cfg):
         else:
             rows = db.conn.execute("SELECT path, size, mtime, partial_hash FROM library_files").fetchall()
             existing_files = {row['path']: (row['size'], row['mtime'], row['partial_hash']) for row in rows}
-        logger.debug(f"[scan] Loaded {len(existing_files)} existing files for skip-unchanged checks")
+        logger.debug(f"Loaded {len(existing_files)} existing files for skip-unchanged checks")
 
     try:
         for p in iter_music_files(paths, extensions, ignore_patterns, follow_symlinks):
@@ -195,8 +199,23 @@ def scan_library(db, cfg):
                 logger.debug(f"{click.style(f'[{action}]', fg=color)} {p} | title='{title}' artist='{artist}' album='{album}' year={year if year is not None else '-'} dur={duration if duration is not None else '-'} bitrate={bitrate_kbps if bitrate_kbps is not None else '-'} kbps norm='{combo}'")
                 if commit_interval and since_commit >= commit_interval:
                     db.commit()
-                    logger.debug(f"[scan] interim commit after {since_commit} processed (inserted={inserted} updated={updated} skipped={skipped_unchanged})")
+                    logger.debug(f"Interim commit after {since_commit} processed (inserted={inserted} updated={updated} skipped={skipped_unchanged})")
                     since_commit = 0
+                
+                # Log progress every N files
+                if files_seen - last_progress_log >= progress_interval:
+                    elapsed = time.time() - start
+                    log_progress(
+                        processed=files_seen,
+                        total=None,  # Total unknown during iteration
+                        new=inserted,
+                        updated=updated,
+                        skipped=skipped_unchanged,
+                        elapsed_seconds=elapsed,
+                        item_name="files"
+                    )
+                    last_progress_log = files_seen
+                    
             except KeyboardInterrupt:
                 print(f"{click.style('[interrupt]', fg='magenta')} Caught keyboard interrupt; finalizing partial work...")
                 break
@@ -208,36 +227,36 @@ def scan_library(db, cfg):
         # Cleanup: remove files from DB that no longer exist on disk
         # Use set-based comparison instead of checking file.exists() for each DB row
         deleted = 0
-        logger.debug("[scan] Checking for deleted files...")
-        logger.debug(f"[scan] Seen {len(seen_paths)} files during this scan")
+        logger.debug("Checking for deleted files...")
+        logger.debug(f"Seen {len(seen_paths)} files during this scan")
         
         # Get all paths from DB in one query
         rows = db.conn.execute("SELECT id, path FROM library_files").fetchall()
         db_paths = {row['path']: row['id'] for row in rows}
         
-        logger.debug(f"[scan] Database contains {len(db_paths)} files")
+        logger.debug(f"Database contains {len(db_paths)} files")
         # Show sample of path formats for debugging
         if db_paths and seen_paths:
             db_sample = list(db_paths.keys())[0] if db_paths else None
             seen_sample = list(seen_paths)[0] if seen_paths else None
             if db_sample:
-                logger.debug(f"[scan] Sample DB path: {db_sample}")
+                logger.debug(f"Sample DB path: {db_sample}")
             if seen_sample:
-                logger.debug(f"[scan] Sample seen path: {seen_sample}")
+                logger.debug(f"Sample seen path: {seen_sample}")
         
         # Find paths in DB but not seen during scan
         deleted_paths = set(db_paths.keys()) - seen_paths
         
         if deleted_paths:
-            logger.debug(f"[scan] Found {len(deleted_paths)} files to delete")
+            logger.debug(f"Found {len(deleted_paths)} files to delete")
             # Show first few for debugging
             for path in list(deleted_paths)[:3]:
-                logger.debug(f"[scan] Will delete: {path}")
+                logger.debug(f"Will delete: {path}")
                 # Check if a similar path exists in seen_paths (case/slash differences)
                 similar = [sp for sp in seen_paths if sp.lower().replace('/', '\\') == path.lower().replace('/', '\\')]
                 if similar:
-                    logger.debug(f"[scan] WARNING: Similar path found in seen_paths: {similar[0]}")
-                    logger.debug(f"[scan] This suggests a path normalization issue!")
+                    logger.debug(f"WARNING: Similar path found in seen_paths: {similar[0]}")
+                    logger.debug(f"This suggests a path normalization issue!")
         
         for path in deleted_paths:
             file_id = db_paths[path]
@@ -249,9 +268,16 @@ def scan_library(db, cfg):
         
         db.commit()
         dur = time.time() - start
-        logger.debug(
-            f"[scan] Summary: files_seen={files_seen} inserted={inserted} updated={updated} "
-            f"skipped_unchanged={skipped_unchanged} deleted={deleted} tag_errors={tag_errors} io_errors={io_errors} other_errors={other_errors} in {dur:.2f}s"
+        summary = format_summary(
+            new=inserted,
+            updated=updated,
+            unchanged=skipped_unchanged,
+            deleted=deleted,
+            duration_seconds=dur,
+            item_name="Library"
         )
+        logger.info(summary)
+        if tag_errors or io_errors or other_errors:
+            logger.debug(f"Errors: tag={tag_errors} io={io_errors} other={other_errors}")
 
 __all__ = ["scan_library"]

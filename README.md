@@ -464,12 +464,36 @@ Other optimizations:
 Condensed overview (see `docs/architecture.md` for full explanation):
 
 - **Database**: SQLite, composite (id, provider) keys for tracks & playlists
-- **Concurrency**: WAL mode with automatic timeout handling for concurrent operations
+- **Concurrency**: WAL mode enables safe parallel operations (see below)
 - **Matching**: Weighted scoring system with confidence tiers (CERTAIN/HIGH/MEDIUM/LOW)
 - **Performance**: LRU normalization cache, fast scan, bulk inserts, indexed normalized/isrc columns
 - **Schema versioning**: `meta` table entry `schema_version=1` (clean baseline)
 
-**Database Safety**: SQLite WAL mode with automatic timeout handling allows safe concurrent reads. Multiple processes can scan the library simultaneously. Write operations (match, ingest) use built-in SQLite locking with a 30-second timeout.
+### Concurrent Operations
+
+**You can safely run multiple commands simultaneously** thanks to SQLite's Write-Ahead Logging (WAL) mode:
+
+```bash
+# Example: Run all three in parallel (different terminals)
+run.bat pull    # Terminal 1: Fetch Spotify data
+run.bat scan    # Terminal 2: Scan local library  
+run.bat match   # Terminal 3: Match tracks
+```
+
+**How it works**:
+- WAL mode allows multiple readers + one writer concurrently
+- 30-second timeout automatically retries brief lock conflicts
+- No database corruption or "database is locked" errors
+- Each operation is isolated and atomic
+
+**What to expect**:
+- ✅ **Safe**: Operations won't corrupt data or interfere with each other
+- ✅ **Fast**: I/O-bound tasks (scan, pull) benefit from parallelization
+- ⚠️ **Data visibility**: New data from concurrent operations appears on next run
+  - Example: If `match` runs while `pull` is adding tracks, newly added tracks won't be matched until next `match` run
+  - This is normal behavior, not a bug
+
+**Performance tip**: Running compute-heavy operations simultaneously (e.g., 3+ concurrent scans) may slow down due to disk I/O contention, but won't cause errors.
 
 ## Multi-Provider Architecture
 
