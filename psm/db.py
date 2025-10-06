@@ -1,7 +1,111 @@
 from __future__ import annotations
 import sqlite3
+import os
+import sys
+import time
+import json
+import logging
 from pathlib import Path
 from typing import Iterable, Sequence, Any, Dict, Tuple, Optional
+
+logger = logging.getLogger(__name__)
+
+
+class DatabaseLock:
+    """Simple file-based lock to prevent concurrent database access."""
+    
+    def __init__(self, db_path: Path):
+        self.db_path = db_path
+        self.lock_file = db_path.with_suffix('.lock')
+        self.acquired = False
+        
+    def __enter__(self):
+        return self.acquire()
+        
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.release()
+        
+    def acquire(self, timeout: float = 5.0) -> bool:
+        """Acquire the lock, waiting up to timeout seconds."""
+        start_time = time.time()
+        
+        while time.time() - start_time < timeout:
+            if self._try_acquire():
+                self.acquired = True
+                return True
+            time.sleep(0.1)
+            
+        # Check if lock file exists and warn about potential concurrent access
+        if self.lock_file.exists():
+            try:
+                with open(self.lock_file, 'r') as f:
+                    lock_info = json.loads(f.read())
+                    pid = lock_info.get('pid')
+                    command = lock_info.get('command', 'unknown')
+                    timestamp = lock_info.get('timestamp')
+                    
+                logger.warning(f"Database is locked by another process (PID: {pid}, Command: {command})")
+                logger.warning(f"Lock acquired at: {timestamp}")
+                logger.warning("Wait for the other operation to complete or remove the lock file if the process crashed.")
+                
+            except (json.JSONDecodeError, FileNotFoundError):
+                logger.warning(f"Database lock file exists: {self.lock_file}")
+                logger.warning("Another PSM process may be running. Wait for it to complete or remove the lock file.")
+                
+        return False
+        
+    def _try_acquire(self) -> bool:
+        """Try to acquire the lock atomically."""
+        try:
+            # Use exclusive creation to ensure atomicity
+            with open(self.lock_file, 'x') as f:
+                lock_info = {
+                    'pid': os.getpid(),
+                    'command': ' '.join(sys.argv),
+                    'timestamp': time.strftime('%Y-%m-%d %H:%M:%S')
+                }
+                json.dump(lock_info, f)
+            return True
+        except FileExistsError:
+            # Lock already exists - check if it's stale
+            return self._check_stale_lock()
+            
+    def _check_stale_lock(self) -> bool:
+        """Check if existing lock is from a dead process and clean it up."""
+        try:
+            with open(self.lock_file, 'r') as f:
+                lock_info = json.loads(f.read())
+                
+            pid = lock_info.get('pid')
+            if pid:
+                try:
+                    # Check if process is still running
+                    os.kill(pid, 0)  # Signal 0 just checks if process exists
+                    return False  # Process is alive, lock is valid
+                except (OSError, ProcessLookupError):
+                    # Process is dead, remove stale lock
+                    logger.info(f"Removing stale lock from dead process {pid}")
+                    self.lock_file.unlink(missing_ok=True)
+                    return self._try_acquire()  # Try again
+            else:
+                # Invalid lock file, remove it
+                self.lock_file.unlink(missing_ok=True)
+                return self._try_acquire()
+                
+        except (json.JSONDecodeError, FileNotFoundError):
+            # Corrupt or missing lock file, try to remove and retry
+            self.lock_file.unlink(missing_ok=True)
+            return self._try_acquire()
+            
+    def release(self):
+        """Release the lock."""
+        if self.acquired:
+            try:
+                self.lock_file.unlink(missing_ok=True)
+                self.acquired = False
+            except Exception as e:
+                logger.warning(f"Failed to release database lock: {e}")
+
 
 SCHEMA = [
     "PRAGMA journal_mode=WAL;",
@@ -20,10 +124,17 @@ SCHEMA = [
 
 
 class Database:
-    def __init__(self, path: Path):
+    def __init__(self, path: Path, acquire_lock: bool = True):
         self.path = path
+        self.lock = DatabaseLock(path) if acquire_lock else None
+        
         if not path.parent.exists():
             path.parent.mkdir(parents=True, exist_ok=True)
+            
+        # Try to acquire lock if requested
+        if self.lock and not self.lock.acquire():
+            raise RuntimeError(f"Could not acquire database lock for {path}. Another PSM process may be running.")
+            
         # Increase timeout to better tolerate brief writer contention, especially on Windows.
         self.conn = sqlite3.connect(path, timeout=30)
         self.conn.row_factory = sqlite3.Row
@@ -258,5 +369,8 @@ class Database:
                 pass  # Already closed or in invalid state
             finally:
                 self._closed = True
+                # Release the database lock
+                if self.lock:
+                    self.lock.release()
 
-__all__ = ["Database"]
+__all__ = ["Database", "DatabaseLock"]

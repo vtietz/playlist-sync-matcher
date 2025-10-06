@@ -21,6 +21,37 @@ def _redact_spotify_config(cfg: dict) -> dict:
 @click.option('--config-file', type=click.Path(exists=False), default=None, help='Deprecated: config file parameter (ignored; use .env)')
 @click.pass_context
 def cli(ctx: click.Context, config_file: str | None):
+    """Spotify-to-local music library synchronization tool.
+    
+    TYPICAL WORKFLOWS:
+    
+    Initial Setup:
+      psm login                    # Authenticate with Spotify
+      psm scan                     # Index your local music library
+      
+    Full Sync (all playlists):
+      psm pull                     # Download playlists from Spotify
+      psm match                    # Match tracks to local files
+      psm export                   # Generate M3U playlist files
+      
+    Single Playlist Workflow:
+      psm playlist pull PLAYLIST_ID    # Pull one playlist
+      psm playlist match PLAYLIST_ID   # Match its tracks
+      psm playlist export PLAYLIST_ID  # Export to M3U
+      # OR: psm playlist build PLAYLIST_ID  (does all three)
+      
+    Quality Analysis:
+      psm analyze                  # Check library quality issues
+      psm report                   # Show unmatched tracks
+      psm report-albums           # Show incomplete albums
+      
+    Maintenance:
+      psm scan --full             # Refresh library index
+      psm match-diagnose TRACK    # Debug matching issues
+      
+    Note: Commands access the database sequentially - avoid running multiple 
+    operations simultaneously.
+    """
     if hasattr(ctx, 'obj') and isinstance(ctx.obj, dict):
         ctx.obj = ctx.obj
     else:

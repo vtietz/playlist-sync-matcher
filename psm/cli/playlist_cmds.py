@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 @cli.group(name='playlist')
 @click.pass_context
 def playlist_group(ctx: click.Context):  # pragma: no cover - simple container
+    """Single playlist operations (pull, match, export, build, push)."""
     pass
 
 
@@ -26,6 +27,7 @@ def playlist_group(ctx: click.Context):  # pragma: no cover - simple container
 @click.option('--force-auth', is_flag=True)
 @click.pass_context
 def playlist_pull(ctx: click.Context, playlist_id: str, force_auth: bool):
+    """Pull and ingest a single playlist by ID."""
     cfg = ctx.obj
     if not cfg['spotify']['client_id']:
         raise click.UsageError('spotify.client_id not configured')
@@ -40,6 +42,7 @@ def playlist_pull(ctx: click.Context, playlist_id: str, force_auth: bool):
 @click.argument('playlist_id')
 @click.pass_context
 def playlist_match(ctx: click.Context, playlist_id: str):
+    """Match tracks from a single playlist to local files."""
     cfg = ctx.obj
     with get_db(cfg) as db:
         result = match_single_playlist(db=db, playlist_id=playlist_id, config=cfg)
@@ -52,6 +55,7 @@ def playlist_match(ctx: click.Context, playlist_id: str):
 @click.argument('playlist_id')
 @click.pass_context
 def playlist_export(ctx: click.Context, playlist_id: str):
+    """Export a single playlist to M3U file."""
     cfg = ctx.obj
     organize_by_owner = cfg['export'].get('organize_by_owner', False)
     with get_db(cfg) as db:
@@ -67,6 +71,7 @@ def playlist_export(ctx: click.Context, playlist_id: str):
 @click.option('--force-auth', is_flag=True)
 @click.pass_context
 def playlist_build(ctx: click.Context, playlist_id: str, force_auth: bool):
+    """Pull, match, and export a single playlist (complete pipeline)."""
     cfg = ctx.obj
     if not cfg['spotify']['client_id']:
         raise click.UsageError('spotify.client_id not configured')
@@ -85,6 +90,7 @@ def playlist_build(ctx: click.Context, playlist_id: str, force_auth: bool):
 @click.option('--apply', is_flag=True, help='Apply changes (otherwise preview only)')
 @click.pass_context
 def playlist_push(ctx: click.Context, playlist_id: str, file_path: Path | None, apply: bool):
+    """Push local changes to update a remote playlist."""
     """Preview (and optionally apply) a remote playlist full replace."""
     cfg = ctx.obj
     provider = cfg.get('provider', 'spotify')

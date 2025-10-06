@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 @cli.command()
 @click.pass_context
 def report(ctx: click.Context):
+    """Generate missing tracks report showing unmatched songs."""
     cfg = ctx.obj
     with get_db(cfg) as db:
         rows = db.get_missing_tracks()
@@ -30,6 +31,7 @@ def report(ctx: click.Context):
 @cli.command(name='report-albums')
 @click.pass_context
 def report_albums(ctx: click.Context):
+    """Generate album completeness report showing partially matched albums."""
     cfg = ctx.obj
     with get_db(cfg) as db:
         out_dir = Path(cfg['reports']['directory'])
@@ -44,6 +46,7 @@ def report_albums(ctx: click.Context):
 @click.option('--redact', is_flag=True, help='Redact sensitive values like client_id.')
 @click.pass_context
 def show_config(ctx: click.Context, section: str | None, redact: bool):
+    """Show current configuration settings."""
     cfg = ctx.obj
     data = cfg
     if section:
@@ -60,6 +63,7 @@ def show_config(ctx: click.Context, section: str | None, redact: bool):
 @cli.command(name='redirect-uri')
 @click.pass_context
 def redirect_uri(ctx: click.Context):
+    """Show OAuth redirect URI for Spotify app configuration."""
     cfg = ctx.obj
     auth = build_auth(cfg)
     uri = auth.build_redirect_uri()
@@ -80,6 +84,7 @@ def redirect_uri(ctx: click.Context):
 @cli.command(name='token-info')
 @click.pass_context
 def token_info(ctx: click.Context):
+    """Show OAuth token cache status and expiration info."""
     cfg = ctx.obj
     path = Path(cfg['spotify']['cache_file']).resolve()
     if not path.exists():
@@ -102,6 +107,7 @@ def token_info(ctx: click.Context):
 @click.option('--force-auth', is_flag=True, help='Force full auth flow ignoring cached token')
 @click.pass_context
 def pull(ctx: click.Context, force_auth: bool):
+    """Pull playlists and liked tracks from streaming provider."""
     cfg = ctx.obj
     provider = cfg.get('provider', 'spotify')
     if provider == 'spotify':
@@ -121,6 +127,7 @@ def pull(ctx: click.Context, force_auth: bool):
 @click.option('--force', is_flag=True, help='Force full auth ignoring cache')
 @click.pass_context
 def login(ctx: click.Context, force: bool):
+    """Authenticate with streaming provider (Spotify OAuth)."""
     cfg = ctx.obj
     if not cfg['spotify']['client_id']:
         raise click.UsageError('spotify.client_id not configured')
@@ -136,6 +143,7 @@ def login(ctx: click.Context, force: bool):
 @cli.command()
 @click.pass_context
 def scan(ctx: click.Context):
+    """Scan local music library and index track metadata."""
     cfg = ctx.obj
     with get_db(cfg) as db:
         scan_library(db, cfg)
@@ -145,6 +153,7 @@ def scan(ctx: click.Context):
 @cli.command()
 @click.pass_context
 def match(ctx: click.Context):
+    """Match streaming tracks to local library files."""
     cfg = ctx.obj
     with get_db(cfg) as db:
         result = run_matching(db, config=cfg, verbose=False)
@@ -156,6 +165,7 @@ def match(ctx: click.Context):
 @click.option('--max-issues', type=int, default=50, help='Max number of detailed issues to show')
 @click.pass_context
 def analyze(ctx: click.Context, min_bitrate: int | None, max_issues: int):
+    """Analyze local library quality (missing tags, low bitrate)."""
     cfg = ctx.obj
     if min_bitrate is None:
         min_bitrate = cfg.get('library', {}).get('min_bitrate_kbps', 320)
@@ -170,6 +180,7 @@ def analyze(ctx: click.Context, min_bitrate: int | None, max_issues: int):
 @click.option('--limit', type=int, default=10, help='Limit number of candidate files shown')
 @click.pass_context
 def match_diagnose(ctx: click.Context, query: str, limit: int):
+    """Diagnose matching issues for a specific track."""
     from rapidfuzz import fuzz
     cfg = ctx.obj
     with get_db(cfg) as db:
@@ -206,6 +217,7 @@ def match_diagnose(ctx: click.Context, query: str, limit: int):
 @cli.command()
 @click.pass_context
 def export(ctx: click.Context):
+    """Export matched playlists to M3U files."""
     cfg = ctx.obj
     organize_by_owner = cfg['export'].get('organize_by_owner', False)
     with get_db(cfg) as db:

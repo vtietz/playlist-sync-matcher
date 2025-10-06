@@ -101,14 +101,21 @@ This will authenticate with Spotify, scan your library, match tracks, export pla
 
 > **Note**: Replace `run.bat` with `./run.sh` on Linux/Mac, or use `psm` if using standalone executable.
 
-Full pipeline (recommended):
+**Get workflow guidance**:
+```bash
+run.bat --help           # Shows typical workflow examples
+./run.sh --help          # Linux/Mac Python
+psm --help               # Standalone executable
+```
+
+**Full pipeline (recommended)**:
 ```bash
 run.bat build         # Windows Python
 ./run.sh build        # Linux/Mac Python
 psm build             # Standalone executable (all platforms)
 ```
 
-Individual steps:
+**Individual steps**:
 ```bash
 run.bat pull          # Fetch Spotify data
 run.bat scan          # Scan local library  
@@ -117,7 +124,7 @@ run.bat export        # Export playlists
 run.bat report        # Generate missing tracks CSV
 ```
 
-Other commands:
+**Other commands**:
 ```bash
 run.bat version
 run.bat install            # Install or update dependencies
@@ -456,10 +463,13 @@ Other optimizations:
 
 Condensed overview (see `docs/architecture.md` for full explanation):
 
-- Database: SQLite, composite (id, provider) keys for tracks & playlists
-- Matching: Ordered strategies (exact → album → year → duration → fuzzy)
-- Performance: LRU normalization cache, fast scan, bulk inserts, indexed normalized/isrc columns
-- Schema versioning: `meta` table entry `schema_version=1` (clean baseline)
+- **Database**: SQLite, composite (id, provider) keys for tracks & playlists
+- **Concurrency**: File-based locking prevents simultaneous operations, warns about conflicts
+- **Matching**: Ordered strategies (exact → album → year → duration → fuzzy)
+- **Performance**: LRU normalization cache, fast scan, bulk inserts, indexed normalized/isrc columns
+- **Schema versioning**: `meta` table entry `schema_version=1` (clean baseline)
+
+**Database Safety**: The tool automatically prevents concurrent database access. If another PSM process is running, you'll see a warning with process details and lock timing. Wait for the other operation to complete or remove the `.lock` file if a process crashed.
 
 ## Multi-Provider Architecture
 
