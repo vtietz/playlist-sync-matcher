@@ -1,12 +1,12 @@
 from pathlib import Path
 from psm.db import Database
-from psm.match.engine import match_and_store
+from psm.services.match_service import run_matching
 
 
 def test_match_and_store_basic(tmp_path: Path):
     db_path = tmp_path / 'test.db'
     db = Database(db_path)
-    # Insert a track and a library file with identical normalized value
+    # Insert a track and a library file with identical semantic metadata
     track = {
         'id': 'track1',
         'name': 'Song Title',
@@ -29,10 +29,13 @@ def test_match_and_store_basic(tmp_path: Path):
         'normalized': 'song title artist'
     })
     db.commit()
-    count = match_and_store(db, fuzzy_threshold=0.5)
-    assert count == 1
-    row = db.conn.execute("SELECT track_id, file_id, method FROM matches").fetchone()
+
+    result = run_matching(db, config={})
+    assert result.matched == 1
+    row = db.conn.execute("SELECT track_id, file_id, method, score FROM matches").fetchone()
     assert row is not None
     assert row['track_id'] == 'track1'
-    # Accept both old and new method names (sql_exact is the new fast path)
-    assert row['method'] in ('exact', 'fuzzy', 'sql_exact')
+    # Scoring engine stores method as score:<confidence>
+    assert row['method'].startswith('score:')
+    # Score should be reasonably high (>=0.75 scaled)
+    assert row['score'] >= 0.75

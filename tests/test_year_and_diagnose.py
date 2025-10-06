@@ -37,10 +37,15 @@ def test_year_column_migration_and_normalization(tmp_path: Path, monkeypatch):
     db.commit()
     # Run match (should backfill normalization adding year and then match)
     runner = CliRunner()
+    # Close direct handle so CLI can acquire its own lock
+    db.close()
     result = runner.invoke(cli, ['match'])
     assert result.exit_code == 0
-    row = db.conn.execute('SELECT * FROM matches WHERE track_id="t1"').fetchone()
+    # Re-open to inspect results
+    db2 = Database(db_path)
+    row = db2.conn.execute('SELECT * FROM matches WHERE track_id="t1"').fetchone()
     assert row is not None
+    db2.close()
 
 
 def test_match_diagnose_outputs(tmp_path: Path, monkeypatch):
@@ -71,6 +76,8 @@ def test_match_diagnose_outputs(tmp_path: Path, monkeypatch):
         'year': None,
     })
     db.commit()
+    # Close direct handle so CLI can acquire its own lock
+    db.close()
     runner = CliRunner()
     res = runner.invoke(cli, ['match-diagnose', 't2'])
     assert res.exit_code == 0

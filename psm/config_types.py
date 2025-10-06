@@ -49,9 +49,9 @@ class MatchingConfig:
     fuzzy_threshold: float = 0.78  # 0.0-1.0 scale
     use_year: bool = False
     duration_tolerance: float = 2.0  # seconds
-    strategies: List[str] = field(default_factory=lambda: ["sql_exact", "album_match", "year_match", "duration_filter", "fuzzy"])
     show_unmatched_tracks: int = 20
     show_unmatched_albums: int = 20
+    max_candidates_per_track: int = 500  # Performance safeguard: cap candidates per track
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for backward compatibility."""

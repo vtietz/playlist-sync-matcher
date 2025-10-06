@@ -1,5 +1,14 @@
 """Pytest fixtures for test configuration."""
 import pytest
+
+# Temporarily disable all signal handling to isolate KeyboardInterrupt issue
+
+def pytest_sessionstart(session):  # type: ignore[no-untyped-def]
+    pass
+
+def pytest_sessionfinish(session, exitstatus):  # type: ignore[no-untyped-def]
+    pass
+
 from pathlib import Path
 from typing import Dict, Any
 

@@ -90,7 +90,7 @@ This will authenticate with Spotify, scan your library, match tracks, export pla
 | Deterministic playlist exports | Stable M3U8 ordering, collision‑safe filenames |
 | Multiple export modes | strict, mirrored, placeholders |
 | Owner grouping (optional) | Organize playlists into folders by owner |
-| Layered matching engine | exact → album → year → duration → fuzzy for precision+recall |
+| Scoring-based matching | Weighted signals (exact/fuzzy/album/year/duration/ISRC) with confidence tiers |
 | Rich reporting | Missing tracks, album completeness, unmatched diagnostics |
 | Library quality analysis | Surface metadata gaps & low bitrate files |
 | Fast scan mode | Skips unchanged files (mtime+size) to save minutes on large libraries |
@@ -314,7 +314,7 @@ Settings are merged in this order (later overrides earlier):
 - `PSM__MATCHING__SHOW_UNMATCHED_TRACKS` - Diagnostic output count (default: 20)
 - `PSM__MATCHING__SHOW_UNMATCHED_ALBUMS` - Album diagnostic count (default: 20)
 - `PSM__MATCHING__USE_YEAR` - Include year in matching (default: false)
-- `PSM__MATCHING__STRATEGIES` - Matching strategy order (default: `["sql_exact","album_match","year_match","duration_filter","fuzzy"]`)
+- `PSM__MATCHING__MAX_CANDIDATES_PER_TRACK` - Performance cap for candidates per track (default: 500)
 
 **Export**:
 - `PSM__EXPORT__MODE` - strict | mirrored | placeholders (default: strict)
@@ -464,12 +464,12 @@ Other optimizations:
 Condensed overview (see `docs/architecture.md` for full explanation):
 
 - **Database**: SQLite, composite (id, provider) keys for tracks & playlists
-- **Concurrency**: File-based locking prevents simultaneous operations, warns about conflicts
-- **Matching**: Ordered strategies (exact → album → year → duration → fuzzy)
+- **Concurrency**: WAL mode with automatic timeout handling for concurrent operations
+- **Matching**: Weighted scoring system with confidence tiers (CERTAIN/HIGH/MEDIUM/LOW)
 - **Performance**: LRU normalization cache, fast scan, bulk inserts, indexed normalized/isrc columns
 - **Schema versioning**: `meta` table entry `schema_version=1` (clean baseline)
 
-**Database Safety**: The tool automatically prevents concurrent database access. If another PSM process is running, you'll see a warning with process details and lock timing. Wait for the other operation to complete or remove the `.lock` file if a process crashed.
+**Database Safety**: SQLite WAL mode with automatic timeout handling allows safe concurrent reads. Multiple processes can scan the library simultaneously. Write operations (match, ingest) use built-in SQLite locking with a 30-second timeout.
 
 ## Multi-Provider Architecture
 

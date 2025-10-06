@@ -40,9 +40,9 @@ _DEFAULTS: Dict[str, Any] = {
         "fuzzy_threshold": 0.78,
         "use_year": False,
         "duration_tolerance": 2.0,
-        "strategies": ["sql_exact", "album_match", "year_match", "duration_filter", "fuzzy"],
         "show_unmatched_tracks": 20,
         "show_unmatched_albums": 20,
+        "max_candidates_per_track": 500,  # Performance safeguard: cap candidates per track
     },
     "export": {
         "directory": "export/playlists",
