@@ -1,6 +1,6 @@
-# spotify-m3u-sync
+# playlist-sync-matcher
 
-Turn your streaming playlists into M3U playlist files that point to your actual local music files.
+Turn your streaming playlists (e.g. from Spotify) into M3U playlist files that point to your actual local music files. The codebase has been prepared with a lightweight abstraction so new providers can be added with minimal churn.
 
 ## What it does
 Instead of just getting a list of song names, you get working playlists that:
@@ -22,24 +22,24 @@ No more manually recreating playlists or wondering what you're missing from your
 ## Installation
 
 ### Option 1: Standalone Executable (Easiest)
-No Python required! Download pre-built binaries from [Releases](https://github.com/vtietz/spotify-m3u-sync/releases):
+No Python required! Download pre-built binaries from [Releases](https://github.com/vtietz/playlist-sync-matcher/releases):
 
 **Windows**:
 ```bash
-# Download spotify-m3u-sync-windows-amd64.exe
-# Rename to spx.exe for convenience
-spx.exe build
+# Download playlist-sync-matcher-windows-amd64.exe
+# Rename to psm.exe for convenience
+psm.exe build
 ```
 
 **Linux/Mac**:
 ```bash
 # Download appropriate binary
-chmod +x spotify-m3u-sync-linux-amd64
-./spotify-m3u-sync-linux-amd64 build
+chmod +x playlist-sync-matcher-linux-amd64
+./playlist-sync-matcher-linux-amd64 build
 
 # Or rename for convenience:
-mv spotify-m3u-sync-linux-amd64 spx
-./spx build
+mv playlist-sync-matcher-linux-amd64 psm
+./psm build
 ```
 
 ### Option 2: Python Source (Recommended for Development)
@@ -67,10 +67,10 @@ chmod +x run.sh
 2. **Create a `.env` file** for permanent configuration:
    ```bash
    # .env
-   SPX__SPOTIFY__CLIENT_ID=your_client_id_here
-   SPX__LIBRARY__PATHS=["C:/Music"]
-   SPX__EXPORT__MODE=mirrored
-   SPX__EXPORT__ORGANIZE_BY_OWNER=true
+   PSM__SPOTIFY__CLIENT_ID=your_client_id_here
+   PSM__LIBRARY__PATHS=["C:/Music"]
+   PSM__EXPORT__MODE=mirrored
+   PSM__EXPORT__ORGANIZE_BY_OWNER=true
    ```
    
    > **Tip**: See `.env.example` for all available options. For one-time overrides, use `set` commands instead.
@@ -99,13 +99,13 @@ This will authenticate with Spotify, scan your library, match tracks, export pla
 
 ## Common Commands
 
-> **Note**: Replace `run.bat` with `./run.sh` on Linux/Mac, or use `spx` if using standalone executable.
+> **Note**: Replace `run.bat` with `./run.sh` on Linux/Mac, or use `psm` if using standalone executable.
 
 Full pipeline (recommended):
 ```bash
 run.bat build         # Windows Python
 ./run.sh build        # Linux/Mac Python
-spx build             # Standalone executable (all platforms)
+psm build             # Standalone executable (all platforms)
 ```
 
 Individual steps:
@@ -205,7 +205,7 @@ Additional detail & examples moved to: `docs/library_analysis.md`.
 
 List registered providers and key capability flags (e.g., whether push/replace is supported):
 ```bash
-spx providers capabilities
+psm providers capabilities
 run.bat providers capabilities
 ```
 Currently only Spotify is registered; additional providers can be added following `docs/providers.md`.
@@ -246,14 +246,14 @@ Create a `.env` file in the project root (or same directory as executable):
 
 ```bash
 # .env - Simple key=value format
-SPX__SPOTIFY__CLIENT_ID=your_client_id_here
-SPX__LIBRARY__PATHS=["C:/Music","D:/Music"]
-SPX__EXPORT__MODE=mirrored
-SPX__EXPORT__ORGANIZE_BY_OWNER=true
-SPX__MATCHING__FUZZY_THRESHOLD=0.82
-SPX__MATCHING__DURATION_TOLERANCE=2.0
-SPX__MATCHING__SHOW_UNMATCHED_TRACKS=50
-SPX__MATCHING__SHOW_UNMATCHED_ALBUMS=20
+PSM__SPOTIFY__CLIENT_ID=your_client_id_here
+PSM__LIBRARY__PATHS=["C:/Music","D:/Music"]
+PSM__EXPORT__MODE=mirrored
+PSM__EXPORT__ORGANIZE_BY_OWNER=true
+PSM__MATCHING__FUZZY_THRESHOLD=0.82
+PSM__MATCHING__DURATION_TOLERANCE=2.0
+PSM__MATCHING__SHOW_UNMATCHED_TRACKS=50
+PSM__MATCHING__SHOW_UNMATCHED_ALBUMS=20
 ```
 
 > **Tip**: Copy `.env.example` to `.env` and edit your values. The tool automatically loads `.env` on startup.
@@ -264,61 +264,61 @@ Override any setting for a single command without editing `.env`:
 
 **Windows**:
 ```bash
-set SPX__EXPORT__MODE=strict
+set PSM__EXPORT__MODE=strict
 run.bat export
 ```
 
 **Linux/Mac**:
 ```bash
-export SPX__EXPORT__MODE=strict
+export PSM__EXPORT__MODE=strict
 ./run.sh export
 ```
 
 **Standalone executable**:
 ```bash
-set SPX__EXPORT__MODE=strict    # Windows
-export SPX__EXPORT__MODE=strict # Linux/Mac
-spx export
+set PSM__EXPORT__MODE=strict    # Windows
+export PSM__EXPORT__MODE=strict # Linux/Mac
+psm export
 ```
 
 ### Priority Order
 
 Settings are merged in this order (later overrides earlier):
-1. **Built-in defaults** (in `spx/config.py`)
+1. **Built-in defaults** (in `psm/config.py`)
 2. **`.env` file** (if exists)
 3. **Shell environment variables** (`set`/`export` commands)
 
 ### Key Options (See docs/configuration.md for full list)
 
 **Spotify**:
-- `SPX__SPOTIFY__CLIENT_ID` - Your Spotify app client ID (required)
-- `SPX__SPOTIFY__REDIRECT_PORT` - OAuth redirect port (default: 9876)
+- `PSM__SPOTIFY__CLIENT_ID` - Your Spotify app client ID (required)
+- `PSM__SPOTIFY__REDIRECT_PORT` - OAuth redirect port (default: 9876)
 
 **Library**:
-- `SPX__LIBRARY__PATHS` - Folders to scan (JSON array, e.g., `["C:/Music"]`)
-- `SPX__LIBRARY__EXTENSIONS` - File types (default: `[".mp3",".flac",".m4a",".ogg"]`)
-- `SPX__LIBRARY__FAST_SCAN` - Skip re-parsing unchanged files (default: true)
-- `SPX__LIBRARY__COMMIT_INTERVAL` - Batch size for DB commits (default: 100)
-- `SPX__LIBRARY__MIN_BITRATE_KBPS` - Minimum bitrate for quality analysis (default: 320)
+- `PSM__LIBRARY__PATHS` - Folders to scan (JSON array, e.g., `["C:/Music"]`)
+- `PSM__LIBRARY__EXTENSIONS` - File types (default: `[".mp3",".flac",".m4a",".ogg"]`)
+- `PSM__LIBRARY__FAST_SCAN` - Skip re-parsing unchanged files (default: true)
+- `PSM__LIBRARY__COMMIT_INTERVAL` - Batch size for DB commits (default: 100)
+- `PSM__LIBRARY__MIN_BITRATE_KBPS` - Minimum bitrate for quality analysis (default: 320)
 
 **Matching**:
-- `SPX__MATCHING__FUZZY_THRESHOLD` - Match sensitivity 0.0-1.0 (default: 0.78)
-- `SPX__MATCHING__DURATION_TOLERANCE` - Duration match tolerance in seconds (default: 2.0)
-- `SPX__MATCHING__SHOW_UNMATCHED_TRACKS` - Diagnostic output count (default: 20)
-- `SPX__MATCHING__SHOW_UNMATCHED_ALBUMS` - Album diagnostic count (default: 20)
-- `SPX__MATCHING__USE_YEAR` - Include year in matching (default: false)
-- `SPX__MATCHING__STRATEGIES` - Matching strategy order (default: `["sql_exact","album_match","year_match","duration_filter","fuzzy"]`)
+- `PSM__MATCHING__FUZZY_THRESHOLD` - Match sensitivity 0.0-1.0 (default: 0.78)
+- `PSM__MATCHING__DURATION_TOLERANCE` - Duration match tolerance in seconds (default: 2.0)
+- `PSM__MATCHING__SHOW_UNMATCHED_TRACKS` - Diagnostic output count (default: 20)
+- `PSM__MATCHING__SHOW_UNMATCHED_ALBUMS` - Album diagnostic count (default: 20)
+- `PSM__MATCHING__USE_YEAR` - Include year in matching (default: false)
+- `PSM__MATCHING__STRATEGIES` - Matching strategy order (default: `["sql_exact","album_match","year_match","duration_filter","fuzzy"]`)
 
 **Export**:
-- `SPX__EXPORT__MODE` - strict | mirrored | placeholders (default: strict)
-- `SPX__EXPORT__ORGANIZE_BY_OWNER` - Group by owner (default: false)
-- `SPX__EXPORT__DIRECTORY` - Output directory (default: export/playlists)
+- `PSM__EXPORT__MODE` - strict | mirrored | placeholders (default: strict)
+- `PSM__EXPORT__ORGANIZE_BY_OWNER` - Group by owner (default: false)
+- `PSM__EXPORT__DIRECTORY` - Output directory (default: export/playlists)
 
 **Database**:
-- `SPX__DATABASE__PATH` - SQLite file location (default: data/spotify_sync.db)
+- `PSM__DATABASE__PATH` - SQLite file location (default: data/spotify_sync.db)
 
 **Logging**:
-- `SPX__LOG_LEVEL` - Control output verbosity: `DEBUG` (detailed diagnostics), `INFO` (normal progress, default), `WARNING` (quiet, errors only)
+- `PSM__LOG_LEVEL` - Control output verbosity: `DEBUG` (detailed diagnostics), `INFO` (normal progress, default), `WARNING` (quiet, errors only)
 
 See `.env.example` for complete list with explanations.
 
@@ -333,7 +333,7 @@ See `.env.example` for complete list with explanations.
 Organize playlists by owner instead of flat structure. Set in `.env`:
 
 ```bash
-SPX__EXPORT__ORGANIZE_BY_OWNER=true
+PSM__EXPORT__ORGANIZE_BY_OWNER=true
 ```
 
 Result:
@@ -357,14 +357,14 @@ This tool uses **HTTP loopback** (recommended by Spotify) with default redirect:
 4. Copy the Client ID
 5. Add it to your `.env` file:
    ```bash
-   SPX__SPOTIFY__CLIENT_ID=your_client_id_here
+   PSM__SPOTIFY__CLIENT_ID=your_client_id_here
    ```
    Or set temporarily (Windows: `set`, Linux/Mac: `export`)
 6. Authenticate:
    ```bash
    run.bat pull      # Windows
    ./run.sh pull     # Linux/Mac
-   spx pull          # Standalone executable
+   psm pull          # Standalone executable
    ```
 
 Token cache is saved to `tokens.json` and refreshed automatically.
@@ -383,11 +383,11 @@ When running `run.bat match`, the tool shows:
 ```bash
 run.bat pull -v       # Windows
 ./run.sh pull -v      # Linux/Mac
-spx pull -v           # Standalone
+psm pull -v           # Standalone
 ```
 Or enable persistent detailed logging in `.env`:
 ```bash
-SPX__LOG_LEVEL=DEBUG
+PSM__LOG_LEVEL=DEBUG
 ```
 Detailed logging provides diagnostic output for OAuth flow, ingestion, scanning, matching (with match scores), and export summaries. Use `INFO` (default) for normal operations or `WARNING` for quiet mode (errors only).
 
@@ -397,13 +397,13 @@ Detailed logging provides diagnostic output for OAuth flow, ingestion, scanning,
 ```bash
 run.bat login         # Windows
 ./run.sh login        # Linux/Mac
-spx login             # Standalone
+psm login             # Standalone
 ```
 Force fresh OAuth (ignore token cache):
 ```bash
 run.bat login --force
 ./run.sh login --force
-spx login --force
+psm login --force
 ```
 
 Token cache: `tokens.json` (auto-refreshed).
@@ -422,8 +422,8 @@ Token cache: `tokens.json` (auto-refreshed).
 1. Register `https://localhost:9876/callback` in Spotify dashboard
 2. Add to `.env`:
    ```bash
-   SPX__SPOTIFY__REDIRECT_SCHEME=https
-   SPX__SPOTIFY__REDIRECT_HOST=localhost
+   PSM__SPOTIFY__REDIRECT_SCHEME=https
+   PSM__SPOTIFY__REDIRECT_HOST=localhost
    ```
 3. Auto-generates self-signed cert if `cryptography` or `openssl` available
 
@@ -450,7 +450,7 @@ run.bat test tests\test_hashing.py -q       # Windows
 
 Disable if you need to re-verify all tags in `.env`:
 ```bash
-SPX__LIBRARY__FAST_SCAN=false
+PSM__LIBRARY__FAST_SCAN=false
 ```
 
 Other optimizations:
@@ -501,5 +501,5 @@ Development, release process, and provider extension details live in the `docs/`
 - `run.bat config` - View current settings
 - `run.bat redirect-uri` - Show OAuth redirect
 - `.env.example` - All environment variables
-- `SPX__LOG_LEVEL=DEBUG` - Enable detailed diagnostic logging
+- `PSM__LOG_LEVEL=DEBUG` - Enable detailed diagnostic logging
 Values starting with `[` or `{` are parsed as JSON; objects are supported (see configuration docs).

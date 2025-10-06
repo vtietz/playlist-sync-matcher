@@ -1,5 +1,5 @@
 from pathlib import Path
-from spx.export.playlists import export_strict, export_mirrored, export_placeholders
+from psm.export.playlists import export_strict, export_mirrored, export_placeholders
 
 
 def _sample_tracks():

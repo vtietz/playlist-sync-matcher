@@ -1,6 +1,6 @@
 from pathlib import Path
 from click.testing import CliRunner
-from spx.cli import cli
+from psm.cli import cli
 
 
 def test_cli_version():
@@ -14,8 +14,8 @@ def test_cli_report_albums_empty_db(tmp_path: Path, monkeypatch):
     # point database and reports dir to temp
     db_path = tmp_path / 'db.sqlite'
     reports_dir = tmp_path / 'reports'
-    monkeypatch.setenv('SPX__DATABASE__PATH', str(db_path))
-    monkeypatch.setenv('SPX__REPORTS__DIRECTORY', str(reports_dir))
+    monkeypatch.setenv('PSM__DATABASE__PATH', str(db_path))
+    monkeypatch.setenv('PSM__REPORTS__DIRECTORY', str(reports_dir))
     runner = CliRunner()
     result = runner.invoke(cli, ['report-albums'])
     assert result.exit_code == 0

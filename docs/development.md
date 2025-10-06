@@ -24,7 +24,7 @@ run.bat test tests\test_hashing.py -q
 ## Building Executables
 ```
 pip install pyinstaller
-pyinstaller spx.spec
+pyinstaller psm.spec
 ```
 Outputs: `dist/`.
 
@@ -39,7 +39,7 @@ git push origin vX.Y.Z
 4. GitHub Actions builds & attaches binaries.
 
 ## Coding Guidelines
-- Keep CLI thin; move logic to services. All commands live in `spx/cli/` submodules; avoid reintroducing logic into the top-level shim.
+- Keep CLI thin; move logic to services. All commands live in `psm/cli/` submodules; avoid reintroducing logic into the top-level shim.
 - Return data from services (no prints) for testability.
 - Provider additions: follow `docs/providers.md` and minimal interface.
 - Maintain consistent defaults across `config.py` and docs.
@@ -52,4 +52,4 @@ git push origin vX.Y.Z
 ## Style
 - Type hints encouraged.
 - Avoid premature abstraction; add only when a second implementation exists.
- - For provider introspection, use `spx providers capabilities` to verify capability flags after modifications.
+ - For provider introspection, use `psm providers capabilities` to verify capability flags after modifications.

@@ -6,9 +6,9 @@ This guide explains how to integrate an additional streaming service (e.g. Deeze
 The application currently supports a single provider (`spotify`). The codebase has been prepared with a lightweight abstraction so new providers can be added with minimal churn.
 
 Key components:
-- `spx/providers/base.py` – Domain models & `ProviderClient` protocol
-- `spx/providers/spotify_provider.py` – Example registration for Spotify
-- `spx/services/pull_service.py` – Unified `pull_data()` ingestion entry point
+- `psm/providers/base.py` – Domain models & `ProviderClient` protocol
+- `psm/providers/spotify_provider.py` – Example registration for Spotify
+- `psm/services/pull_service.py` – Unified `pull_data()` ingestion entry point
 - Configuration key: `provider` (defaults to `spotify`)
 
 ## High-Level Steps
@@ -49,7 +49,7 @@ Token cache naming should be provider-scoped. The ingestion service already pref
 ## Implementing a Provider Client
 Example skeleton (simplified):
 ```python
-# spx/providers/deezer_provider.py
+# psm/providers/deezer_provider.py
 from __future__ import annotations
 from .base import register, ProviderCapabilities, ProviderClient
 
@@ -82,7 +82,7 @@ class DeezerProviderClient:  # does not need inheritance if you write fresh
 ```
 
 ## Extending `pull_data()`
-In `spx/services/pull_service.py` add a new branch:
+In `psm/services/pull_service.py` add a new branch:
 ```python
 if provider == 'deezer':
     # 1. Acquire token (your DeezerAuth analog) => tok_dict
@@ -116,14 +116,14 @@ Add a new top-level config section in the defaults (future change), e.g.:
 ```
 Users then set via environment:
 ```
-SPX__PROVIDER=deezer
-SPX__DEEZER__CLIENT_ID=...  # Example naming if future code maps this
+PSM__PROVIDER=deezer
+PSM__DEEZER__CLIENT_ID=...  # Example naming if future code maps this
 ```
 
 ## Testing Strategy
 - Unit test ingestion parsing with recorded fixture JSON (store under `tests/fixtures/deezer/`).
 - Mock network I/O (e.g., with `responses` or custom monkeypatch) to keep tests deterministic.
-- Integration (optional) gated by env var (e.g., `SPX_DEEZER_LIVE_TEST=1`). Skip unless present.
+- Integration (optional) gated by env var (e.g., `PSM_DEEZER_LIVE_TEST=1`). Skip unless present.
 
 ## Error Handling
 - Map provider-specific HTTP errors to `requests.HTTPError` (already raised) or custom exceptions (future enhancement).

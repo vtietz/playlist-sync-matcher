@@ -14,14 +14,14 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-            artifact_name: spx.exe
-            asset_name: spotify-m3u-sync-windows-amd64.exe
+            artifact_name: psm.exe
+            asset_name: playlist-sync-matcher-windows-amd64.exe
           - os: ubuntu-latest
-            artifact_name: spx
-            asset_name: spotify-m3u-sync-linux-amd64
+            artifact_name: psm
+            asset_name: playlist-sync-matcher-linux-amd64
           - os: macos-latest
-            artifact_name: spx
-            asset_name: spotify-m3u-sync-macos-amd64
+            artifact_name: psm
+            asset_name: playlist-sync-matcher-macos-amd64
 
     steps:
       - name: Checkout code
@@ -31,20 +31,25 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-3.12-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-3.12-
+            ${{ runner.os }}-pip-
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pyinstaller
 
-      - name: Build executable with PyInstaller
-        run: |
-          pyinstaller --name spx --onefile --console -m spx.cli
+      - name: Build executable with PyInstaller (pinned version)
+        run: pyinstaller --name psm --onefile --console -m psm.cli
 
       - name: Test executable (smoke test)
-        run: |
-          dist/${{ matrix.artifact_name }} version
+        run: dist/${{ matrix.artifact_name }} --version
         shell: bash
 
       - name: Upload artifact

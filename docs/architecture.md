@@ -4,12 +4,12 @@ This document expands on the concise overview in the README.
 
 ## Layers
 
-- CLI (spx/cli package): Argument parsing & command wiring only (thin). `spx/cli.py` is now removed; entry point logic lives under `spx/cli/` modules (`helpers.py`, `core.py`, `playlists.py`, `playlist_cmds.py`).
-- Services (spx/services/*): Orchestrate workflows (pull, scan, match, export, reporting).
-- Providers (spx/providers/*): Abstraction layer for streaming sources. Registry based.
-- Match Engine (spx/match/*): Strategy pipeline; order configured via config.
-- Persistence (spx/db.py): SQLite schema v1 (provider namespaced) + helper methods.
-- Utilities (spx/utils/*): Normalization, hashing, filesystem helpers.
+- CLI (psm/cli package): Argument parsing & command wiring only (thin). `psm/cli.py` is now removed; entry point logic lives under `psm/cli/` modules (`helpers.py`, `core.py`, `playlists.py`, `playlist_cmds.py`).
+- Services (psm/services/*): Orchestrate workflows (pull, scan, match, export, reporting).
+- Providers (psm/providers/*): Abstraction layer for streaming sources. Registry based.
+- Match Engine (psm/match/*): Strategy pipeline; order configured via config.
+- Persistence (psm/db.py): SQLite schema v1 (provider namespaced) + helper methods.
+- Utilities (psm/utils/*): Normalization, hashing, filesystem helpers.
 
 ## Provider Abstraction
 
@@ -45,6 +45,16 @@ Each strategy can mark matches; unmatched set shrinks between steps.
 - Fast scan: skip unchanged library files by mtime+size.
 - Batched DB commits (configurable).
 - Indexed normalized fields to accelerate lookups & fuzzy candidate narrowing.
+
+## Configuration Model
+
+Environment-first loading:
+1. Start with in-code defaults.
+2. Optionally merge `.env` (only if `PSM_ENABLE_DOTENV=1`).
+3. Deep‑merge any real environment variables with prefix `PSM__` (section/key separated by double underscores, e.g. `PSM__DATABASE__PATH`).
+4. Parse JSON-ish scalar/list/dict strings into native types.
+
+Immutability goal: Callers receive a plain nested dict; mutation by consumers is discouraged—prefer passing explicit overrides to loaders for tests.
 
 ## Future Evolution
 

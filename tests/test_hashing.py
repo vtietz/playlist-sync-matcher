@@ -1,5 +1,5 @@
 from pathlib import Path
-from spx.utils.hashing import partial_hash
+from psm.utils.hashing import partial_hash
 
 def test_partial_hash_tmp(tmp_path: Path):
     p = tmp_path / "file.bin"

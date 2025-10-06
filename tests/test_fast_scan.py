@@ -1,7 +1,7 @@
 """Test fast_scan mode - skips audio parsing for unchanged files."""
 from pathlib import Path
-from spx.db import Database
-from spx.ingest.library import scan_library
+from psm.db import Database
+from psm.ingest.library import scan_library
 import time
 
 

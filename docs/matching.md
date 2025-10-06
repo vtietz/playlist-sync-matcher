@@ -19,10 +19,10 @@ All artist, title, album fields normalized (case fold, punctuation strip, whites
 
 ## Configuration
 ```bash
-SPX__MATCHING__STRATEGIES=["sql_exact","album_match","year_match","duration_filter","fuzzy"]
-SPX__MATCHING__FUZZY_THRESHOLD=0.82
-SPX__MATCHING__DURATION_TOLERANCE=2.0
-SPX__MATCHING__USE_YEAR=true # optionally enable year influence earlier
+PSM__MATCHING__STRATEGIES=["sql_exact","album_match","year_match","duration_filter","fuzzy"]
+PSM__MATCHING__FUZZY_THRESHOLD=0.82
+PSM__MATCHING__DURATION_TOLERANCE=2.0
+PSM__MATCHING__USE_YEAR=true # optionally enable year influence earlier
 ```
 
 ## Tuning Tips
@@ -39,7 +39,7 @@ Approximate cumulative match rate improvements (varies by metadata quality):
 
 ## Diagnostics
 `run.bat match` prints top unmatched tracks/albums counts (configurable via:
-`SPX__MATCHING__SHOW_UNMATCHED_TRACKS` / `SPX__MATCHING__SHOW_UNMATCHED_ALBUMS`).
+`PSM__MATCHING__SHOW_UNMATCHED_TRACKS` / `PSM__MATCHING__SHOW_UNMATCHED_ALBUMS`).
 
 ## Future Enhancements
 - ISRC primary fast path (when available from provider & tags).

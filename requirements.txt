@@ -6,3 +6,4 @@ tenacity>=8.2.3
 rich>=13.7.0
 cryptography>=42.0.0
 pytest>=8.0.0  # needed for running test suite via run.bat test
+pyinstaller==6.3.0  # pinned for reproducible release builds

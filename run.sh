@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Cross-platform run script for spotify-m3u-sync
+# Cross-platform run script for playlist-sync-matcher
 
 set -e  # Exit on error
 
@@ -45,9 +45,9 @@ case "${1:-}" in
         echo "  version               Show CLI version"
         ;;
     version)
-        python -m spx.cli --version
+        python -m psm.cli --version
         ;;
     *)
-        python -m spx.cli "$@"
+        python -m psm.cli "$@"
         ;;
 esac

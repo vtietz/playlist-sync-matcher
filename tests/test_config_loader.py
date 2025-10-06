@@ -1,7 +1,7 @@
 from pathlib import Path
 import os
 import textwrap
-from spx.config import load_config, deep_merge, coerce_scalar
+from psm.config import load_config, deep_merge, coerce_scalar
 
 
 def test_deep_merge_simple():
@@ -27,15 +27,15 @@ def test_load_config_dotenv_and_env(tmp_path: Path, monkeypatch):
     """Test that .env file is loaded and environment variables override it."""
     env_file = tmp_path / '.env'
     env_file.write_text(textwrap.dedent('''\
-    SPX__EXPORT__MODE=mirrored
-    SPX__EXPORT__DIRECTORY=custom/export
-    SPX__MATCHING__FUZZY_THRESHOLD=0.9
+    PSM__EXPORT__MODE=mirrored
+    PSM__EXPORT__DIRECTORY=custom/export
+    PSM__MATCHING__FUZZY_THRESHOLD=0.9
     '''), encoding='utf-8')
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv('SPX_ENABLE_DOTENV', '1')
+    monkeypatch.setenv('PSM_ENABLE_DOTENV', '1')
     # env override
-    monkeypatch.setenv('SPX__EXPORT__MODE', 'placeholders')
-    monkeypatch.setenv('SPX__MATCHING__FUZZY_THRESHOLD', '0.85')
+    monkeypatch.setenv('PSM__EXPORT__MODE', 'placeholders')
+    monkeypatch.setenv('PSM__MATCHING__FUZZY_THRESHOLD', '0.85')
     cfg = load_config()
     # .env applied
     assert cfg['export']['directory'] == 'custom/export'

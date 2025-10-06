@@ -1,7 +1,7 @@
 """Test enhanced unmatched diagnostics with playlist occurrence sorting."""
 from pathlib import Path
-from spx.db import Database
-from spx.match.engine import match_and_store
+from psm.db import Database
+from psm.match.engine import match_and_store
 
 
 def test_unmatched_sorted_by_popularity(tmp_path: Path):
@@ -59,7 +59,7 @@ def test_unmatched_sorted_by_popularity(tmp_path: Path):
     
     # Run matching with debug enabled
     import os
-    os.environ['SPX_DEBUG'] = '1'
+    os.environ['PSM_DEBUG'] = '1'
     
     config = {
         'matching': {
@@ -72,7 +72,7 @@ def test_unmatched_sorted_by_popularity(tmp_path: Path):
     match_and_store(db, config=config)
     
     # Clean up
-    del os.environ['SPX_DEBUG']
+    del os.environ['PSM_DEBUG']
     db.close()
     
     print("\n✓ Unmatched tracks should be sorted by playlist count:")

@@ -1,6 +1,6 @@
 from pathlib import Path
-from spx.db import Database
-from spx.reporting.generator import compute_album_completeness
+from psm.db import Database
+from psm.reporting.generator import compute_album_completeness
 
 
 def _insert_track(db: Database, tid: str, artist: str, album: str, name: str):

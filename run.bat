@@ -11,6 +11,7 @@ IF /I "%~1"=="install" GOTO install
 IF /I "%~1"=="test" GOTO test
 IF /I "%~1"=="help" GOTO help
 IF /I "%~1"=="version" GOTO version
+IF /I "%~1"=="py" GOTO py
 GOTO cli
 
 :install
@@ -39,11 +40,25 @@ ECHO   pull ^| scan ^| match ^| export ^| report ^| report-albums ^| build
 ECHO   install               Install or update dependencies
 ECHO   test [pytest args]    Run test suite (e.g. run.bat test -q tests\test_hashing.py)
 ECHO   version               Show CLI version
+ECHO   py <args>              Run python with given args inside venv (e.g. run.bat py tools\bulk_replace.py --from X --to Y)
 GOTO :EOF
 
 :version
-python -m spx.cli --version
+python -m psm.cli --version
+GOTO :EOF
+
+:py
+REM Run arbitrary python command inside the virtual environment
+SHIFT
+SET PARGS=
+:collect_py
+IF "%~1"=="" GOTO run_py
+SET PARGS=%PARGS% %1
+SHIFT
+GOTO collect_py
+:run_py
+python %PARGS%
 GOTO :EOF
 
 :cli
-python -m spx.cli %*
+python -m psm.cli %*

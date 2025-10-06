@@ -1,6 +1,6 @@
 from pathlib import Path
-from spx.db import Database
-from spx.match.engine import match_and_store
+from psm.db import Database
+from psm.match.engine import match_and_store
 
 
 def test_match_and_store_basic(tmp_path: Path):

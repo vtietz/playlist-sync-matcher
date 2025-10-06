@@ -1,5 +1,5 @@
 from pathlib import Path
-from spx.db import Database
+from psm.db import Database
 
 def test_schema_tables(tmp_path: Path):
     db_path = tmp_path / "test.db"

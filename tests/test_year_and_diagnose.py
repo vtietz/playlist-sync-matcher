@@ -1,14 +1,14 @@
 from pathlib import Path
 from click.testing import CliRunner
-from spx.cli import cli
-from spx.db import Database
+from psm.cli import cli
+from psm.db import Database
 
 
 def test_year_column_migration_and_normalization(tmp_path: Path, monkeypatch):
     db_path = tmp_path / 'db.sqlite'
-    monkeypatch.setenv('SPX__DATABASE__PATH', str(db_path))
+    monkeypatch.setenv('PSM__DATABASE__PATH', str(db_path))
     # Enable use_year
-    monkeypatch.setenv('SPX__MATCHING__USE_YEAR', 'true')
+    monkeypatch.setenv('PSM__MATCHING__USE_YEAR', 'true')
     db = Database(db_path)
     # Insert a track without normalized (simulate pre-change) and with year
     db.upsert_track({
@@ -45,7 +45,7 @@ def test_year_column_migration_and_normalization(tmp_path: Path, monkeypatch):
 
 def test_match_diagnose_outputs(tmp_path: Path, monkeypatch):
     db_path = tmp_path / 'db.sqlite'
-    monkeypatch.setenv('SPX__DATABASE__PATH', str(db_path))
+    monkeypatch.setenv('PSM__DATABASE__PATH', str(db_path))
     db = Database(db_path)
     # Prepare data
     db.upsert_track({

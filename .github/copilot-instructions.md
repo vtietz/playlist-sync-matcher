@@ -2,7 +2,7 @@
 
 ## Code Organization
 * **Separation of Concerns**: Keep CLI commands thin - they should only handle user interaction (parsing args, formatting output). Business logic belongs in service modules.
-* **Service Layer Pattern**: Extract orchestration logic into dedicated service modules (e.g., `spx/services/`). Services should accept data, perform operations, and return structured results.
+* **Service Layer Pattern**: Extract orchestration logic into dedicated service modules (e.g., `psm/services/`). Services should accept data, perform operations, and return structured results.
 * **Return Structured Data**: Services should return dataclass objects or structured dicts, not print directly. Let callers decide how to present results.
 * **Single Responsibility**: Each module, class, and function should have one clear purpose. If a function does authentication AND makes API calls AND processes results, split it.
 

@@ -102,25 +102,29 @@ def _load_dotenv(path: Path) -> Dict[str, str]:
     return values
 
 
-def load_config(explicit_file: str | None = None, overrides: Dict[str, Any] | None = None) -> Dict[str, Any]:  # deprecated path; retained for tests
+def load_config(explicit_file: str | None = None, overrides: Dict[str, Any] | None = None) -> Dict[str, Any]:
     """Load configuration merging defaults <- .env <- environment <- overrides.
 
     During test runs (detected via PYTEST_CURRENT_TEST) .env loading is skipped
-    unless SPX_ENABLE_DOTENV=1 is set to allow deterministic defaults.
-    
+    unless PSM_ENABLE_DOTENV=1 is set to allow deterministic defaults.
+
+    Args:
+        explicit_file: Ignored; retained only for backward compatibility with older call sites.
+        overrides: Dict of values to deep-merge last (primarily for tests).
+
     Returns:
-        Dictionary configuration (use load_typed_config() for type-safe access)
+        dict: Configuration dictionary (for typed access use load_typed_config()).
     """
     dotenv_values: Dict[str, str] = {}
-    if os.environ.get('SPX_ENABLE_DOTENV') or not os.environ.get('PYTEST_CURRENT_TEST'):
+    if os.environ.get('PSM_ENABLE_DOTENV') or not os.environ.get('PYTEST_CURRENT_TEST'):
         dotenv_values = _load_dotenv(Path('.env'))
     # Deep copy defaults to avoid cross-call mutation of nested dicts
     cfg: Dict[str, Any] = copy.deepcopy(_DEFAULTS)
     
-    # Note: explicit_file parameter kept for backward compatibility but no longer used
-    # Configuration now comes only from: defaults -> .env -> environment variables -> overrides
+    # explicit_file parameter intentionally ignored (legacy signature retained)
     
-    prefix = "SPX__"
+    # Environment variable prefix (legacy project prefix was different; now standardized on PSM__)
+    prefix = "PSM__"
     # Merge .env and real environment (real env wins)
     combined = {**{k: v for k, v in dotenv_values.items() if k.startswith(prefix)},
                 **{k: v for k, v in os.environ.items() if k.startswith(prefix)}}

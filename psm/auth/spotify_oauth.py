@@ -196,13 +196,13 @@ class SpotifyAuth:
                     raise RuntimeError(
                         "Failed to generate self-signed certificate automatically. "
                         "Either install the 'cryptography' package (pip install cryptography), "
-                        "install OpenSSL, or set SPX__SPOTIFY__REDIRECT_SCHEME=http to fall back to http. "
+                        "install OpenSSL, or set PSM__SPOTIFY__REDIRECT_SCHEME=http to fall back to http. "
                         f"Original error: {e}"
                     ) from e
             if not (os.path.exists(self.cert_file) and os.path.exists(self.key_file)):
                 raise RuntimeError(
                     "HTTPS redirect selected but cert/key files still missing. "
-                    "Set SPX__SPOTIFY__REDIRECT_SCHEME=http for local development or pre-create cert.pem/key.pem."
+                    "Set PSM__SPOTIFY__REDIRECT_SCHEME=http for local development or pre-create cert.pem/key.pem."
                 )
             context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
             context.load_cert_chain(certfile=self.cert_file, keyfile=self.key_file)

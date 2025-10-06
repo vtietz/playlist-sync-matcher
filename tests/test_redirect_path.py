@@ -1,4 +1,4 @@
-from spx.auth.spotify_oauth import SpotifyAuth
+from psm.auth.spotify_oauth import SpotifyAuth
 
 
 def test_build_redirect_uri_custom_path(tmp_path):

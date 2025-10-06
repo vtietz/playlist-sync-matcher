@@ -1,7 +1,7 @@
 from pathlib import Path
 from types import SimpleNamespace
-from spx.db import Database
-from spx.ingest.library import scan_library
+from psm.db import Database
+from psm.ingest.library import scan_library
 
 
 def test_library_scan_basic(tmp_path, monkeypatch):
@@ -11,7 +11,7 @@ def test_library_scan_basic(tmp_path, monkeypatch):
     music_file.write_bytes(b'ID3' + b'\0'*1024)
 
     # Mock iter_music_files to return our single file
-    from spx.ingest import library as libmod
+    from psm.ingest import library as libmod
 
     def fake_iter_music_files(paths, extensions, ignore_patterns, follow_symlinks):
         yield music_file

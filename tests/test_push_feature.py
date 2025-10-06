@@ -1,9 +1,9 @@
 from __future__ import annotations
 import pytest
 from pathlib import Path
-from spx.db import Database
-from spx.push.m3u_parser import parse_m3u_paths
-from spx.services.push_service import push_playlist
+from psm.db import Database
+from psm.push.m3u_parser import parse_m3u_paths
+from psm.services.push_service import push_playlist
 
 
 class StubCapabilities:

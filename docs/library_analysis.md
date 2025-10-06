@@ -1,6 +1,6 @@
 # Library Quality Analysis
 
-Command: `run.bat analyze` (or `./run.sh analyze` / `spx analyze`).
+Command: `run.bat analyze` (or `./run.sh analyze` / `psm analyze`).
 
 ## Purpose
 Identify metadata or quality issues that reduce match accuracy:
@@ -15,7 +15,7 @@ Identify metadata or quality issues that reduce match accuracy:
 ```
 
 ## Configuration
-`SPX__LIBRARY__MIN_BITRATE_KBPS=320`
+`PSM__LIBRARY__MIN_BITRATE_KBPS=320`
 
 ## Sample Output (abbreviated)
 ```

@@ -1,6 +1,6 @@
 from pathlib import Path
-from spx.db import Database
-from spx.ingest.spotify import ingest_playlists
+from psm.db import Database
+from psm.ingest.spotify import ingest_playlists
 
 
 class MockClient:

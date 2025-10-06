@@ -1,5 +1,5 @@
 from pathlib import Path
-from spx.db import Database
+from psm.db import Database
 
 
 def test_meta_set_get(tmp_path: Path):

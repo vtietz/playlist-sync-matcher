@@ -1,7 +1,7 @@
 """Test duration-based candidate filtering."""
 from pathlib import Path
-from spx.db import Database
-from spx.match.strategies.duration_filter import DurationFilterStrategy
+from psm.db import Database
+from psm.match.strategies.duration_filter import DurationFilterStrategy
 
 
 def test_duration_filter_reduces_candidates(tmp_path: Path):

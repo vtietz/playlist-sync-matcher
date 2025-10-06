@@ -1,7 +1,7 @@
 from pathlib import Path
 from click.testing import CliRunner
-from spx.cli import cli
-from spx.db import Database
+from psm.cli import cli
+from psm.db import Database
 
 
 def test_scan_deleted_cleanup(tmp_path: Path, test_config):

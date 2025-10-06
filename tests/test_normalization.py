@@ -1,4 +1,4 @@
-from spx.utils.normalization import normalize_title_artist, normalize_token
+from psm.utils.normalization import normalize_title_artist, normalize_token
 
 def test_normalize_basic():
     nt, na, combo = normalize_title_artist("Song (Remastered 2011)", "The Beatles feat. Someone")

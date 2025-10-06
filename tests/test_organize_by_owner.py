@@ -2,8 +2,8 @@
 from pathlib import Path
 import tempfile
 import shutil
-from spx.db import Database
-from spx.export.playlists import export_strict
+from psm.db import Database
+from psm.export.playlists import export_strict
 
 
 def test_organize_by_owner_structure():
@@ -57,7 +57,7 @@ def test_organize_by_owner_structure():
                 if owner_id and current_user_id and owner_id == current_user_id:
                     target_dir = export_dir / 'my_playlists'
                 elif owner_name:
-                    from spx.export.playlists import sanitize_filename
+                    from psm.export.playlists import sanitize_filename
                     folder_name = sanitize_filename(owner_name)
                     target_dir = export_dir / folder_name
                 else:

@@ -1,8 +1,8 @@
 """Test album-based matching strategy."""
 import pytest
-from spx.db import Database
-from spx.match.strategies.album import AlbumMatchStrategy
-from spx.config import load_config
+from psm.db import Database
+from psm.match.strategies.album import AlbumMatchStrategy
+from psm.config import load_config
 
 
 @pytest.fixture

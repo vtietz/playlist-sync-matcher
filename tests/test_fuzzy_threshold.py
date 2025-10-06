@@ -1,4 +1,4 @@
-from spx.match.engine import match_tracks
+from psm.match.engine import match_tracks
 
 
 def test_fuzzy_threshold_exclusion_inclusion():

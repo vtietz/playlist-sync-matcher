@@ -8,13 +8,13 @@
 ## HTTPS Redirect (Optional)
 Add to `.env`:
 ```
-SPX__SPOTIFY__REDIRECT_SCHEME=https
-SPX__SPOTIFY__REDIRECT_HOST=localhost
+PSM__SPOTIFY__REDIRECT_SCHEME=https
+PSM__SPOTIFY__REDIRECT_HOST=localhost
 ```
 Register `https://localhost:9876/callback`.
 
 ## Slow Matching
-- Ensure fast scan enabled: `SPX__LIBRARY__FAST_SCAN=true`.
+- Ensure fast scan enabled: `PSM__LIBRARY__FAST_SCAN=true`.
 - Reduce strategy list (e.g. remove `year_match` / `album_match`).
 - Increase commit interval for large initial scans.
 
@@ -30,7 +30,7 @@ Register `https://localhost:9876/callback`.
 
 ## Debug Logging
 ```
-SPX__LOG_LEVEL=DEBUG
+PSM__LOG_LEVEL=DEBUG
 ```
 Shows match decisions and normalization outputs.
 
