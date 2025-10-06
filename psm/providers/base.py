@@ -57,6 +57,31 @@ class ProviderCapabilities:
     # Indicates provider can fully replace (overwrite) playlist track ordering
     replace_playlist: bool = False
 
+# ---------------- Link Generator (for web URLs) -----------------
+
+class ProviderLinkGenerator(Protocol):
+    """Protocol for generating web links to provider resources.
+    
+    Allows reports to link directly to tracks, albums, artists, and playlists
+    on the streaming provider's website.
+    """
+    
+    def track_url(self, track_id: str) -> str:
+        """Generate URL for a track page."""
+        ...  # pragma: no cover
+    
+    def album_url(self, album_id: str) -> str:
+        """Generate URL for an album page."""
+        ...  # pragma: no cover
+    
+    def artist_url(self, artist_id: str) -> str:
+        """Generate URL for an artist page."""
+        ...  # pragma: no cover
+    
+    def playlist_url(self, playlist_id: str) -> str:
+        """Generate URL for a playlist page."""
+        ...  # pragma: no cover
+
 # ---------------- Provider client protocol -----------------
 
 @runtime_checkable
@@ -94,5 +119,5 @@ def available_providers() -> list[str]:
 
 __all__ = [
     'Artist', 'Album', 'Track', 'Playlist', 'ProviderCapabilities', 'ProviderClient',
-    'register', 'get', 'available_providers'
+    'ProviderLinkGenerator', 'register', 'get', 'available_providers'
 ]

@@ -118,10 +118,16 @@ psm build             # Standalone executable (all platforms)
 **Individual steps**:
 ```bash
 run.bat pull          # Fetch Spotify data
-run.bat scan          # Scan local library  
-run.bat match         # Match tracks
+run.bat scan          # Scan local library → Shows directories + live progress
+run.bat match         # Match tracks → Auto-generates match reports (CSV + HTML)
 run.bat export        # Export playlists
-run.bat report        # Generate missing tracks CSV
+```
+
+**Analysis & Reports**:
+```bash
+run.bat analyze             # Analyze library quality → Auto-generates quality reports (CSV + HTML)
+run.bat report              # Generate HTML/CSV reports from existing database
+                            #   Options: --match-reports, --analysis-reports, --no-match-reports, --no-analysis-reports
 ```
 
 **Other commands**:
@@ -129,10 +135,65 @@ run.bat report        # Generate missing tracks CSV
 run.bat version
 run.bat install            # Install or update dependencies
 run.bat config              # Show current configuration
-run.bat report-albums       # Album completeness report
-run.bat analyze             # Analyze library metadata quality
 run.bat test -q             # Run tests (Python source only)
 ```
+
+### Library Scan
+
+Builds a searchable database of your music files:
+
+```bash
+run.bat scan [--fast] [--paths PATH1 PATH2 ...]
+```
+
+**Features**:
+- **Visual Progress**: Shows directories being scanned + live progress counter (every 100 files)
+- **Fast Mode** (`--fast`): Skips files unchanged since last scan (compares mtime)
+- **Cleanup**: Automatically removes deleted files from database
+- **Debug Mode**: Set `LOG_LEVEL=DEBUG` to see current directory being scanned
+
+**Example Output**:
+```
+Scanning 2 directories:
+  • Z:\Artists\
+  • Z:\Sampler\
+
+100 files processed | 50 skipped | 38.3 files/s
+200 files processed | 150 skipped | 40.4 files/s
+...
+✓ Library: 25 new 10 updated 1959 unchanged 6 deleted in 24.01s
+```
+
+### Automatic Reporting
+
+**`match` command automatically generates:**
+- `matched_tracks.csv` / `.html` - All matched tracks with confidence scores, clickable Spotify track links
+- `unmatched_tracks.csv` / `.html` - All unmatched Spotify tracks, clickable Spotify track links
+- `unmatched_albums.csv` / `.html` - Unmatched albums grouped by popularity
+- `playlist_coverage.csv` / `.html` - Playlist coverage analysis with clickable Spotify playlist links
+- Console: Top 20 unmatched tracks + top 10 unmatched albums (INFO mode)
+
+**`analyze` command automatically generates:**
+- `metadata_quality.csv` / `.html` - All files with quality issues (missing tags, low bitrate)
+- Console: **Intelligent grouping by album** - Shows top albums with most files needing fixes
+  - Example: "📁 The Beatles - Abbey Road (18 files missing year)"
+  - Maximizes impact: Fix one album → fix many files at once
+
+**`report` command (standalone):**
+Generate reports from existing database without re-running match/analyze:
+```bash
+run.bat report                       # Generate all reports (default)
+run.bat report --no-analysis-reports # Generate only match reports
+run.bat report --no-match-reports    # Generate only analysis reports
+```
+
+All HTML reports include:
+- **Sortable tables** - Click column headers to sort
+- **Search & pagination** - Powered by jQuery DataTables
+- **Clickable Spotify links** - Track IDs, playlist names link directly to Spotify
+- **Navigation dashboard** - `index.html` provides quick access to all reports
+
+Reports saved to `export/reports/` by default.
 
 ### Single Playlist Operations (Optional)
 

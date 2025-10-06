@@ -65,8 +65,8 @@ ECHO   pull ^| scan ^| match ^| export ^| report ^| report-albums ^| build
 ECHO   install               Install or update dependencies
 ECHO   test [pytest args]    Run test suite (e.g. run.bat test -q tests\test_hashing.py)
 ECHO   version               Show CLI version
-ECHO   py <args>              Run python with given args inside venv (e.g. run.bat py tools\bulk_replace.py --from X --to Y)
-GOTO :EOF
+ECHO   py ^<args^>            Run python with given args inside venv (e.g. run.bat py tools\bulk_replace.py --from X --to Y)
+EXIT /B 0
 
 :version
 python -m psm.cli --version

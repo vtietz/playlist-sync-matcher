@@ -36,11 +36,9 @@ def test_cli_help_contains_workflow_examples():
     
     assert 'Maintenance:' in result.output
     assert 'match-diagnose' in result.output
-    
-    # Check concurrency note
-    assert 'avoid running multiple' in result.output or 'sequentially' in result.output
 
-
+    # Check concurrency note (updated to reflect WAL mode support)
+    assert 'concurrent' in result.output.lower() or 'wal' in result.output.lower()
 def test_all_main_commands_have_help():
     """Test that all main commands have help descriptions."""
     runner = CliRunner()

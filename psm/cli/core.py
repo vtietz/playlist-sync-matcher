@@ -5,7 +5,7 @@ from pathlib import Path
 import json as _json
 import time
 from .helpers import cli, get_db, _redact_spotify_config, build_auth
-from ..reporting.generator import write_missing_tracks, write_album_completeness
+from ..reporting.generator import write_missing_tracks, write_album_completeness, write_analysis_quality_reports, write_match_reports, write_index_page
 from ..services.pull_service import pull_data
 from ..ingest.library import scan_library
 from ..services.match_service import run_matching
@@ -17,21 +17,108 @@ logger = logging.getLogger(__name__)
 
 
 @cli.command()
+@click.option('--match-reports/--no-match-reports', default=True, help='Generate match reports (matched/unmatched tracks/albums, playlist coverage)')
+@click.option('--analysis-reports/--no-analysis-reports', default=True, help='Generate analysis reports (metadata quality)')
+@click.option('--min-bitrate', type=int, help='Minimum acceptable bitrate in kbps for analysis report')
 @click.pass_context
-def report(ctx: click.Context):
-    """Generate missing tracks report showing unmatched songs."""
+def report(ctx: click.Context, match_reports: bool, analysis_reports: bool, min_bitrate: int | None):
+    """Generate all available reports from existing database.
+    
+    This command regenerates reports without re-running matching or analysis phases.
+    Useful for:
+    - Updating report formats after code changes
+    - Generating reports with different settings
+    - Creating reports after manual database changes
+    
+    Reports generated:
+    - Match Reports: matched_tracks, unmatched_tracks, unmatched_albums, playlist_coverage
+    - Analysis Reports: metadata_quality (if library has been scanned)
+    - index.html: Navigation dashboard for all reports
+    """
+    from ..utils.output import (
+        section_header, success, error, warning, info, 
+        clickable_path, report_files, count_badge
+    )
+    
     cfg = ctx.obj
+    out_dir = Path(cfg['reports']['directory'])
+    
     with get_db(cfg) as db:
-        rows = db.get_missing_tracks()
-        out_dir = Path(cfg['reports']['directory'])
-        path = write_missing_tracks(rows, out_dir)
-        click.echo(f"Missing tracks report: {path}")
+        reports_generated = []
+        
+        # Generate match reports
+        if match_reports:
+            click.echo(section_header("Generating match reports"))
+            try:
+                write_match_reports(db, out_dir)
+                reports_generated.extend(['matched_tracks', 'unmatched_tracks', 'unmatched_albums', 'playlist_coverage'])
+                
+                # Show generated files
+                click.echo(report_files(out_dir / 'matched_tracks.csv', out_dir / 'matched_tracks.html', 'Matched tracks'))
+                click.echo(report_files(out_dir / 'unmatched_tracks.csv', out_dir / 'unmatched_tracks.html', 'Unmatched tracks'))
+                click.echo(report_files(out_dir / 'unmatched_albums.csv', out_dir / 'unmatched_albums.html', 'Unmatched albums'))
+                click.echo(report_files(out_dir / 'playlist_coverage.csv', out_dir / 'playlist_coverage.html', 'Playlist coverage'))
+                click.echo(success("Match reports generated"))
+            except Exception as e:
+                logger.error(f"Failed to generate match reports: {e}")
+                click.echo(error(f"Match reports failed: {e}"), err=True)
+        
+        # Generate analysis reports
+        if analysis_reports:
+            click.echo("")
+            click.echo(section_header("Generating analysis reports"))
+            try:
+                # Check if library has been scanned
+                file_count = db.conn.execute("SELECT COUNT(*) FROM library_files").fetchone()[0]
+                if file_count == 0:
+                    click.echo(warning("No library files found. Run 'scan' first to enable analysis reports."))
+                else:
+                    from ..services.analysis_service import analyze_library_quality
+                    
+                    if min_bitrate is None:
+                        min_bitrate = cfg.get('library', {}).get('min_bitrate_kbps', 320)
+                    min_bitrate = int(min_bitrate) if min_bitrate is not None else 320
+                    
+                    # Use large number for max_issues to get all issues for report
+                    report_obj = analyze_library_quality(db, min_bitrate_kbps=min_bitrate, max_issues=999999, silent=True)
+                    
+                    if report_obj.issues:
+                        write_analysis_quality_reports(report_obj, out_dir, min_bitrate_kbps=min_bitrate)
+                        reports_generated.append('metadata_quality')
+                        
+                        # Show generated files
+                        click.echo(report_files(out_dir / 'metadata_quality.csv', out_dir / 'metadata_quality.html', 'Metadata quality'))
+                        click.echo(success(f"Analysis reports generated ({count_badge(len(report_obj.issues), 'issues', 'yellow')})"))
+                    else:
+                        click.echo(success("No quality issues found - no report needed"))
+            except Exception as e:
+                logger.error(f"Failed to generate analysis reports: {e}")
+                click.echo(error(f"Analysis reports failed: {e}"), err=True)
+        
+        # Always generate index page if any reports were created
+        if reports_generated:
+            click.echo("")
+            click.echo(section_header("Generating navigation dashboard"))
+            write_index_page(out_dir, db)
+            index_path = out_dir / 'index.html'
+            click.echo(clickable_path(index_path, 'Index page'))
+            click.echo(success("Navigation dashboard generated"))
+        
+        # Summary
+        click.echo("")
+        click.echo(success(f"Generated {count_badge(len(reports_generated), 'reports')} in {click.style(str(out_dir.resolve()), fg='cyan', underline=True)}"))
+        if not reports_generated:
+            click.echo(warning("No reports generated. Ensure database has data (run 'pull', 'scan', 'match' first)"))
 
 
 @cli.command(name='report-albums')
 @click.pass_context
 def report_albums(ctx: click.Context):
-    """Generate album completeness report showing partially matched albums."""
+    """[DEPRECATED] Generate album completeness report showing partially matched albums.
+    
+    This command is deprecated. Use 'report' command instead to regenerate all reports.
+    """
+    logger.warning("⚠️  'report-albums' command is deprecated - use 'report' instead")
     cfg = ctx.obj
     with get_db(cfg) as db:
         out_dir = Path(cfg['reports']['directory'])
@@ -151,14 +238,32 @@ def scan(ctx: click.Context):
 
 
 @cli.command()
+@click.option('--top-tracks', type=int, default=20, help='Number of top unmatched tracks to show')
+@click.option('--top-albums', type=int, default=10, help='Number of top unmatched albums to show')
 @click.pass_context
-def match(ctx: click.Context):
-    """Match streaming tracks to local library files (scoring engine)."""
+def match(ctx: click.Context, top_tracks: int, top_albums: int):
+    """Match streaming tracks to local library files (scoring engine).
+    
+    Automatically generates detailed reports:
+    - matched_tracks.csv / .html: All matched tracks with confidence scores
+    - unmatched_tracks.csv / .html: All unmatched tracks
+    - unmatched_albums.csv / .html: Unmatched albums grouped by popularity
+    """
     cfg = ctx.obj
     # Use short-lived connection; avoid holding DB beyond required scope
     result = None
     with get_db(cfg) as db:
-        result = run_matching(db, config=cfg, verbose=False)
+        result = run_matching(db, config=cfg, verbose=False, top_unmatched_tracks=top_tracks, top_unmatched_albums=top_albums)
+        
+        # Auto-generate match reports
+        if result.matched > 0 or result.unmatched > 0:
+            out_dir = Path(cfg['reports']['directory'])
+            reports = write_match_reports(db, out_dir)
+            write_index_page(out_dir, db)
+            logger.info("")
+            logger.info(f"✓ Generated match reports in: {out_dir}")
+            logger.info(f"  Open index.html to navigate all reports")
+    
     # At this point context manager closed the DB ensuring lock release
     if result is not None:
         click.echo(f'Matched {result.matched} tracks')
@@ -167,16 +272,36 @@ def match(ctx: click.Context):
 @cli.command()
 @click.option('--min-bitrate', type=int, help='Minimum acceptable bitrate in kbps (overrides config)')
 @click.option('--max-issues', type=int, default=50, help='Max number of detailed issues to show')
+@click.option('--top-offenders', type=int, default=10, help='Number of top offenders to show per category')
 @click.pass_context
-def analyze(ctx: click.Context, min_bitrate: int | None, max_issues: int):
-    """Analyze local library quality (missing tags, low bitrate)."""
+def analyze(ctx: click.Context, min_bitrate: int | None, max_issues: int, top_offenders: int):
+    """Analyze local library quality (missing tags, low bitrate).
+    
+    Automatically generates detailed reports:
+    - metadata_quality.csv: All files with quality issues
+    - metadata_quality.html: Sortable HTML table
+    """
     cfg = ctx.obj
     if min_bitrate is None:
         min_bitrate = cfg.get('library', {}).get('min_bitrate_kbps', 320)
     min_bitrate = int(min_bitrate) if min_bitrate is not None else 320
+    
     with get_db(cfg) as db:
         report = analyze_library_quality(db, min_bitrate_kbps=min_bitrate, max_issues=max_issues)
-        print_quality_report(report, min_bitrate_kbps=min_bitrate)
+        print_quality_report(report, min_bitrate_kbps=min_bitrate, db=db, top_n=top_offenders)
+        
+        # Auto-generate CSV and HTML reports
+        if report.issues:
+            out_dir = Path(cfg['reports']['directory'])
+            csv_path, html_path = write_analysis_quality_reports(report, out_dir, min_bitrate_kbps=min_bitrate)
+            write_index_page(out_dir, db)
+            logger.info("")
+            logger.info(f"✓ Generated reports: {csv_path.name} | {html_path.name}")
+            logger.info(f"  Location: {out_dir}")
+            logger.info(f"  Open index.html to navigate all reports")
+        else:
+            logger.info("")
+            logger.info("✓ No quality issues found - library metadata is excellent!")
 
 
 @cli.command(name='match-diagnose')

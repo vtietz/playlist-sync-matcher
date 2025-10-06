@@ -49,6 +49,16 @@ def scan_library(db, cfg):
     use_year = cfg.get('matching', {}).get('use_year')
 
     click.echo(click.style("=== Scanning local library ===", fg='cyan', bold=True))
+    
+    # Log directories being scanned
+    if isinstance(paths, list):
+        logger.info(f"Scanning {len(paths)} director{'y' if len(paths) == 1 else 'ies'}:")
+        for path in paths:
+            logger.info(f"  • {path}")
+    else:
+        logger.info(f"Scanning: {paths}")
+    logger.info("")
+    
     start = time.time()
     files_seen = 0
     inserted = 0
@@ -61,6 +71,7 @@ def scan_library(db, cfg):
     seen_paths = set()  # Track files we've seen during scan for efficient deletion detection
     progress_interval = 100  # Log progress every N files
     last_progress_log = 0
+    last_dir_logged = None  # Track current directory being scanned
     
     # Batch load existing file metadata for skip-unchanged checks (avoids per-file queries)
     existing_files = {}
@@ -93,6 +104,13 @@ def scan_library(db, cfg):
     try:
         for p in iter_music_files(paths, extensions, ignore_patterns, follow_symlinks):
             files_seen += 1
+            
+            # Log directory change (helps user see progress through large libraries)
+            current_dir = str(p.parent)
+            if current_dir != last_dir_logged:
+                logger.debug(f"{click.style('[scanning]', fg='cyan')} {current_dir}")
+                last_dir_logged = current_dir
+            
             # Normalize path to use backslashes on Windows (consistent with DB storage)
             path_str = str(p.resolve())
             seen_paths.add(path_str)  # Track this path as seen
@@ -114,6 +132,20 @@ def scan_library(db, cfg):
                     if size_db == st.st_size and abs(mtime_db - st.st_mtime) < 1.0:
                         skipped_unchanged += 1
                         logger.debug(f"{click.style('[skip]', fg='yellow')} {p} unchanged (fast mode - no parsing)")
+                        
+                        # Log progress even for skipped files so user knows scan is active
+                        if files_seen - last_progress_log >= progress_interval:
+                            elapsed = time.time() - start
+                            log_progress(
+                                processed=files_seen,
+                                total=None,
+                                new=inserted,
+                                updated=updated,
+                                skipped=skipped_unchanged,
+                                elapsed_seconds=elapsed,
+                                item_name="files"
+                            )
+                            last_progress_log = files_seen
                         continue
                 else:
                     # Normal mode: tuple format
@@ -121,6 +153,20 @@ def scan_library(db, cfg):
                     if size_db == st.st_size and abs(mtime_db - st.st_mtime) < 1.0:
                         skipped_unchanged += 1
                         logger.debug(f"{click.style('[skip]', fg='yellow')} {p} unchanged")
+                        
+                        # Log progress even for skipped files so user knows scan is active
+                        if files_seen - last_progress_log >= progress_interval:
+                            elapsed = time.time() - start
+                            log_progress(
+                                processed=files_seen,
+                                total=None,
+                                new=inserted,
+                                updated=updated,
+                                skipped=skipped_unchanged,
+                                elapsed_seconds=elapsed,
+                                item_name="files"
+                            )
+                            last_progress_log = files_seen
                         continue
 
             try:

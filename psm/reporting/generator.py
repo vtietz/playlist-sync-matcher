@@ -1,7 +1,17 @@
 from __future__ import annotations
 from pathlib import Path
-from typing import Iterable, Any
+from typing import Iterable, Any, TYPE_CHECKING
 import csv
+import logging
+
+from .html_templates import get_html_template, get_index_template
+from ..providers.links import get_link_generator
+
+if TYPE_CHECKING:
+    from ..services.analysis_service import QualityReport
+    from ..db import Database
+
+logger = logging.getLogger(__name__)
 
 
 def write_missing_tracks(rows: Iterable, out_dir: Path):
@@ -74,4 +84,481 @@ def write_album_completeness(db, out_dir: Path):
             w.writerow([r['artist'], r['album'], r['total'], r['matched'], r['missing'], r['percent_complete'], r['status']])
     return path
 
-__all__ = ["write_missing_tracks", "write_album_completeness", "compute_album_completeness"]
+
+# ============================================================================
+# Enhanced Analysis Reports (CSV + HTML)
+# ============================================================================
+
+def write_analysis_quality_reports(report: QualityReport, out_dir: Path, min_bitrate_kbps: int = 320) -> tuple[Path, Path]:
+    """Write metadata quality analysis to CSV and HTML.
+    
+    Args:
+        report: QualityReport from analysis_service
+        out_dir: Output directory for reports
+        min_bitrate_kbps: Bitrate threshold used
+    
+    Returns:
+        Tuple of (csv_path, html_path)
+    """
+    out_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Prepare data rows with individual columns for each metadata field
+    rows = []
+    for issue in report.issues:
+        # Check individual metadata fields
+        has_artist = "artist" not in issue.missing_fields
+        has_title = "title" not in issue.missing_fields
+        has_album = "album" not in issue.missing_fields
+        has_year = "year" not in issue.missing_fields
+        
+        # Count missing fields
+        missing_count = len(issue.missing_fields)
+        
+        # Bitrate handling
+        bitrate_num = issue.bitrate_kbps if issue.bitrate_kbps else 0
+        
+        rows.append({
+            'path': issue.path,
+            'has_artist': has_artist,
+            'has_title': has_title,
+            'has_album': has_album,
+            'has_year': has_year,
+            'missing_count': missing_count,
+            'bitrate': bitrate_num,
+        })
+    
+    # Write CSV
+    csv_path = out_dir / "metadata_quality.csv"
+    with csv_path.open('w', newline='', encoding='utf-8') as fh:
+        w = csv.writer(fh)
+        w.writerow(["file_path", "artist", "title", "album", "year", "missing_count", "bitrate_kbps"])
+        for row in rows:
+            w.writerow([
+                row['path'],
+                "✓" if row['has_artist'] else "✗",
+                "✓" if row['has_title'] else "✗",
+                "✓" if row['has_album'] else "✗",
+                "✓" if row['has_year'] else "✗",
+                row['missing_count'],
+                row['bitrate']
+            ])
+    
+    # Write HTML - use check marks and crosses
+    html_rows = []
+    for row in rows:
+        html_rows.append([
+            row['path'],
+            '<span class="check-yes">✓</span>' if row['has_artist'] else '<span class="check-no">✗</span>',
+            '<span class="check-yes">✓</span>' if row['has_title'] else '<span class="check-no">✗</span>',
+            '<span class="check-yes">✓</span>' if row['has_album'] else '<span class="check-no">✗</span>',
+            '<span class="check-yes">✓</span>' if row['has_year'] else '<span class="check-no">✗</span>',
+            row['missing_count'],
+            f"{row['bitrate']} kbps" if row['bitrate'] > 0 else "N/A"
+        ])
+    
+    stats = report.get_summary_stats()
+    description = (
+        f"Total files: {stats['total_files']:,} | "
+        f"Missing artist: {stats['missing_artist']} ({stats['missing_artist_pct']}%) | "
+        f"Missing title: {stats['missing_title']} ({stats['missing_title_pct']}%) | "
+        f"Missing album: {stats['missing_album']} ({stats['missing_album_pct']}%) | "
+        f"Missing year: {stats['missing_year']} ({stats['missing_year_pct']}%) | "
+        f"Low bitrate (<{min_bitrate_kbps}kbps): {stats['low_bitrate_count']} ({stats['low_bitrate_pct']}%)"
+    )
+    
+    # Default sort: Missing Count DESC, then Bitrate ASC
+    html_content = get_html_template(
+        title="Metadata Quality Analysis",
+        columns=["File Path", "Artist", "Title", "Album", "Year", "Missing Count", "Bitrate"],
+        rows=html_rows,
+        description=description,
+        default_order=[[5, "desc"], [6, "asc"]]  # Sort by Missing Count DESC, then Bitrate ASC
+    )
+    
+    html_path = out_dir / "metadata_quality.html"
+    html_path.write_text(html_content, encoding='utf-8')
+    
+    return (csv_path, html_path)
+
+
+# ============================================================================
+# Enhanced Match Reports (CSV + HTML)
+# ============================================================================
+
+def write_match_reports(db: Database, out_dir: Path) -> dict[str, tuple[Path, Path]]:
+    """Write comprehensive match reports (matched, unmatched tracks, unmatched albums).
+    
+    Args:
+        db: Database instance
+        out_dir: Output directory for reports
+    
+    Returns:
+        Dict with keys 'matched', 'unmatched_tracks', 'unmatched_albums' pointing to (csv_path, html_path) tuples
+    """
+    out_dir.mkdir(parents=True, exist_ok=True)
+    reports = {}
+    
+    # Get provider from database (default to spotify)
+    provider_row = db.conn.execute("SELECT DISTINCT provider FROM tracks LIMIT 1").fetchone()
+    provider = provider_row['provider'] if provider_row else 'spotify'
+    links = get_link_generator(provider)
+    
+    # ---------------------------------------------------------------
+    # 1. Matched Tracks Report (with confidence and match details)
+    # ---------------------------------------------------------------
+    matched_rows = db.conn.execute("""
+        SELECT 
+            m.track_id,
+            m.file_id,
+            m.method,
+            m.score,
+            t.name as track_name,
+            t.artist as track_artist,
+            t.album as track_album,
+            l.path as file_path,
+            l.artist as file_artist,
+            l.title as file_title,
+            l.album as file_album
+        FROM matches m
+        JOIN tracks t ON m.track_id = t.id
+        JOIN library_files l ON m.file_id = l.id
+        ORDER BY m.score DESC
+    """).fetchall()
+    
+    # Extract confidence from method field (e.g., "MatchConfidence.CERTAIN" -> "CERTAIN" or "score:HIGH:89.50" -> "HIGH")
+    def extract_confidence(method_str):
+        """Extract confidence from method string like 'MatchConfidence.CERTAIN' or 'score:HIGH:89.50'."""
+        if not method_str:
+            return "UNKNOWN"
+        
+        # Handle enum format: "MatchConfidence.CERTAIN" -> "CERTAIN"
+        if "MatchConfidence." in method_str:
+            return method_str.split(".")[-1]
+        
+        # Handle old score format: "score:HIGH:89.50" -> "HIGH"
+        if ':' in method_str:
+            parts = method_str.split(':')
+            if len(parts) >= 2:
+                return parts[1]
+        
+        return "UNKNOWN"
+    
+    # CSV
+    csv_path = out_dir / "matched_tracks.csv"
+    with csv_path.open('w', newline='', encoding='utf-8') as fh:
+        w = csv.writer(fh)
+        w.writerow([
+            "track_id", "confidence", "score",
+            "track_name", "track_artist", "track_album",
+            "file_path", "file_title", "file_artist", "file_album"
+        ])
+        for row in matched_rows:
+            confidence = extract_confidence(row['method'])
+            w.writerow([
+                row['track_id'], confidence, row['score'],
+                row['track_name'], row['track_artist'], row['track_album'],
+                row['file_path'], row['file_title'], row['file_artist'], row['file_album']
+            ])
+    
+    # HTML
+    html_rows = []
+    for row in matched_rows:
+        confidence = extract_confidence(row['method'])
+        track_url = links.track_url(row['track_id'])
+        html_rows.append([
+            f'<a href="{track_url}" target="_blank" title="Open in {provider.title()}">{row["track_id"]}</a>',
+            f'<span class="badge badge-{confidence.lower()}">{confidence}</span>',
+            f"{row['score']:.2f}",
+            row['track_name'], row['track_artist'], row['track_album'],
+            row['file_path'], row['file_title'], row['file_artist'], row['file_album']
+        ])
+    
+    html_content = get_html_template(
+        title="Matched Tracks",
+        columns=[
+            "Spotify ID", "Confidence", "Score",
+            "Track Name", "Track Artist", "Track Album",
+            "File Path", "File Title", "File Artist", "File Album"
+        ],
+        rows=html_rows,
+        description=f"Total matched tracks: {len(matched_rows):,}",
+        default_order=[[1, "asc"], [2, "desc"]]  # Sort by Confidence ASC (CERTAIN first), then Score DESC
+    )
+    
+    html_path = out_dir / "matched_tracks.html"
+    html_path.write_text(html_content, encoding='utf-8')
+    
+    reports['matched'] = (csv_path, html_path)
+    
+    # ---------------------------------------------------------------
+    # 2. Unmatched Tracks Report (with playlist popularity)
+    # ---------------------------------------------------------------
+    unmatched_rows = db.conn.execute("""
+        SELECT 
+            t.id as track_id,
+            t.name,
+            t.artist,
+            t.album,
+            t.year,
+            COUNT(DISTINCT pt.playlist_id) as playlist_count
+        FROM tracks t
+        LEFT JOIN playlist_tracks pt ON t.id = pt.track_id
+        WHERE t.id NOT IN (SELECT track_id FROM matches)
+        GROUP BY t.id, t.name, t.artist, t.album, t.year
+        ORDER BY playlist_count DESC, t.artist, t.album, t.name
+    """).fetchall()
+    
+    # CSV
+    csv_path = out_dir / "unmatched_tracks.csv"
+    with csv_path.open('w', newline='', encoding='utf-8') as fh:
+        w = csv.writer(fh)
+        w.writerow(["track_id", "name", "artist", "album", "year", "playlist_count"])
+        for row in unmatched_rows:
+            w.writerow([row['track_id'], row['name'], row['artist'], row['album'], row['year'], row['playlist_count']])
+    
+    # HTML
+    html_rows = []
+    for row in unmatched_rows:
+        track_url = links.track_url(row['track_id'])
+        html_rows.append([
+            f'<a href="{track_url}" target="_blank" title="Open in {provider.title()}">{row["track_id"]}</a>',
+            row['name'], 
+            row['artist'], 
+            row['album'], 
+            row['year'] or "",
+            row['playlist_count']
+        ])
+    
+    html_content = get_html_template(
+        title="Unmatched Tracks",
+        columns=["Spotify ID", "Name", "Artist", "Album", "Year", "Playlists"],
+        rows=html_rows,
+        description=f"Total unmatched tracks: {len(unmatched_rows):,}",
+        default_order=[[5, "desc"], [2, "asc"]]  # Sort by Playlist Count DESC, then Artist ASC
+    )
+    
+    html_path = out_dir / "unmatched_tracks.html"
+    html_path.write_text(html_content, encoding='utf-8')
+    
+    reports['unmatched_tracks'] = (csv_path, html_path)
+    
+    # ---------------------------------------------------------------
+    # 3. Unmatched Albums Report (grouped by album with track counts and playlist popularity)
+    # ---------------------------------------------------------------
+    unmatched_album_rows = db.conn.execute("""
+        SELECT 
+            t.artist,
+            t.album,
+            COUNT(DISTINCT t.id) as track_count,
+            COUNT(DISTINCT pt.playlist_id) as playlist_count,
+            GROUP_CONCAT(t.name, '; ') as tracks
+        FROM tracks t
+        LEFT JOIN playlist_tracks pt ON t.id = pt.track_id
+        WHERE t.id NOT IN (SELECT track_id FROM matches)
+          AND t.album IS NOT NULL
+          AND t.artist IS NOT NULL
+        GROUP BY t.artist, t.album
+        ORDER BY playlist_count DESC, track_count DESC, t.artist, t.album
+    """).fetchall()
+    
+    # CSV
+    csv_path = out_dir / "unmatched_albums.csv"
+    with csv_path.open('w', newline='', encoding='utf-8') as fh:
+        w = csv.writer(fh)
+        w.writerow(["artist", "album", "track_count", "playlist_count", "tracks"])
+        for row in unmatched_album_rows:
+            w.writerow([row['artist'], row['album'], row['track_count'], row['playlist_count'], row['tracks']])
+    
+    # HTML
+    html_rows = [[
+        row['artist'], 
+        row['album'], 
+        row['track_count'], 
+        row['playlist_count'],
+        row['tracks']
+    ] for row in unmatched_album_rows]
+    
+    html_content = get_html_template(
+        title="Unmatched Albums",
+        columns=["Artist", "Album", "Track Count", "Playlists", "Tracks"],
+        rows=html_rows,
+        description=f"Total unmatched albums: {len(unmatched_album_rows):,}",
+        default_order=[[3, "desc"], [2, "desc"], [0, "asc"]]  # Sort by Playlist Count DESC, Track Count DESC, then Artist ASC
+    )
+    
+    html_path = out_dir / "unmatched_albums.html"
+    html_path.write_text(html_content, encoding='utf-8')
+    
+    reports['unmatched_albums'] = (csv_path, html_path)
+    
+    # ---------------------------------------------------------------
+    # 4. Playlist Coverage Report (shows match % for each playlist)
+    # ---------------------------------------------------------------
+    playlist_coverage_rows = db.conn.execute("""
+        SELECT 
+            p.id as playlist_id,
+            p.name as playlist_name,
+            p.owner_name,
+            COUNT(DISTINCT pt.track_id) as total_tracks,
+            COUNT(DISTINCT m.track_id) as matched_tracks,
+            ROUND(CAST(COUNT(DISTINCT m.track_id) AS FLOAT) / COUNT(DISTINCT pt.track_id) * 100, 2) as coverage_percent
+        FROM playlists p
+        JOIN playlist_tracks pt ON p.id = pt.playlist_id
+        LEFT JOIN matches m ON pt.track_id = m.track_id
+        GROUP BY p.id, p.name, p.owner_name
+        ORDER BY coverage_percent ASC, total_tracks DESC
+    """).fetchall()
+    
+    # CSV
+    csv_path = out_dir / "playlist_coverage.csv"
+    with csv_path.open('w', newline='', encoding='utf-8') as fh:
+        w = csv.writer(fh)
+        w.writerow(["playlist_id", "playlist_name", "owner", "total_tracks", "matched_tracks", "missing_tracks", "coverage_percent"])
+        for row in playlist_coverage_rows:
+            missing = row['total_tracks'] - row['matched_tracks']
+            w.writerow([
+                row['playlist_id'], 
+                row['playlist_name'], 
+                row['owner_name'] or 'Unknown',
+                row['total_tracks'], 
+                row['matched_tracks'],
+                missing,
+                row['coverage_percent']
+            ])
+    
+    # HTML - add visual coverage bars and playlist links
+    html_rows = []
+    for row in playlist_coverage_rows:
+        missing = row['total_tracks'] - row['matched_tracks']
+        coverage = row['coverage_percent'] or 0
+        
+        # Color-coded badge based on coverage
+        if coverage >= 90:
+            badge_class = "badge-certain"
+        elif coverage >= 70:
+            badge_class = "badge-high"
+        elif coverage >= 50:
+            badge_class = "badge-medium"
+        else:
+            badge_class = "badge-low"
+        
+        # Add clickable playlist link
+        playlist_url = links.playlist_url(row['playlist_id'])
+        playlist_link = f'<a href="{playlist_url}" target="_blank" title="Open in {provider.title()}">{row["playlist_name"]}</a>'
+        
+        html_rows.append([
+            playlist_link,
+            row['owner_name'] or 'Unknown',
+            row['total_tracks'],
+            row['matched_tracks'],
+            missing,
+            f'<span class="badge {badge_class}">{coverage:.1f}%</span>'
+        ])
+    
+    html_content = get_html_template(
+        title="Playlist Coverage",
+        columns=["Playlist Name", "Owner", "Total Tracks", "Matched", "Missing", "Coverage"],
+        rows=html_rows,
+        description=f"Total playlists: {len(playlist_coverage_rows):,}",
+        default_order=[[5, "asc"], [2, "desc"]]  # Sort by Coverage ASC (worst first), then Total Tracks DESC
+    )
+    
+    html_path = out_dir / "playlist_coverage.html"
+    html_path.write_text(html_content, encoding='utf-8')
+    
+    reports['playlist_coverage'] = (csv_path, html_path)
+    
+    return reports
+
+
+__all__ = [
+    "write_missing_tracks", 
+    "write_album_completeness", 
+    "compute_album_completeness",
+    "write_analysis_quality_reports",
+    "write_match_reports",
+    "write_index_page",
+]
+
+
+def write_index_page(out_dir: Path, db: "Database | None" = None) -> Path:
+    """Generate an index.html page with links to all available reports.
+    
+    Args:
+        out_dir: Output directory containing report files
+        db: Optional database instance to get live counts
+    
+    Returns:
+        Path to generated index.html file
+    """
+    out_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Collect available reports
+    reports = {
+        'Match Reports': {},
+        'Analysis Reports': {},
+    }
+    
+    # Check which match reports exist
+    if (out_dir / "matched_tracks.html").exists():
+        count = None
+        if db:
+            count = db.conn.execute("SELECT COUNT(*) FROM matches").fetchone()[0]
+        reports['Match Reports']['matched_tracks'] = (
+            "Successfully matched Spotify tracks to local files",
+            "matched_tracks.html",
+            count
+        )
+    
+    if (out_dir / "unmatched_tracks.html").exists():
+        count = None
+        if db:
+            count = db.conn.execute(
+                "SELECT COUNT(*) FROM tracks WHERE id NOT IN (SELECT track_id FROM matches)"
+            ).fetchone()[0]
+        reports['Match Reports']['unmatched_tracks'] = (
+            "Spotify tracks not found in local library",
+            "unmatched_tracks.html",
+            count
+        )
+    
+    if (out_dir / "unmatched_albums.html").exists():
+        count = None
+        if db:
+            count = db.conn.execute(
+                """SELECT COUNT(DISTINCT album) FROM tracks 
+                   WHERE id NOT IN (SELECT track_id FROM matches) 
+                   AND album IS NOT NULL"""
+            ).fetchone()[0]
+        reports['Match Reports']['unmatched_albums'] = (
+            "Albums with missing tracks grouped by artist",
+            "unmatched_albums.html",
+            count
+        )
+    
+    if (out_dir / "playlist_coverage.html").exists():
+        count = None
+        if db:
+            count = db.conn.execute("SELECT COUNT(*) FROM playlists").fetchone()[0]
+        reports['Match Reports']['playlist_coverage'] = (
+            "Coverage statistics for each playlist",
+            "playlist_coverage.html",
+            count
+        )
+    
+    # Check which analysis reports exist
+    if (out_dir / "metadata_quality.html").exists():
+        count = None
+        # Count is from the report itself (files with missing metadata)
+        reports['Analysis Reports']['metadata_quality'] = (
+            "Local files with missing or low-quality metadata",
+            "metadata_quality.html",
+            count
+        )
+    
+    # Generate index page
+    html_content = get_index_template(reports)
+    index_path = out_dir / "index.html"
+    index_path.write_text(html_content, encoding='utf-8')
+    
+    return index_path

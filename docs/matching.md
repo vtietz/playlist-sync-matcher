@@ -99,19 +99,50 @@ Advanced tuning (requires code modification of `ScoringConfig` defaults):
 - Penalty values (all `penalty_*` fields)
 - Confidence thresholds
 
-## Diagnostics
+## Diagnostics & Reporting
 
-After matching completes, the system provides:
+### Automatic Reports (Generated on Every Match)
 
-1. **Top Unmatched Tracks** - Sorted by playlist popularity
+The `match` command automatically generates comprehensive reports:
+
+1. **matched_tracks.csv / .html**
+   - All successfully matched tracks
+   - Includes confidence levels (CERTAIN, HIGH, MEDIUM, LOW)
+   - Shows match scores and both Spotify and local metadata
+   - Sortable HTML table for easy exploration
+
+2. **unmatched_tracks.csv / .html**
+   - All Spotify tracks that couldn't be matched
+   - Sorted by artist/album/name
+   - Helps identify missing files in your library
+
+3. **unmatched_albums.csv / .html**
+   - Unmatched tracks grouped by album
+   - Shows track count per album
+   - Quickly identifies which albums to acquire
+
+All reports saved to `export/reports/` (configurable via `reports.directory`).
+
+### Console Diagnostics (INFO Mode)
+
+After matching completes, the console shows:
+
+1. **Top Unmatched Tracks** (default: 20) - Sorted by playlist popularity
    - Shows how many playlists contain each unmatched track
    - Includes ❤️ marker for liked tracks
    - Helps identify missing albums vs. obscure singles
+   - Example: `[12 playlists] The Beatles - Come Together ❤️`
 
-2. **Top Unmatched Albums** - Sorted by occurrence count
+2. **Top Unmatched Albums** (default: 10) - Sorted by occurrence count
    - Groups unmatched tracks by album
    - Shows total playlist occurrences per album
    - Quickly identifies which albums to acquire
+   - Example: `[45 occurrences] The Beatles - Abbey Road (17 tracks)`
+
+**Customize diagnostic counts:**
+```bash
+run.bat match --top-tracks 50 --top-albums 20
+```
 
 ## Expected Performance
 
@@ -132,7 +163,8 @@ After matching completes, the system provides:
 
 1. **Check library metadata quality**
    ```bash
-   run.bat scan  # Re-scan to pick up tag updates
+   run.bat analyze  # Generates detailed quality reports (CSV + HTML)
+   run.bat scan     # Re-scan to pick up tag updates
    ```
 
 2. **Enable DEBUG logging** to see scoring details
@@ -141,6 +173,7 @@ After matching completes, the system provides:
    ```
 
 3. **Review unmatched diagnostics**
+   - Check the auto-generated reports in `export/reports/`
    - Are albums consistently missing? (acquisition needed)
    - Are tracks low-occurrence? (may not be worth matching)
 

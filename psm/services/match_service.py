@@ -35,7 +35,9 @@ class MatchResult:
 def run_matching(
     db: Database,
     config: Dict[str, Any],
-    verbose: bool = False
+    verbose: bool = False,
+    top_unmatched_tracks: int = 20,
+    top_unmatched_albums: int = 10
 ) -> MatchResult:
     """Run matching engine and generate diagnostics.
     
@@ -43,6 +45,8 @@ def run_matching(
         db: Database instance
         config: Full configuration dict
         verbose: Enable verbose logging
+        top_unmatched_tracks: Number of top unmatched tracks to show (INFO mode)
+        top_unmatched_albums: Number of top unmatched albums to show (INFO mode)
         
     Returns:
         MatchResult with statistics and unmatched diagnostics
@@ -81,6 +85,10 @@ def run_matching(
         ]
     
     result.duration_seconds = time.time() - start
+    
+    # Show unmatched diagnostics (INFO mode) - moved from DEBUG
+    _show_unmatched_diagnostics(db, top_unmatched_tracks, top_unmatched_albums)
+    
     return result
 
 
@@ -273,3 +281,147 @@ def build_duration_candidate_map(tracks: List[Dict[str, Any]], files: List[Dict[
         candidates = _duration_prefilter_single(t, files, dur_tol)
         result[t['id']] = [c['id'] for c in candidates]
     return result
+
+
+def _show_unmatched_diagnostics(db: Database, top_tracks: int = 20, top_albums: int = 10):
+    """Show unmatched track and album diagnostics in INFO mode.
+    
+    This was previously only available in DEBUG mode. Now shown automatically
+    after matching to help users identify what's missing in their library.
+    
+    Args:
+        db: Database instance
+        top_tracks: Number of top unmatched tracks to show
+        top_albums: Number of top unmatched albums to show
+    """
+    # Get all unmatched track IDs
+    unmatched_rows = db.conn.execute("""
+        SELECT id, name, artist, album
+        FROM tracks
+        WHERE id NOT IN (SELECT track_id FROM matches)
+    """).fetchall()
+    
+    if not unmatched_rows:
+        logger.info("")
+        logger.info(click.style("✓ All tracks matched!", fg='green', bold=True))
+        return
+    
+    unmatched_ids = [row['id'] for row in unmatched_rows]
+    track_by_id = {row['id']: dict(row) for row in unmatched_rows}
+    
+    logger.info("")
+    logger.info(click.style("=== Unmatched Diagnostics ===", fg='yellow', bold=True))
+    logger.info(f"Total unmatched: {len(unmatched_ids)} tracks")
+    
+    # ---------------------------------------------------------------
+    # 1. Top Unmatched Tracks (by playlist popularity)
+    # ---------------------------------------------------------------
+    occurrence_counts = {}  # Initialize here so it's available for albums section
+    
+    if top_tracks > 0:
+        # Get playlist occurrence counts
+        if unmatched_ids:
+            placeholders = ','.join('?' * len(unmatched_ids))
+            count_rows = db.conn.execute(
+                f"SELECT track_id, COUNT(DISTINCT playlist_id) as count FROM playlist_tracks "
+                f"WHERE track_id IN ({placeholders}) GROUP BY track_id",
+                unmatched_ids
+            ).fetchall()
+            occurrence_counts = {row['track_id']: row['count'] for row in count_rows}
+            # Fill in zero counts for tracks not in any playlist
+            for track_id in unmatched_ids:
+                if track_id not in occurrence_counts:
+                    occurrence_counts[track_id] = 0
+        
+        # Check liked tracks
+        liked_ids = set()
+        if unmatched_ids:
+            placeholders = ','.join('?' * len(unmatched_ids))
+            liked_rows = db.conn.execute(
+                f"SELECT track_id FROM liked_tracks WHERE track_id IN ({placeholders})",
+                unmatched_ids
+            ).fetchall()
+            liked_ids = {row['track_id'] for row in liked_rows}
+        
+        # Sort by popularity
+        sorted_unmatched = sorted(
+            unmatched_ids,
+            key=lambda tid: (
+                -occurrence_counts.get(tid, 0),
+                track_by_id.get(tid, {}).get('artist', '').lower(),
+                track_by_id.get(tid, {}).get('name', '').lower()
+            )
+        )
+        
+        display_count = min(top_tracks, len(sorted_unmatched))
+        
+        logger.info("")
+        logger.info(f"{click.style('[Top Unmatched Tracks]', fg='red')} (by playlist popularity):")
+        
+        for track_id in sorted_unmatched[:display_count]:
+            track = track_by_id.get(track_id, {})
+            count = occurrence_counts.get(track_id, 0)
+            is_liked = track_id in liked_ids
+            liked_marker = " ❤️" if is_liked else ""
+            
+            logger.info(
+                f"  [{count:2d} playlist{'s' if count != 1 else ' '}] "
+                f"{track.get('artist', '')} - {track.get('name', '')}{liked_marker}"
+            )
+        
+        if len(sorted_unmatched) > display_count:
+            logger.info(f"  ... and {len(sorted_unmatched) - display_count} more")
+    
+    # ---------------------------------------------------------------
+    # 2. Top Unmatched Albums (grouped by album)
+    # ---------------------------------------------------------------
+    if top_albums > 0:
+        album_stats = {}  # album_key -> {'artist': ..., 'album': ..., 'track_count': ..., 'total_occurrences': ...}
+        
+        for track_id in unmatched_ids:
+            track = track_by_id.get(track_id, {})
+            artist = track.get('artist', '')
+            album = track.get('album', '')
+            
+            if not album or album == '':
+                continue  # Skip tracks without album info
+            
+            # Use artist + album as key (case-insensitive)
+            album_key = f"{artist.lower()}|{album.lower()}"
+            
+            if album_key not in album_stats:
+                album_stats[album_key] = {
+                    'artist': artist,
+                    'album': album,
+                    'track_count': 0,
+                    'total_occurrences': 0,
+                }
+            
+            album_stats[album_key]['track_count'] += 1
+            album_stats[album_key]['total_occurrences'] += occurrence_counts.get(track_id, 0)
+        
+        # Sort albums by total occurrences (descending), then by track count
+        sorted_albums = sorted(
+            album_stats.items(),
+            key=lambda item: (-item[1]['total_occurrences'], -item[1]['track_count'], item[1]['artist'].lower())
+        )
+        
+        if sorted_albums:
+            display_album_count = min(top_albums, len(sorted_albums))
+            
+            logger.info("")
+            logger.info(f"{click.style('[Top Missing Albums]', fg='red')} (by playlist popularity):")
+            
+            for _, album_info in sorted_albums[:display_album_count]:
+                artist = album_info['artist']
+                album = album_info['album']
+                track_count = album_info['track_count']
+                total_occ = album_info['total_occurrences']
+                
+                logger.info(
+                    f"  [{total_occ:2d} occurrences] {artist} - {album} "
+                    f"({track_count} track{'s' if track_count != 1 else ''})"
+                )
+            
+            if len(sorted_albums) > display_album_count:
+                logger.info(f"  ... and {len(sorted_albums) - display_album_count} more albums")
