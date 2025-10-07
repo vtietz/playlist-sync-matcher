@@ -22,21 +22,22 @@ run.bat test tests\test_hashing.py -q
 ```
 
 ## Building Executables
+PyInstaller is included in requirements.txt:
 ```
-pip install pyinstaller
-pyinstaller psm.spec
+run.bat install  # Installs PyInstaller 6.3.0
+pyinstaller --name psm --onefile --console -m psm.cli
 ```
 Outputs: `dist/`.
 
 ## Versioning & Release
-1. (If adding a formal version constant later, update it in a dedicated version module; current prototype prints a static string.)
-2. Commit & push.
+1. Update version in `psm/version.py` (single source of truth).
+2. Commit & push changes.
 3. Tag & push tag:
 ```
 git tag vX.Y.Z
 git push origin vX.Y.Z
 ```
-4. GitHub Actions builds & attaches binaries.
+4. GitHub Actions builds & attaches binaries automatically.
 
 ## Coding Guidelines
 - Keep CLI thin; move logic to services. All commands live in `psm/cli/` submodules; avoid reintroducing logic into the top-level shim.
