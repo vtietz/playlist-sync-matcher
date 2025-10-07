@@ -1,4 +1,4 @@
-# playlist-sync-matcher
+# Playlist Sync Matcher
 
 Turn your streaming playlists (e.g. from Spotify) into M3U playlist files that point to your actual local music files. The codebase has been prepared with a lightweight abstraction so new providers can be added with minimal churn.
 
@@ -53,14 +53,14 @@ No Python required! Download pre-built binaries from [Releases](https://github.c
 ```bash
 # Download playlist-sync-matcher-windows-amd64.exe
 # Rename to psm.exe for convenience
-psm.exe build
+psm.exe build     # Runs the sync pipeline (after setup below)
 ```
 
 **Linux/Mac**:
 ```bash
 # Download appropriate binary
 chmod +x playlist-sync-matcher-linux-amd64
-./playlist-sync-matcher-linux-amd64 build
+./playlist-sync-matcher-linux-amd64 build     # After setup
 
 # Or rename for convenience:
 mv playlist-sync-matcher-linux-amd64 psm
@@ -72,18 +72,18 @@ Requires **Python 3.9+**. The scripts will automatically set up a virtual enviro
 
 **Windows**:
 ```bash
-run.bat build
-run.bat install   # (optional explicit dependency install)
+run.bat install   # Install dependencies (first time)
+run.bat build     # Run sync pipeline (after setup below)
 ```
 
 **Linux/Mac**:
 ```bash
 chmod +x run.sh
-./run.sh build
-./run.sh install  # (optional explicit dependency install)
+./run.sh install  # Install dependencies (first time)
+./run.sh build    # Run sync pipeline (after setup)
 ```
 
-> **First run**: The script creates a `.venv` directory and installs dependencies automatically.
+> **First run**: The install script creates a `.venv` directory and installs all dependencies automatically.
 
 ## Getting Started
 
@@ -127,9 +127,9 @@ psm login         # Standalone executable
 
 A browser window will open for Spotify authorization. After you approve, the tool saves your credentials to `tokens.json` (auto-refreshed).
 
-### 4. Run Your First Build
+### 4. Run the Complete Sync
 
-Now run the complete pipeline:
+Now run the complete data pipeline with a single command:
 
 ```bash
 run.bat build     # Windows
@@ -137,7 +137,9 @@ run.bat build     # Windows
 psm build         # Standalone executable
 ```
 
-This single command will:
+> **What does "build" mean?** The `build` command runs the complete sync pipeline (not compiling code). It executes all steps in sequence.
+
+This will:
 1. **Pull** your Spotify playlists and tracks
 2. **Scan** your local music library
 3. **Match** streaming tracks to local files
@@ -175,10 +177,11 @@ xdg-open data/export/reports/index.html     # Linux
 
 > **Note**: Replace `run.bat` with `./run.sh` on Linux/Mac, or use `psm` if using standalone executable.
 
-**Full pipeline** (recommended for first-time and regular use):
+**Complete sync pipeline** (recommended for first-time and regular use):
 ```bash
-run.bat build         # Runs: pull → scan → match → export
+run.bat build         # Runs full pipeline: pull → scan → match → export
 ```
+> The `build` command runs the data sync pipeline, not software compilation.
 
 **Individual steps** (for selective updates):
 ```bash
@@ -300,335 +303,88 @@ Perfect for tweaking report formats or sharing results without re-processing.
 
 #### Interactive HTML Features
 
-All HTML reports include:
+All HTML reports include sortable tables, live search, pagination, clickable Spotify links, and CSV export. Powered by jQuery DataTables.
 
-✅ **Sortable Tables** – Click any column header to sort ascending/descending  
-✅ **Live Search** – Filter thousands of tracks instantly as you type  
-✅ **Pagination** – Navigate large datasets with configurable page sizes (10/25/50/100 entries)  
-✅ **Clickable Spotify Links** – Track IDs, playlist names, album names link directly to Spotify  
-✅ **Navigation Dashboard** – Beautiful `index.html` homepage with quick access to all reports  
-✅ **CSV Export** – Download button on every report for spreadsheet analysis  
-✅ **Responsive Design** – Works on desktop, tablet, and mobile  
-✅ **Dark/Light Friendly** – Clean, professional styling that works in any environment
-
-Powered by jQuery DataTables for enterprise-grade table functionality.
-
-**Reports Location:**  
-Default: `data/export/reports/` (configurable via `PSM__REPORTS__DIRECTORY`)
+**Reports Location:** `data/export/reports/` (configurable via `PSM__REPORTS__DIRECTORY`)
 
 **Open Reports:**
 ```bash
-# Windows
-start data\export\reports\index.html
-
-# Linux/Mac  
-open data/export/reports/index.html
-xdg-open data/export/reports/index.html  # Linux alternative
+start data\export\reports\index.html        # Windows
+open data/export/reports/index.html         # Mac
+xdg-open data/export/reports/index.html     # Linux
 ```
 
-### Single Playlist Operations (Optional)
+See `docs/matching.md` and `docs/library_analysis.md` for detailed report documentation.
+
+### Single Playlist Operations
 
 Work with individual playlists instead of syncing everything:
 
 ```bash
-# List all playlists with IDs
-run.bat playlists list
+run.bat playlists list                      # List all playlists with IDs
+run.bat playlists list --show-urls          # Include Spotify URLs
 
-# List with Spotify URLs (clickable links)
-run.bat playlists list --show-urls
+run.bat playlist pull <PLAYLIST_ID>         # Pull single playlist from Spotify
+run.bat playlist match <PLAYLIST_ID>        # Match against library
+run.bat playlist export <PLAYLIST_ID>       # Export to M3U
+run.bat playlist build <PLAYLIST_ID>        # Pull + match + export
 
-# Pull a single playlist from Spotify
-run.bat playlist pull <PLAYLIST_ID>
-
-# Match a single playlist against your library
-run.bat playlist match <PLAYLIST_ID>
-
-# Export a single playlist to M3U
-run.bat playlist export <PLAYLIST_ID>
-
-# Build a single playlist (pull + match + export)
-run.bat playlist build <PLAYLIST_ID>
-
-# (Experimental) Push local order back to remote (preview then apply)
-run.bat playlist push <PLAYLIST_ID>                # DB mode (uses DB ordering)
-run.bat playlist push <PLAYLIST_ID> --file exported.m3u8   # File mode (derive from M3U)
-run.bat playlist push <PLAYLIST_ID> --apply        # Apply changes (after preview)
+# Experimental: Push local order back to Spotify (preview first, then --apply)
+run.bat playlist push <PLAYLIST_ID>         # Preview changes
+run.bat playlist push <PLAYLIST_ID> --apply # Apply changes
 ```
 
-**Example workflow**:
-```bash
-# 1. List all playlists to find the ID you want
-run.bat playlists list
+**Use cases:** Testing settings, selective updates, debugging specific playlists, faster processing.
 
-# Output example:
-# ID                       Name                 Owner        Tracks
-# -----------------------------------------------------------------------
-# 37i9dQZF1DXcBWIGoYBM5M   Today's Top Hits     Spotify      50
-# 3cEYpjA9oz9GiPac4AsH4n   My Workout Mix       YourName     127
+**M3U features:** Each exported playlist includes Spotify URL in header and collision-safe filenames (`PlaylistName_<8charID>.m3u8`).
 
-# 2. Get URLs to open playlists in Spotify
-run.bat playlists list --show-urls
-
-# Output shows clickable links:
-#   → https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M
-
-# 3. Build just your workout playlist
-run.bat playlist build 3cEYpjA9oz9GiPac4AsH4n
-```
-
-**Spotify URLs in M3U files**:
-All exported M3U files now include the Spotify playlist URL as a comment in the header:
-```m3u
-#EXTM3U
-# Spotify: https://open.spotify.com/playlist/3cEYpjA9oz9GiPac4AsH4n
-#EXTINF:180,Artist - Song Title
-C:\Music\Artist\Song.mp3
-```
-
-**M3U Filename Format**:
-To prevent collisions when multiple playlists have the same name, exported M3U files include a unique identifier:
-- Format: `<PlaylistName>_<First8CharsOfID>.m3u8`
-- Example: `Workout Mix_3cEYpjA9.m3u8`
-- The 8-character suffix is the first 8 characters of the Spotify playlist ID, ensuring each file is unique even if playlist names are identical
-
-**Why use single-playlist commands?**
-- **Faster**: Only process one playlist instead of all
-- **Testing**: Try different settings on one playlist before full build
-- **Selective updates**: Update frequently-changed playlists without re-processing everything
-- **Debugging**: Isolate matching issues to a specific playlist
-- **Easy sharing**: Copy Spotify URLs from list or M3U files to share with others
-
-Additional detail & examples moved to: `docs/library_analysis.md`.
-
-### Providers & Capabilities
-
-List registered providers and key capability flags (e.g., whether push/replace is supported):
-```bash
-psm providers capabilities
-run.bat providers capabilities
-```
-Currently only Spotify is registered; additional providers can be added following `docs/providers.md`.
-
-### Experimental: Reverse Push (Playlist Replace)
-
-You can now push a single playlist's ordering back to Spotify (full replace semantics). Two modes:
-
-1. **DB Mode (no file)** – Omit `--file`; the ordering stored in the database (from last pull) becomes the desired ordering.
-2. **File Mode** – Provide `--file path/to/playlist.m3u8`; the tool parses local file paths, maps them back to Spotify track IDs using existing matches, and constructs the desired list.
-
-Safety & Behavior:
-- Preview only by default – shows positional changes, additions, removals.
-- Use `--apply` to perform the remote replace.
-- Ownership enforced – refuses to modify playlists not owned by the current user.
-- Full replace only – no incremental diff patching (simpler & deterministic).
-- Unresolved file paths (not matched to a track ID) are skipped and counted.
-
-Examples:
-```bash
-# Preview changes using DB ordering
-run.bat playlist push 3cEYpjA9oz9GiPac4AsH4n
-
-# Preview from exported M3U file
-run.bat playlist push 3cEYpjA9oz9GiPac4AsH4n --file data/export/playlists/MyList_xxxxxxxx.m3u8
-
-# Apply changes after reviewing preview output
-run.bat playlist push 3cEYpjA9oz9GiPac4AsH4n --apply
-```
-
-This feature is experimental and currently implemented only for Spotify; provider abstraction keeps the path open for future services.
-
-## Configuration (Summary)
-
-### Using .env File
-
-Create a `.env` file in the project root (or same directory as executable):
-
-```bash
-# .env - Simple key=value format
-PSM__PROVIDERS__SPOTIFY__CLIENT_ID=your_client_id_here
-PSM__LIBRARY__PATHS=["C:/Music","D:/Music"]
-PSM__EXPORT__MODE=mirrored
-PSM__EXPORT__ORGANIZE_BY_OWNER=true
-PSM__MATCHING__FUZZY_THRESHOLD=0.82
-PSM__MATCHING__DURATION_TOLERANCE=2.0
-PSM__MATCHING__SHOW_UNMATCHED_TRACKS=50
-PSM__MATCHING__SHOW_UNMATCHED_ALBUMS=20
-```
-
-> **Tip**: Copy `.env.example` to `.env` and edit your values. The tool automatically loads `.env` on startup.
-
-### Temporary Overrides
-
-Override any setting for a single command without editing `.env`:
-
-**Windows**:
-```bash
-set PSM__EXPORT__MODE=strict
-run.bat export
-```
-
-**Linux/Mac**:
-```bash
-export PSM__EXPORT__MODE=strict
-./run.sh export
-```
-
-**Standalone executable**:
-```bash
-set PSM__EXPORT__MODE=strict    # Windows
-export PSM__EXPORT__MODE=strict # Linux/Mac
-psm export
-```
-
-### Priority Order
-
-Settings are merged in this order (later overrides earlier):
-1. **Built-in defaults** (in `psm/config.py`)
-2. **`.env` file** (if exists)
-3. **Shell environment variables** (`set`/`export` commands)
-
-### Key Options (See docs/configuration.md for full list)
-
-**Provider (Spotify)**:
-- `PSM__PROVIDERS__SPOTIFY__CLIENT_ID` - Your Spotify app client ID (required)
-- `PSM__PROVIDERS__SPOTIFY__REDIRECT_PORT` - OAuth redirect port (default: 9876)
-
-**Library**:
-- `PSM__LIBRARY__PATHS` - Folders to scan (JSON array, e.g., `["C:/Music"]`)
-- `PSM__LIBRARY__EXTENSIONS` - File types (default: `[".mp3",".flac",".m4a",".ogg"]`)
-- `PSM__LIBRARY__FAST_SCAN` - Skip re-parsing unchanged files (default: true)
-- `PSM__LIBRARY__COMMIT_INTERVAL` - Batch size for DB commits (default: 100)
-- `PSM__LIBRARY__MIN_BITRATE_KBPS` - Minimum bitrate for quality analysis (default: 320)
-
-**Matching**:
-- `PSM__MATCHING__FUZZY_THRESHOLD` - Match sensitivity 0.0-1.0 (default: 0.78)
-- `PSM__MATCHING__DURATION_TOLERANCE` - Duration match tolerance in seconds (default: 2.0)
-- `PSM__MATCHING__SHOW_UNMATCHED_TRACKS` - Diagnostic output count (default: 20)
-- `PSM__MATCHING__SHOW_UNMATCHED_ALBUMS` - Album diagnostic count (default: 20)
-- `PSM__MATCHING__USE_YEAR` - Include year in matching (default: false)
-- `PSM__MATCHING__MAX_CANDIDATES_PER_TRACK` - Performance cap for candidates per track (default: 500)
-
-**Export**:
-- `PSM__EXPORT__MODE` - strict | mirrored | placeholders (default: strict)
-- `PSM__EXPORT__ORGANIZE_BY_OWNER` - Group by owner (default: false)
-- `PSM__EXPORT__DIRECTORY` - Output directory (default: data/export/playlists)
-
-**Reports**:
-- `PSM__REPORTS__DIRECTORY` - Report output directory (default: data/export/reports)
-
-**Database**:
-- `PSM__DATABASE__PATH` - SQLite file location (default: data/db/spotify_sync.db)
-
-**Logging**:
-- `PSM__LOG_LEVEL` - Control output verbosity: `DEBUG` (detailed diagnostics), `INFO` (normal progress, default), `WARNING` (quiet, errors only)
-
-See `.env.example` for complete list with explanations.
-
-### Export Modes
-
-- **strict** (default): Only matched tracks
-- **mirrored**: Full order with comments for missing tracks  
-- **placeholders**: Like mirrored but creates placeholder files
-
-### Folder Organization
-
-Organize playlists by owner instead of flat structure. Set in `.env`:
-
-```bash
-PSM__EXPORT__ORGANIZE_BY_OWNER=true
-```
-
-Result:
-```
-data/export/playlists/
-├── randomdj/           # Your playlists (uses your Spotify username)
-├── Radio_FM4/          # Followed playlists from Radio FM4
-├── radioeins/          # Followed playlists from radioeins
-└── other/              # Unknown owner
-```
-
-**Note**: Spotify's API doesn't expose playlist folders (UI-only), so we organize by owner instead.
-
-## Advanced Usage
-
-### Re-authenticate
-
-Force fresh login (ignores cached tokens):
-```bash
-run.bat login --force
-```
-
-### Debug Mode
-
-Enable detailed logging for diagnostics:
-```bash
-PSM__LOG_LEVEL=DEBUG run.bat match
-```
-
-Shows: OAuth flow, match scores, normalization, file scanning progress, and more.
-
-### Optional HTTPS Redirect
-
-By default, Spotify redirect uses HTTP (`http://127.0.0.1:9876/callback`). For HTTPS:
-
-1. Register `https://localhost:9876/callback` in Spotify Dashboard
-2. Add to `.env`:
-   ```bash
-   PSM__PROVIDERS__SPOTIFY__REDIRECT_SCHEME=https
-   PSM__PROVIDERS__SPOTIFY__REDIRECT_HOST=localhost
-   ```
-3. Tool auto-generates self-signed cert if `cryptography` or `openssl` available
+See `docs/` for complete playlist command documentation.
 
 ## Configuration
 
-### Diagnostics
+All configuration via `.env` file or environment variables using the pattern `PSM__SECTION__KEY`.
 
-When running `run.bat match`, the tool shows:
-- Top 20 unmatched tracks (configurable via `matching.show_unmatched_tracks`)
-- Top 20 unmatched albums (configurable via `matching.show_unmatched_albums`)
-
-**Detailed Logging**:
-Enable persistent detailed logging in `.env`:
+**Minimal `.env` example:**
 ```bash
-PSM__LOG_LEVEL=DEBUG
-```
-Detailed logging provides diagnostic output for OAuth flow, ingestion, scanning, matching (with match scores), and export summaries. Use `INFO` (default) for normal operations or `WARNING` for quiet mode (errors only).
-
-### Authentication
-
-**Login without build**:
-```bash
-run.bat login         # Windows
-./run.sh login        # Linux/Mac
-psm login             # Standalone
-```
-Force fresh OAuth (ignore token cache):
-```bash
-run.bat login --force
-./run.sh login --force
-psm login --force
+PSM__PROVIDERS__SPOTIFY__CLIENT_ID=your_client_id_here
+PSM__LIBRARY__PATHS=["C:/Music"]
+PSM__EXPORT__MODE=mirrored
+PSM__EXPORT__ORGANIZE_BY_OWNER=true
 ```
 
-Token cache: `tokens.json` (auto-refreshed).
+**Common settings:**
+- `PSM__MATCHING__FUZZY_THRESHOLD` - Match sensitivity 0.0-1.0 (default: 0.78)
+- `PSM__MATCHING__DURATION_TOLERANCE` - Seconds (default: 2.0)
+- `PSM__LIBRARY__FAST_SCAN` - Skip unchanged files (default: true)
+- `PSM__LOG_LEVEL` - DEBUG|INFO|WARNING (default: INFO)
 
-### Troubleshooting
+**Temporary override** (without editing `.env`):
+```bash
+set PSM__EXPORT__MODE=strict && run.bat export     # Windows
+PSM__EXPORT__MODE=strict ./run.sh export           # Linux/Mac
+```
 
-**INVALID_CLIENT: Insecure redirect URI**
-- Check your registered redirect URI exactly matches the tool's configuration:
-  ```
-  run.bat redirect-uri
-  ```
-- Default: `http://127.0.0.1:9876/callback`
-- Don't mix `localhost` and `127.0.0.1` unless intentional
+See `docs/configuration.md` for complete list of all options and `.env.example` for examples.
 
-**Optional HTTPS Mode** (not required):
-1. Register `https://localhost:9876/callback` in Spotify dashboard
-2. Add to `.env`:
-   ```bash
-   PSM__PROVIDERS__SPOTIFY__REDIRECT_SCHEME=https
-   PSM__PROVIDERS__SPOTIFY__REDIRECT_HOST=localhost
-   ```
-3. Auto-generates self-signed cert if `cryptography` or `openssl` available
+## Advanced Usage
+
+### Debug Mode
+```bash
+PSM__LOG_LEVEL=DEBUG run.bat match    # Detailed diagnostics
+```
+
+### Re-authenticate
+```bash
+run.bat login --force                  # Force fresh Spotify login
+```
+
+### Optional HTTPS Redirect
+```bash
+# In .env file:
+PSM__PROVIDERS__SPOTIFY__REDIRECT_SCHEME=https
+PSM__PROVIDERS__SPOTIFY__REDIRECT_HOST=localhost
+```
+Register `https://localhost:9876/callback` in Spotify Dashboard. Tool auto-generates cert if available.
 
 ## Technical Details
 

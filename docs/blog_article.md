@@ -40,10 +40,11 @@ psm match      # Match streaming tracks to local files (auto-generates reports)
 psm export     # Generate M3U playlists
 psm analyze    # Analyze library quality (auto-generates quality reports)
 ```
-Or run the complete pipeline in one command:
+Or run the complete data sync pipeline in one command:
 ```bash
-psm build      # Executes: pull → scan → match → export
+psm build      # Runs full pipeline: pull → scan → match → export
 ```
+> Note: `build` runs the data sync pipeline, not software compilation.
 
 **Explore Results:**
 ```bash
