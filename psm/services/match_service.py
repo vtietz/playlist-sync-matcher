@@ -12,7 +12,7 @@ from typing import Dict, Any, List
 import click
 
 from ..match.scoring import ScoringConfig, evaluate_pair, MatchConfidence
-from ..db import Database
+from ..db import Database, DatabaseInterface
 from ..utils.logging_helpers import log_progress
 
 logger = logging.getLogger(__name__)
@@ -33,7 +33,7 @@ class MatchResult:
 
 
 def run_matching(
-    db: Database,
+    db: DatabaseInterface,
     config: Dict[str, Any],
     verbose: bool = False,
     top_unmatched_tracks: int = 20,

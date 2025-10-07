@@ -7,7 +7,6 @@ from .interface import DatabaseInterface
 
 logger = logging.getLogger(__name__)
 
-
 SCHEMA = [
     "PRAGMA journal_mode=WAL;",
     # Clean provider‑namespaced schema (v1). Playlists & playlist_tracks include provider in PK for cross-provider coexistence.
@@ -23,49 +22,28 @@ SCHEMA = [
     "CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);",
 ]
 
-
 class Database(DatabaseInterface):
     def __init__(self, path: Path):
-        """Initialize database connection.
-        
-        SQLite's WAL mode (enabled in schema) provides safe concurrent access.
-        The timeout parameter handles brief lock conflicts automatically.
-        """
         self.path = path
-        
         if not path.parent.exists():
             path.parent.mkdir(parents=True, exist_ok=True)
-            
-        # SQLite WAL mode + timeout handles concurrency and prevents corruption
         self.conn = sqlite3.connect(path, timeout=30)
         self.conn.row_factory = sqlite3.Row
         self._closed = False
         self._init_schema()
 
-    # Context manager support ensures connections are always closed even if an exception bubbles up.
-    def __enter__(self) -> "Database":  # pragma: no cover - trivial
+    def __enter__(self) -> "Database":  # pragma: no cover
         return self
 
-    def __exit__(self, exc_type, exc, tb):  # pragma: no cover - trivial
+    def __exit__(self, exc_type, exc, tb):  # pragma: no cover
         self.close()
 
     def _init_schema(self) -> None:
-        """Initialize (or upgrade) schema.
-
-        Since the project is early and no persistent production data is assumed,
-        we keep logic simple: if we detect an old (pre-namespaced) playlists
-        table lacking a composite primary key, we rebuild the schema cleanly.
-        """
-        # Detect legacy structure (playlists primary key only on id)
         legacy = False
         try:
             cur = self.conn.execute("PRAGMA table_info(playlists)")
             cols = [r[1] for r in cur.fetchall()]
             if cols and 'provider' in cols:
-                # Check index/PK composition
-                pkinfo = self.conn.execute("PRAGMA index_list(playlists)").fetchall()
-                # Simplistic legacy detection: absence of provider in primary key constraints
-                # (SQLite represents PK via table_info pk column ordering)
                 cur2 = self.conn.execute("PRAGMA table_info(playlists)")
                 pk_cols = [r[1] for r in cur2.fetchall() if r[5] == 1 or r[5] == 2]
                 if 'provider' not in pk_cols:
@@ -82,16 +60,11 @@ class Database(DatabaseInterface):
         cur = self.conn.cursor()
         for stmt in SCHEMA:
             cur.execute(stmt)
-        
-        # Ensure new columns exist in existing databases (v1.1 enhancement)
         self._ensure_column('tracks', 'artist_id', 'TEXT')
         self._ensure_column('tracks', 'album_id', 'TEXT')
-        
-        # Record schema version
         cur.execute("INSERT OR REPLACE INTO meta(key,value) VALUES('schema_version','1')")
         self.conn.commit()
 
-    # Legacy helper retained for potential future minor additive migrations
     def _ensure_column(self, table: str, column: str, col_type: str):  # pragma: no cover
         cur = self.conn.execute(f"PRAGMA table_info({table})")
         cols = [r[1] for r in cur.fetchall()]
@@ -114,7 +87,6 @@ class Database(DatabaseInterface):
         return row[0] != snapshot_id
 
     def replace_playlist_tracks(self, pid: str, tracks: Sequence[Tuple[int, str, str | None]], provider: str = 'spotify'):
-        # tracks: (position, track_id, added_at)
         self.conn.execute("DELETE FROM playlist_tracks WHERE playlist_id=? AND provider=?", (pid, provider))
         self.conn.executemany(
             "INSERT INTO playlist_tracks(playlist_id, provider, position, track_id, added_at) VALUES(?,?,?,?,?)",
@@ -126,17 +98,9 @@ class Database(DatabaseInterface):
         self.conn.execute(
             "INSERT INTO tracks(id,provider,name,album,artist,album_id,artist_id,isrc,duration_ms,normalized,year) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id,provider) DO UPDATE SET name=excluded.name, album=excluded.album, artist=excluded.artist, album_id=excluded.album_id, artist_id=excluded.artist_id, isrc=excluded.isrc, duration_ms=excluded.duration_ms, normalized=excluded.normalized, year=excluded.year",
             (
-                track.get("id"),
-                provider,
-                track.get("name"),
-                track.get("album"),
-                track.get("artist"),
-                track.get("album_id"),
-                track.get("artist_id"),
-                track.get("isrc"),
-                track.get("duration_ms"),
-                track.get("normalized"),
-                track.get("year"),
+                track.get("id"), provider, track.get("name"), track.get("album"), track.get("artist"),
+                track.get("album_id"), track.get("artist_id"), track.get("isrc"), track.get("duration_ms"),
+                track.get("normalized"), track.get("year"),
             ),
         )
 
@@ -153,17 +117,9 @@ class Database(DatabaseInterface):
         self.conn.execute(
             "INSERT INTO library_files(path,size,mtime,partial_hash,title,album,artist,duration,normalized,year,bitrate_kbps) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(path) DO UPDATE SET size=excluded.size, mtime=excluded.mtime, partial_hash=excluded.partial_hash, title=excluded.title, album=excluded.album, artist=excluded.artist, duration=excluded.duration, normalized=excluded.normalized, year=excluded.year, bitrate_kbps=excluded.bitrate_kbps",
             (
-                data["path"],
-                data.get("size"),
-                data.get("mtime"),
-                data.get("partial_hash"),
-                data.get("title"),
-                data.get("album"),
-                data.get("artist"),
-                data.get("duration"),
-                data.get("normalized"),
-                data.get("year"),
-                data.get("bitrate_kbps"),
+                data["path"], data.get("size"), data.get("mtime"), data.get("partial_hash"), data.get("title"),
+                data.get("album"), data.get("artist"), data.get("duration"), data.get("normalized"),
+                data.get("year"), data.get("bitrate_kbps"),
             ),
         )
 
@@ -191,51 +147,43 @@ class Database(DatabaseInterface):
         row = cur.fetchone()
         return row[0] if row else None
 
-    # Summary count methods for reporting
     def count_playlists(self, provider: str | None = 'spotify') -> int:
-        """Return the total number of playlists (filtered by provider if given)."""
         if provider:
             cursor = self.conn.execute("SELECT COUNT(*) FROM playlists WHERE provider=?", (provider,))
         else:
             cursor = self.conn.execute("SELECT COUNT(*) FROM playlists")
         return cursor.fetchone()[0]
-    
+
     def count_unique_playlist_tracks(self, provider: str | None = 'spotify') -> int:
-        """Return the count of distinct track_ids in playlist_tracks (by provider)."""
         if provider:
             cursor = self.conn.execute("SELECT COUNT(DISTINCT track_id) FROM playlist_tracks WHERE provider=?", (provider,))
         else:
             cursor = self.conn.execute("SELECT COUNT(DISTINCT track_id) FROM playlist_tracks")
         return cursor.fetchone()[0]
-    
+
     def count_liked_tracks(self, provider: str | None = 'spotify') -> int:
-        """Return the total number of liked tracks (by provider)."""
         if provider:
             cursor = self.conn.execute("SELECT COUNT(*) FROM liked_tracks WHERE provider=?", (provider,))
         else:
             cursor = self.conn.execute("SELECT COUNT(*) FROM liked_tracks")
         return cursor.fetchone()[0]
-    
+
     def count_tracks(self, provider: str | None = 'spotify') -> int:
-        """Return the total number of tracks (by provider)."""
         if provider:
             cursor = self.conn.execute("SELECT COUNT(*) FROM tracks WHERE provider=?", (provider,))
         else:
             cursor = self.conn.execute("SELECT COUNT(*) FROM tracks")
         return cursor.fetchone()[0]
-    
+
     def count_library_files(self) -> int:
-        """Return the total number of library files."""
         cursor = self.conn.execute("SELECT COUNT(*) FROM library_files")
         return cursor.fetchone()[0]
-    
+
     def count_matches(self) -> int:
-        """Return the total number of matches."""
         cursor = self.conn.execute("SELECT COUNT(*) FROM matches")
         return cursor.fetchone()[0]
-    
+
     def get_all_playlists(self, provider: str | None = 'spotify') -> list[sqlite3.Row]:
-        """Return playlists with metadata and track counts (filtered by provider)."""
         if provider:
             sql = """
             SELECT p.id, p.provider, p.name, p.owner_id, p.owner_name, p.snapshot_id,
@@ -257,28 +205,23 @@ class Database(DatabaseInterface):
             ORDER BY p.name
             """
             return self.conn.execute(sql).fetchall()
-    
+
     def get_playlist_by_id(self, playlist_id: str, provider: str = 'spotify') -> Optional[sqlite3.Row]:
         sql = "SELECT id, provider, name, owner_id, owner_name, snapshot_id FROM playlists WHERE id=? AND provider=?"
         cur = self.conn.execute(sql, (playlist_id, provider))
         return cur.fetchone()
-    
+
     def count_playlist_tracks(self, playlist_id: str, provider: str = 'spotify') -> int:
         cursor = self.conn.execute("SELECT COUNT(*) FROM playlist_tracks WHERE playlist_id=? AND provider=?", (playlist_id, provider))
         return cursor.fetchone()[0]
 
     def close(self):
-        """Close database connection.
-        
-        SQLite automatically releases all locks when connection closes.
-        """
-        # Make close idempotent to avoid hangs when called multiple times
         if not self._closed:
             try:
                 self.conn.commit()
                 self.conn.close()
             except Exception:
-                pass  # Already closed or in invalid state
+                pass
             finally:
                 self._closed = True
 
