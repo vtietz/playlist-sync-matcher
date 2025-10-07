@@ -8,11 +8,29 @@ from ..db import Database
 from ..providers import get_provider_instance
 
 
+def get_provider_config(cfg: dict, provider_name: str | None = None) -> dict:
+    """Get provider configuration from config dict.
+    
+    Args:
+        cfg: Full configuration dict
+        provider_name: Provider name (defaults to cfg['provider'])
+        
+    Returns:
+        Provider configuration dict
+    """
+    if provider_name is None:
+        provider_name = cfg.get('provider', 'spotify')
+    
+    providers = cfg.get('providers', {})
+    return providers.get(provider_name, {})
+
+
 def _redact_spotify_config(cfg: dict) -> dict:
     result = copy.deepcopy(cfg)
-    if 'spotify' in result and isinstance(result['spotify'], dict):
-        if result['spotify'].get('client_id'):
-            result['spotify']['client_id'] = '*** redacted ***'
+    providers = result.get('providers', {})
+    if 'spotify' in providers and isinstance(providers['spotify'], dict):
+        if providers['spotify'].get('client_id'):
+            providers['spotify']['client_id'] = '*** redacted ***'
     return result
 
 
@@ -73,22 +91,22 @@ def build_auth(cfg):
     """Build authentication provider from config.
     
     Args:
-        cfg: Full configuration dict with 'spotify' key
+        cfg: Full configuration dict with providers configuration
         
     Returns:
         AuthProvider instance
     """
-    sp = cfg['spotify']
+    provider_config = get_provider_config(cfg)
     provider = get_provider_instance('spotify')
-    provider.validate_config(sp)
-    return provider.create_auth(sp)
+    provider.validate_config(provider_config)
+    return provider.create_auth(provider_config)
 
 
 def get_token(cfg):
     """Get access token using authentication provider.
     
     Args:
-        cfg: Full configuration dict with 'spotify' key
+        cfg: Full configuration dict with providers configuration
         
     Returns:
         Access token string
@@ -97,4 +115,4 @@ def get_token(cfg):
     tok = auth.get_token()
     return tok['access_token']
 
-__all__ = ["cli", "get_db", "get_token", "build_auth", "_redact_spotify_config"]
+__all__ = ["cli", "get_db", "get_token", "build_auth", "get_provider_config", "_redact_spotify_config"]

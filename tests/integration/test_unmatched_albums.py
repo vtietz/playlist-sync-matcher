@@ -14,8 +14,8 @@ def test_unmatched_albums_display(tmp_path: Path):
     db = Database(db_path)
 
     # Create playlists
-    db.upsert_playlist('pl1', 'Playlist 1', 'snap1')
-    db.upsert_playlist('pl2', 'Playlist 2', 'snap2')
+    db.upsert_playlist('pl1', 'Playlist 1', 'snap1', provider='spotify')
+    db.upsert_playlist('pl2', 'Playlist 2', 'snap2', provider='spotify')
 
     # Beatles album (3 tracks)
     for i, title in enumerate(['Come Together', 'Something', 'Here Comes The Sun'], 1):
@@ -24,8 +24,8 @@ def test_unmatched_albums_display(tmp_path: Path):
             'album': 'Abbey Road', 'duration_ms': 180000,
             'normalized': f'{title.lower()} beatles',
             'isrc': None, 'year': 1969
-        })
-    db.replace_playlist_tracks('pl2', [(i, f'beatles_{i}', None) for i in range(1, 4)])
+        }, provider='spotify')
+    db.replace_playlist_tracks('pl2', [(i, f'beatles_{i}', None) for i in range(1, 4)], provider='spotify')
 
     # Pink Floyd album (2 tracks)
     for i, title in enumerate(['Another Brick', 'Comfortably Numb'], 1):
@@ -34,10 +34,10 @@ def test_unmatched_albums_display(tmp_path: Path):
             'album': 'The Wall', 'duration_ms': 200000,
             'normalized': f'{title.lower()} floyd',
             'isrc': None, 'year': 1979
-        })
+        }, provider='spotify')
 
     pl1_tracks = [(i, f'beatles_{i}', None) for i in range(1, 4)] + [(i+3, f'floyd_{i}', None) for i in range(1, 3)]
-    db.replace_playlist_tracks('pl1', pl1_tracks)
+    db.replace_playlist_tracks('pl1', pl1_tracks, provider='spotify')
 
     # Obscure album (1 track, not in any playlist)
     db.upsert_track({
@@ -45,7 +45,7 @@ def test_unmatched_albums_display(tmp_path: Path):
         'album': 'Unknown Album', 'duration_ms': 150000,
         'normalized': 'random song obscure',
         'isrc': None, 'year': 2020
-    })
+    }, provider='spotify')
     db.commit()
 
     result = run_matching(db, config={})

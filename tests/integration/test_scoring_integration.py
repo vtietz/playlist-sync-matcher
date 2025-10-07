@@ -15,7 +15,7 @@ def test_scoring_integration_basic(tmp_path: Path):
         'duration_ms': 200000,
         'normalized': 'exact song great artist'
     }
-    db.upsert_track(track)
+    db.upsert_track(track, provider='spotify')
     db.add_library_file({
         'path': 'great.mp3',
         'size': 1111,

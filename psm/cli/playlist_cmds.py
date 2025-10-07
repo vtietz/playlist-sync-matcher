@@ -2,7 +2,7 @@ from __future__ import annotations
 import click
 import logging
 from pathlib import Path
-from .helpers import get_db, cli, get_token
+from .helpers import get_db, cli, get_token, get_provider_config
 from ..services.playlist_service import (
     pull_single_playlist,
     match_single_playlist,
@@ -29,10 +29,11 @@ def playlist_group(ctx: click.Context):  # pragma: no cover - simple container
 def playlist_pull(ctx: click.Context, playlist_id: str, force_auth: bool):
     """Pull and ingest a single playlist by ID."""
     cfg = ctx.obj
-    if not cfg['spotify']['client_id']:
-        raise click.UsageError('spotify.client_id not configured')
+    provider_cfg = get_provider_config(cfg)
+    if not provider_cfg.get('client_id'):
+        raise click.UsageError('providers.spotify.client_id not configured')
     with get_db(cfg) as db:
-        result = pull_single_playlist(db=db, playlist_id=playlist_id, spotify_config=cfg['spotify'], matching_config=cfg['matching'], force_auth=force_auth)
+        result = pull_single_playlist(db=db, playlist_id=playlist_id, spotify_config=provider_cfg, matching_config=cfg['matching'], force_auth=force_auth)
         click.echo(f"Pulled playlist '{result.playlist_name}' ({result.playlist_id})")
         click.echo(f"Tracks: {result.tracks_processed}")
         logger.debug(f"Duration: {result.duration_seconds:.2f}s")
@@ -73,11 +74,12 @@ def playlist_export(ctx: click.Context, playlist_id: str):
 def playlist_build(ctx: click.Context, playlist_id: str, force_auth: bool):
     """Pull, match, and export a single playlist (complete pipeline)."""
     cfg = ctx.obj
-    if not cfg['spotify']['client_id']:
-        raise click.UsageError('spotify.client_id not configured')
+    provider_cfg = get_provider_config(cfg)
+    if not provider_cfg.get('client_id'):
+        raise click.UsageError('providers.spotify.client_id not configured')
     test_mode = cfg.get('test', {}).get('mode', False)
     with get_db(cfg) as db:
-        result = build_single_playlist(db=db, playlist_id=playlist_id, spotify_config=cfg['spotify'], config=cfg, force_auth=force_auth, test_mode=test_mode)
+        result = build_single_playlist(db=db, playlist_id=playlist_id, spotify_config=provider_cfg, config=cfg, force_auth=force_auth, test_mode=test_mode)
     click.echo(f"Built playlist '{result.playlist_name}' ({result.playlist_id})")
     click.echo(f"Tracks processed: {result.tracks_processed}")
     click.echo(f"Tracks matched: {result.tracks_matched}")
@@ -103,9 +105,10 @@ def playlist_push(ctx: click.Context, playlist_id: str, file_path: Path | None, 
     if not caps or not getattr(caps, 'replace_playlist', False):
         raise click.UsageError(f"Provider '{provider}' does not support push (replace_playlist capability missing)")
 
+    provider_cfg = get_provider_config(cfg, provider)
     if provider == 'spotify':
-        if not cfg['spotify']['client_id']:
-            raise click.UsageError('spotify.client_id not configured')
+        if not provider_cfg.get('client_id'):
+            raise click.UsageError('providers.spotify.client_id not configured')
         token = get_token(cfg)
         try:
             client = provider_cls(token)  # type: ignore[call-arg]

@@ -12,7 +12,7 @@ def test_cli_match_twice_no_lock(tmp_path: Path, monkeypatch):
     db.upsert_track({
         'id': 't1', 'name': 'Song', 'artist': 'Artist', 'album': 'Album',
         'duration_ms': 100000, 'normalized': 'song artist', 'isrc': None, 'year': None
-    })
+    }, provider='spotify')
     db.add_library_file({
         'path': 'song.mp3', 'size': 100, 'mtime': 0.0, 'partial_hash': 'h',
         'title': 'Song', 'artist': 'Artist', 'album': 'Album', 'duration': 100.0,

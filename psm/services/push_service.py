@@ -97,7 +97,7 @@ def _remote_playlist_items(client, playlist_id: str) -> List[str]:  # pragma: no
 
 def _fetch_playlist_meta(client, db: DatabaseInterface, playlist_id: str) -> Dict[str, Any]:
     # Prefer DB metadata, fallback to API
-    row = db.get_playlist_by_id(playlist_id)
+    row = db.get_playlist_by_id(playlist_id, provider='spotify')
     meta: Dict[str, Any] = {}
     if row:
         meta = {k: row[k] for k in row.keys()}

@@ -4,7 +4,7 @@ import logging
 from pathlib import Path
 import json as _json
 import time
-from .helpers import cli, get_db, _redact_spotify_config, build_auth
+from .helpers import cli, get_db, _redact_spotify_config, build_auth, get_provider_config
 from ..reporting.generator import write_missing_tracks, write_album_completeness, write_analysis_quality_reports, write_match_reports, write_index_page
 from ..services.pull_service import pull_data
 from ..ingest.library import scan_library
@@ -155,12 +155,13 @@ def redirect_uri(ctx: click.Context):
     auth = build_auth(cfg)
     uri = auth.build_redirect_uri()
     click.echo(uri)
+    provider_cfg = get_provider_config(cfg)
     click.echo("\nValidation checklist:")
     for line in [
         f"1. Spotify Dashboard has EXACT entry: {uri}",
-        f"2. Scheme matches (expected {cfg['spotify'].get('redirect_scheme')})",
-        f"3. Port matches (expected {cfg['spotify'].get('redirect_port')})",
-        f"4. Path matches (expected {cfg['spotify'].get('redirect_path')})",
+        f"2. Scheme matches (expected {provider_cfg.get('redirect_scheme')})",
+        f"3. Port matches (expected {provider_cfg.get('redirect_port')})",
+        f"4. Path matches (expected {provider_cfg.get('redirect_path')})",
         "5. No trailing slash difference (unless you registered with one)",
         "6. Browser not caching old redirect (try private window)",
         "7. Client ID corresponds to the app whose dashboard you edited",
@@ -173,7 +174,8 @@ def redirect_uri(ctx: click.Context):
 def token_info(ctx: click.Context):
     """Show OAuth token cache status and expiration info."""
     cfg = ctx.obj
-    path = Path(cfg['spotify']['cache_file']).resolve()
+    provider_cfg = get_provider_config(cfg)
+    path = Path(provider_cfg['cache_file']).resolve()
     if not path.exists():
         click.echo(f"Token cache not found: {path}")
         return
@@ -198,12 +200,14 @@ def pull(ctx: click.Context, force_auth: bool, force_refresh: bool):
     """Pull playlists and liked tracks from streaming provider."""
     cfg = ctx.obj
     provider = cfg.get('provider', 'spotify')
+    provider_cfg = get_provider_config(cfg, provider)
+    
     if provider == 'spotify':
-        if not cfg['spotify']['client_id']:
-            raise click.UsageError('spotify.client_id not configured')
-        provider_cfg = cfg['spotify']
+        if not provider_cfg.get('client_id'):
+            raise click.UsageError('providers.spotify.client_id not configured')
     else:
         raise click.UsageError(f"Provider '{provider}' not supported yet")
+    
     with get_db(cfg) as db:
         result = pull_data(db=db, provider=provider, provider_config=provider_cfg, matching_config=cfg['matching'], force_auth=force_auth, force_refresh=force_refresh)
     click.echo(f"\n[summary] Provider={provider} | Playlists: {result.playlist_count} | Unique playlist tracks: {result.unique_playlist_tracks} | Liked tracks: {result.liked_tracks} | Total tracks: {result.total_tracks}")
@@ -217,8 +221,9 @@ def pull(ctx: click.Context, force_auth: bool, force_refresh: bool):
 def login(ctx: click.Context, force: bool):
     """Authenticate with streaming provider (Spotify OAuth)."""
     cfg = ctx.obj
-    if not cfg['spotify']['client_id']:
-        raise click.UsageError('spotify.client_id not configured')
+    provider_cfg = get_provider_config(cfg)
+    if not provider_cfg.get('client_id'):
+        raise click.UsageError('providers.spotify.client_id not configured')
     auth = build_auth(cfg)
     tok = auth.get_token(force=force)
     exp = tok.get('expires_at') if isinstance(tok, dict) else None

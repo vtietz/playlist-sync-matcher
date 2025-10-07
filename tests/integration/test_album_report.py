@@ -12,7 +12,7 @@ def _insert_track(db: Database, tid: str, artist: str, album: str, name: str):
         'isrc': None,
         'duration_ms': 1000,
         'normalized': f'{name.lower()} {artist.lower()}'
-    })
+    }, provider='spotify')
 
 
 def test_album_completeness(tmp_path: Path):
@@ -47,9 +47,9 @@ def test_album_completeness(tmp_path: Path):
     # retrieve file ids
     file_rows = db.conn.execute('SELECT id, path FROM library_files').fetchall()
     file_map = {r['path']: r['id'] for r in file_rows}
-    db.add_match('a1', file_map['a1.mp3'], 1.0, 'exact')
-    db.add_match('a2', file_map['a2.mp3'], 1.0, 'exact')
-    db.add_match('b1', file_map['b1.mp3'], 1.0, 'exact')
+    db.add_match('a1', file_map['a1.mp3'], 1.0, 'exact', provider='spotify')
+    db.add_match('a2', file_map['a2.mp3'], 1.0, 'exact', provider='spotify')
+    db.add_match('b1', file_map['b1.mp3'], 1.0, 'exact', provider='spotify')
     db.commit()
     rows = list(compute_album_completeness(db))
     status_map = {(r['artist'], r['album']): r for r in rows}

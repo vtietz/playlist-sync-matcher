@@ -1,9 +1,68 @@
 # Provider Abstraction Refactoring Plan
 
-**Status:** ✅ **COMPLETE** (All 9 phases)  
+**Status:** ✅ **COMPLETE** (All 9 phases + Backward Compatibility Removal)  
 **Date:** October 7, 2025  
 **Completed:** October 7, 2025  
+**Backward Compat Removed:** January 2025  
 **Goal:** Extract all Spotify-specific logic into `psm/providers/spotify/` with clean interfaces for future provider support.
+
+## Recent Update: Backward Compatibility Removal (January 2025)
+
+**✅ All backward compatibility has been removed for a production-ready, clean codebase:**
+
+### Removed Components
+1. **Deleted Shim Files:**
+   - `psm/auth/spotify_oauth.py` - Re-export shim removed
+   - `psm/ingest/spotify.py` - Re-export shim removed
+
+2. **Simplified Configuration:**
+   - Removed duplicate top-level `spotify` config section
+   - Now **only** `providers.spotify` config structure exists
+   - Removed `AppConfig.spotify` field from config types
+   - Updated all CLI commands to use `get_provider_config(cfg)` helper
+
+3. **Database Layer Enforcement:**
+   - All provider-aware DB methods now **require** explicit `provider` parameter
+   - Changed from `provider = provider or 'spotify'` to `raise ValueError("provider parameter is required")`
+   - Methods affected: `upsert_track`, `upsert_playlist`, `upsert_liked`, `replace_playlist_tracks`, `add_match`, `get_playlist_by_id`, `count_playlist_tracks`
+   - Only `get_all_playlists()` retains fallback for convenience
+
+4. **Updated Services:**
+   - All service calls now explicitly pass `provider='spotify'`
+   - No implicit provider assumptions anywhere in codebase
+
+5. **Test Suite Updates:**
+   - Fixed 10 integration test files to add `provider='spotify'` to ~54 database method calls
+   - All 119 tests passing with zero warnings
+
+### Migration Notes for External Users
+If you were using the old configuration structure:
+
+**OLD (no longer supported):**
+```python
+cfg['spotify']['client_id']
+```
+
+**NEW (required):**
+```python
+cfg['providers']['spotify']['client_id']
+# Or use the helper:
+provider_cfg = get_provider_config(cfg, 'spotify')
+provider_cfg['client_id']
+```
+
+All database method calls must now include the provider parameter:
+```python
+# OLD (will raise ValueError):
+db.upsert_track(track_data)
+
+# NEW (required):
+db.upsert_track(track_data, provider='spotify')
+```
+
+This ensures clean, explicit code with no hidden assumptions about which streaming service is being used.
+
+---
 
 ## Executive Summary
 

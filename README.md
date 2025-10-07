@@ -67,7 +67,7 @@ chmod +x run.sh
 2. **Create a `.env` file** for permanent configuration:
    ```bash
    # .env
-   PSM__SPOTIFY__CLIENT_ID=your_client_id_here
+   PSM__PROVIDERS__SPOTIFY__CLIENT_ID=your_client_id_here
    PSM__LIBRARY__PATHS=["C:/Music"]
    PSM__EXPORT__MODE=mirrored
    PSM__EXPORT__ORGANIZE_BY_OWNER=true
@@ -314,7 +314,7 @@ Create a `.env` file in the project root (or same directory as executable):
 
 ```bash
 # .env - Simple key=value format
-PSM__SPOTIFY__CLIENT_ID=your_client_id_here
+PSM__PROVIDERS__SPOTIFY__CLIENT_ID=your_client_id_here
 PSM__LIBRARY__PATHS=["C:/Music","D:/Music"]
 PSM__EXPORT__MODE=mirrored
 PSM__EXPORT__ORGANIZE_BY_OWNER=true
@@ -358,9 +358,9 @@ Settings are merged in this order (later overrides earlier):
 
 ### Key Options (See docs/configuration.md for full list)
 
-**Spotify**:
-- `PSM__SPOTIFY__CLIENT_ID` - Your Spotify app client ID (required)
-- `PSM__SPOTIFY__REDIRECT_PORT` - OAuth redirect port (default: 9876)
+**Provider (Spotify)**:
+- `PSM__PROVIDERS__SPOTIFY__CLIENT_ID` - Your Spotify app client ID (required)
+- `PSM__PROVIDERS__SPOTIFY__REDIRECT_PORT` - OAuth redirect port (default: 9876)
 
 **Library**:
 - `PSM__LIBRARY__PATHS` - Folders to scan (JSON array, e.g., `["C:/Music"]`)
@@ -425,7 +425,7 @@ This tool uses **HTTP loopback** (recommended by Spotify) with default redirect:
 4. Copy the Client ID
 5. Add it to your `.env` file:
    ```bash
-   PSM__SPOTIFY__CLIENT_ID=your_client_id_here
+   PSM__PROVIDERS__SPOTIFY__CLIENT_ID=your_client_id_here
    ```
    Or set temporarily (Windows: `set`, Linux/Mac: `export`)
 6. Authenticate:
@@ -485,8 +485,8 @@ Token cache: `tokens.json` (auto-refreshed).
 1. Register `https://localhost:9876/callback` in Spotify dashboard
 2. Add to `.env`:
    ```bash
-   PSM__SPOTIFY__REDIRECT_SCHEME=https
-   PSM__SPOTIFY__REDIRECT_HOST=localhost
+   PSM__PROVIDERS__SPOTIFY__REDIRECT_SCHEME=https
+   PSM__PROVIDERS__SPOTIFY__REDIRECT_HOST=localhost
    ```
 3. Auto-generates self-signed cert if `cryptography` or `openssl` available
 

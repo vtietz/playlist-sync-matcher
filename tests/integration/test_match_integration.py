@@ -16,7 +16,7 @@ def test_match_and_store_basic(tmp_path: Path):
         'duration_ms': 123000,
         'normalized': 'song title artist'
     }
-    db.upsert_track(track)
+    db.upsert_track(track, provider='spotify')
     db.add_library_file({
         'path': 'dummy.mp3',
         'size': 1000,

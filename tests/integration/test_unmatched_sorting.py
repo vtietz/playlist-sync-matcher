@@ -19,9 +19,9 @@ def test_unmatched_sorted_by_popularity(tmp_path: Path):
     db = Database(db_path)
 
     # Create 3 playlists
-    db.upsert_playlist('pl1', 'Playlist 1', 'snap1')
-    db.upsert_playlist('pl2', 'Playlist 2', 'snap2')
-    db.upsert_playlist('pl3', 'Playlist 3', 'snap3')
+    db.upsert_playlist('pl1', 'Playlist 1', 'snap1', provider='spotify')
+    db.upsert_playlist('pl2', 'Playlist 2', 'snap2', provider='spotify')
+    db.upsert_playlist('pl3', 'Playlist 3', 'snap3', provider='spotify')
 
     # Insert tracks only (no library files so they stay unmatched)
     tracks = [
@@ -40,14 +40,14 @@ def test_unmatched_sorted_by_popularity(tmp_path: Path):
             'normalized': f"{title.lower()} {artist.lower()}",
             'isrc': None,
             'year': None,
-        })
+        }, provider='spotify')
     # Mark t4 liked
-    db.upsert_liked('t4', '2024-01-01T00:00:00Z')
+    db.upsert_liked('t4', '2024-01-01T00:00:00Z', provider='spotify')
 
     # Playlist occurrences (popularity)
-    db.replace_playlist_tracks('pl1', [(0, 't1', None), (1, 't2', None), (2, 't3', None)])
-    db.replace_playlist_tracks('pl2', [(0, 't1', None), (1, 't2', None)])
-    db.replace_playlist_tracks('pl3', [(0, 't1', None)])
+    db.replace_playlist_tracks('pl1', [(0, 't1', None), (1, 't2', None), (2, 't3', None)], provider='spotify')
+    db.replace_playlist_tracks('pl2', [(0, 't1', None), (1, 't2', None)], provider='spotify')
+    db.replace_playlist_tracks('pl3', [(0, 't1', None)], provider='spotify')
     db.commit()
 
     result = run_matching(db, config={})

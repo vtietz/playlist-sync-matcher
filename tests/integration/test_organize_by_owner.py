@@ -18,28 +18,28 @@ def test_organize_by_owner_structure():
             db.commit()
             
             # Add playlist owned by current user
-            db.upsert_playlist('pl1', 'My Playlist', 'snap1', 'user123', 'CurrentUser')
+            db.upsert_playlist('pl1', 'My Playlist', 'snap1', 'user123', 'CurrentUser', provider='spotify')
             
             # Add playlist owned by someone else
-            db.upsert_playlist('pl2', 'Friend Playlist', 'snap2', 'other456', 'Friend Name')
+            db.upsert_playlist('pl2', 'Friend Playlist', 'snap2', 'other456', 'Friend Name', provider='spotify')
             
             # Add playlist with no owner info
-            db.upsert_playlist('pl3', 'Unknown Playlist', 'snap3', None, None)
+            db.upsert_playlist('pl3', 'Unknown Playlist', 'snap3', None, None, provider='spotify')
             
             # Add some tracks
             db.upsert_track({'id': 't1', 'name': 'Track 1', 'artist': 'Artist 1', 
                             'album': 'Album 1', 'isrc': None, 'duration_ms': 180000,
-                            'normalized': 'track 1 artist 1', 'year': None})
+                            'normalized': 'track 1 artist 1', 'year': None}, provider='spotify')
             db.upsert_track({'id': 't2', 'name': 'Track 2', 'artist': 'Artist 2',
                             'album': 'Album 2', 'isrc': None, 'duration_ms': 200000,
-                            'normalized': 'track 2 artist 2', 'year': None})
+                            'normalized': 'track 2 artist 2', 'year': None}, provider='spotify')
             db.upsert_track({'id': 't3', 'name': 'Track 3', 'artist': 'Artist 3',
                             'album': 'Album 3', 'isrc': None, 'duration_ms': 210000,
-                            'normalized': 'track 3 artist 3', 'year': None})
+                            'normalized': 'track 3 artist 3', 'year': None}, provider='spotify')
             
-            db.replace_playlist_tracks('pl1', [(0, 't1', None)])
-            db.replace_playlist_tracks('pl2', [(0, 't2', None)])
-            db.replace_playlist_tracks('pl3', [(0, 't3', None)])
+            db.replace_playlist_tracks('pl1', [(0, 't1', None)], provider='spotify')
+            db.replace_playlist_tracks('pl2', [(0, 't2', None)], provider='spotify')
+            db.replace_playlist_tracks('pl3', [(0, 't3', None)], provider='spotify')
             db.commit()
             
             # Simulate export with organization
@@ -99,16 +99,16 @@ def test_flat_export_without_organization():
         
         with Database(db_path) as db:
             # Add playlists
-            db.upsert_playlist('pl1', 'Playlist One', 'snap1', 'user123', 'CurrentUser')
-            db.upsert_playlist('pl2', 'Playlist Two', 'snap2', 'other456', 'Friend Name')
+            db.upsert_playlist('pl1', 'Playlist One', 'snap1', 'user123', 'CurrentUser', provider='spotify')
+            db.upsert_playlist('pl2', 'Playlist Two', 'snap2', 'other456', 'Friend Name', provider='spotify')
             
             # Add track
             db.upsert_track({'id': 't1', 'name': 'Track 1', 'artist': 'Artist 1',
                             'album': 'Album 1', 'isrc': None, 'duration_ms': 180000,
-                            'normalized': 'track 1 artist 1', 'year': None})
+                            'normalized': 'track 1 artist 1', 'year': None}, provider='spotify')
             
-            db.replace_playlist_tracks('pl1', [(0, 't1', None)])
-            db.replace_playlist_tracks('pl2', [(0, 't1', None)])
+            db.replace_playlist_tracks('pl1', [(0, 't1', None)], provider='spotify')
+            db.replace_playlist_tracks('pl2', [(0, 't1', None)], provider='spotify')
             db.commit()
             
             # Export without organization (flat structure)

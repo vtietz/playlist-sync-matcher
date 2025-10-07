@@ -108,8 +108,6 @@ class AppConfig:
     log_level: str = "INFO"
     provider: str = "spotify"
     providers: ProvidersConfig = field(default_factory=ProvidersConfig)
-    # Backward compatibility: keep spotify at top level
-    spotify: SpotifyConfig = field(default_factory=SpotifyConfig)
     library: LibraryConfig = field(default_factory=LibraryConfig)
     matching: MatchingConfig = field(default_factory=MatchingConfig)
     export: ExportConfig = field(default_factory=ExportConfig)
@@ -120,13 +118,12 @@ class AppConfig:
         """Convert to nested dictionary for backward compatibility.
         
         Returns:
-            Nested dict structure matching original dict-based config
+            Nested dict structure matching config format
         """
         return {
             "log_level": self.log_level,
             "provider": self.provider,
             "providers": self.providers.to_dict(),
-            "spotify": self.spotify.to_dict(),  # Keep for backward compat
             "library": self.library.to_dict(),
             "matching": self.matching.to_dict(),
             "export": self.export.to_dict(),
@@ -144,15 +141,15 @@ class AppConfig:
         Returns:
             Typed AppConfig instance
         """
-        # Support both providers.spotify and spotify (backward compat)
+        # Get provider config from providers.{provider_name}
+        provider_name = data.get("provider", "spotify")
         providers_data = data.get("providers", {})
-        spotify_data = providers_data.get("spotify", data.get("spotify", {}))
+        provider_config = providers_data.get(provider_name, {})
         
         return cls(
             log_level=data.get("log_level", "INFO"),
-            provider=data.get("provider", "spotify"),
-            providers=ProvidersConfig(spotify=SpotifyConfig(**spotify_data)),
-            spotify=SpotifyConfig(**spotify_data),  # Keep for backward compat
+            provider=provider_name,
+            providers=ProvidersConfig(spotify=SpotifyConfig(**provider_config)),
             library=LibraryConfig(**data.get("library", {})),
             matching=MatchingConfig(**data.get("matching", {})),
             export=ExportConfig(**data.get("export", {})),

@@ -20,7 +20,7 @@ def test_year_column_migration_and_normalization(tmp_path: Path, monkeypatch):
         'duration_ms': 123000,
         'normalized': None,
         'year': 2005,
-    })
+    }, provider='spotify')
     # Insert a library file normalized using year token
     db.add_library_file({
         'path': 'Der Wal.mp3',
@@ -62,7 +62,7 @@ def test_match_diagnose_outputs(tmp_path: Path, monkeypatch):
         'duration_ms': 111000,
         'normalized': 'artist song title',
         'year': None,
-    })
+    }, provider='spotify')
     db.add_library_file({
         'path': 'Song Title.mp3',
         'size': 1000,

@@ -155,7 +155,7 @@ def match_single_playlist(
     start = time.time()
     
     # Get playlist metadata
-    pl = db.get_playlist_by_id(playlist_id)
+    pl = db.get_playlist_by_id(playlist_id, provider='spotify')
     if not pl:
         raise ValueError(f"Playlist {playlist_id} not found in database")
     
@@ -230,7 +230,7 @@ def export_single_playlist(
     start = time.time()
     
     # Get playlist metadata
-    pl = db.get_playlist_by_id(playlist_id)
+    pl = db.get_playlist_by_id(playlist_id, provider='spotify')
     if not pl:
         raise ValueError(f"Playlist {playlist_id} not found in database")
     

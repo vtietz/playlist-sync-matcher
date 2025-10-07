@@ -54,11 +54,11 @@ def test_push_db_mode_no_change(tmp_path: Path):
     # current user
     db.set_meta('current_user_id', 'me')
     # playlist meta
-    db.upsert_playlist('pl1', 'My', snapshot_id='s1', owner_id='me', owner_name='Me')
+    db.upsert_playlist('pl1', 'My', snapshot_id='s1', owner_id='me', owner_name='Me', provider='spotify')
     # tracks & ordering desired
     for tid in ['t1', 't2']:
-        db.upsert_track({'id': tid, 'name': tid, 'album': None, 'artist': 'A', 'isrc': None, 'duration_ms': 1000, 'normalized': tid, 'year': None})
-    db.replace_playlist_tracks('pl1', [(0, 't1', None), (1, 't2', None)])
+        db.upsert_track({'id': tid, 'name': tid, 'album': None, 'artist': 'A', 'isrc': None, 'duration_ms': 1000, 'normalized': tid, 'year': None}, provider='spotify')
+    db.replace_playlist_tracks('pl1', [(0, 't1', None), (1, 't2', None)], provider='spotify')
     db.commit()
     client = StubClient(['t1', 't2'])
     preview = push_playlist(db=db, playlist_id='pl1', client=client, m3u_path=None, apply=False)
@@ -70,10 +70,10 @@ def test_push_db_mode_no_change(tmp_path: Path):
 def test_push_db_mode_apply_change(tmp_path: Path):
     db = _setup_db(tmp_path)
     db.set_meta('current_user_id', 'me')
-    db.upsert_playlist('pl1', 'My', snapshot_id='s1', owner_id='me', owner_name='Me')
+    db.upsert_playlist('pl1', 'My', snapshot_id='s1', owner_id='me', owner_name='Me', provider='spotify')
     for tid in ['t1', 't2', 't3']:
-        db.upsert_track({'id': tid, 'name': tid, 'album': None, 'artist': 'A', 'isrc': None, 'duration_ms': 1000, 'normalized': tid, 'year': None})
-    db.replace_playlist_tracks('pl1', [(0, 't1', None), (1, 't2', None), (2, 't3', None)])
+        db.upsert_track({'id': tid, 'name': tid, 'album': None, 'artist': 'A', 'isrc': None, 'duration_ms': 1000, 'normalized': tid, 'year': None}, provider='spotify')
+    db.replace_playlist_tracks('pl1', [(0, 't1', None), (1, 't2', None), (2, 't3', None)], provider='spotify')
     db.commit()
     client = StubClient(['t3', 't2', 't1'])  # reversed remote ordering
     preview = push_playlist(db=db, playlist_id='pl1', client=client, m3u_path=None, apply=True)
@@ -85,9 +85,9 @@ def test_push_db_mode_apply_change(tmp_path: Path):
 def test_push_capability_enforced(tmp_path: Path):
     db = _setup_db(tmp_path)
     db.set_meta('current_user_id', 'me')
-    db.upsert_playlist('pl1', 'My', snapshot_id='s1', owner_id='me', owner_name='Me')
-    db.upsert_track({'id': 't1', 'name': 't1', 'album': None, 'artist': 'A', 'isrc': None, 'duration_ms': 1000, 'normalized': 't1', 'year': None})
-    db.replace_playlist_tracks('pl1', [(0, 't1', None)])
+    db.upsert_playlist('pl1', 'My', snapshot_id='s1', owner_id='me', owner_name='Me', provider='spotify')
+    db.upsert_track({'id': 't1', 'name': 't1', 'album': None, 'artist': 'A', 'isrc': None, 'duration_ms': 1000, 'normalized': 't1', 'year': None}, provider='spotify')
+    db.replace_playlist_tracks('pl1', [(0, 't1', None)], provider='spotify')
     db.commit()
     # Client that does NOT advertise replace capability
     client = StubClient(['t1', 'x2'], replace_cap=False)
@@ -98,7 +98,7 @@ def test_push_capability_enforced(tmp_path: Path):
 def test_push_file_mode_with_unresolved(tmp_path: Path):
     db = _setup_db(tmp_path)
     db.set_meta('current_user_id', 'me')
-    db.upsert_playlist('pl1', 'My', snapshot_id='s1', owner_id='me', owner_name='Me')
+    db.upsert_playlist('pl1', 'My', snapshot_id='s1', owner_id='me', owner_name='Me', provider='spotify')
     # create local files and map one track
     file1 = tmp_path / 'song1.mp3'
     file1.write_text('data')
@@ -106,8 +106,8 @@ def test_push_file_mode_with_unresolved(tmp_path: Path):
     # track mapping for file1 -> t1
     db.add_library_file({'path': str(file1), 'size': 1, 'mtime': 0.0, 'partial_hash': None, 'title': 's1', 'album': None, 'artist': 'A', 'duration': 1.0, 'normalized': 's1', 'year': None, 'bitrate_kbps': 320})
     fid = db.conn.execute('SELECT id FROM library_files WHERE path=?', (str(file1),)).fetchone()[0]
-    db.upsert_track({'id': 't1', 'name': 's1', 'album': None, 'artist': 'A', 'isrc': None, 'duration_ms': 1000, 'normalized': 's1', 'year': None})
-    db.add_match('t1', fid, 1.0, 'exact')
+    db.upsert_track({'id': 't1', 'name': 's1', 'album': None, 'artist': 'A', 'isrc': None, 'duration_ms': 1000, 'normalized': 's1', 'year': None}, provider='spotify')
+    db.add_match('t1', fid, 1.0, 'exact', provider='spotify')
     # create m3u file referencing both existing and missing path
     m3u = tmp_path / 'pl1.m3u'
     m3u.write_text('#EXTM3U\n' + str(file1) + '\n' + str(unresolved_file) + '\n')
@@ -120,7 +120,7 @@ def test_push_file_mode_with_unresolved(tmp_path: Path):
 def test_push_permission_denied(tmp_path: Path):
     db = _setup_db(tmp_path)
     db.set_meta('current_user_id', 'me')
-    db.upsert_playlist('pl1', 'Foreign', snapshot_id='s1', owner_id='other', owner_name='Other')
+    db.upsert_playlist('pl1', 'Foreign', snapshot_id='s1', owner_id='other', owner_name='Other', provider='spotify')
     client = StubClient(['t1'], owner_id='other')
     with pytest.raises(PermissionError):
         push_playlist(db=db, playlist_id='pl1', client=client, m3u_path=None, apply=False)
