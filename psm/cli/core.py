@@ -192,8 +192,9 @@ def token_info(ctx: click.Context):
 
 @cli.command()
 @click.option('--force-auth', is_flag=True, help='Force full auth flow ignoring cached token')
+@click.option('--force-refresh', is_flag=True, help='Force refresh all tracks even if playlists unchanged (populates new fields)')
 @click.pass_context
-def pull(ctx: click.Context, force_auth: bool):
+def pull(ctx: click.Context, force_auth: bool, force_refresh: bool):
     """Pull playlists and liked tracks from streaming provider."""
     cfg = ctx.obj
     provider = cfg.get('provider', 'spotify')
@@ -204,7 +205,7 @@ def pull(ctx: click.Context, force_auth: bool):
     else:
         raise click.UsageError(f"Provider '{provider}' not supported yet")
     with get_db(cfg) as db:
-        result = pull_data(db=db, provider=provider, provider_config=provider_cfg, matching_config=cfg['matching'], force_auth=force_auth)
+        result = pull_data(db=db, provider=provider, provider_config=provider_cfg, matching_config=cfg['matching'], force_auth=force_auth, force_refresh=force_refresh)
     click.echo(f"\n[summary] Provider={provider} | Playlists: {result.playlist_count} | Unique playlist tracks: {result.unique_playlist_tracks} | Liked tracks: {result.liked_tracks} | Total tracks: {result.total_tracks}")
     logger.debug(f"Completed in {result.duration_seconds:.2f}s")
     click.echo('Pull complete')

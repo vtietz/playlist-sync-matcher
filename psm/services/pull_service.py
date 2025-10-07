@@ -39,12 +39,21 @@ def pull_data(
     provider: str,
     provider_config: Dict[str, Any],
     matching_config: Dict[str, Any],
-    force_auth: bool = False
+    force_auth: bool = False,
+    force_refresh: bool = False
 ) -> PullResult:
     """Ingest playlists and liked tracks for the selected provider.
 
     Currently only the 'spotify' provider is implemented. The interface is
     stable so additional providers can be added later without changing callers.
+    
+    Args:
+        db: Database instance
+        provider: Provider name (currently only 'spotify')
+        provider_config: Provider-specific configuration
+        matching_config: Matching configuration (use_year, etc.)
+        force_auth: Force full auth flow ignoring cached tokens
+        force_refresh: Force refresh all tracks even if playlists unchanged
     """
     if provider != 'spotify':
         raise NotImplementedError(f"Provider '{provider}' not implemented")
@@ -89,7 +98,7 @@ def pull_data(
     client = SpotifyClient(tok_dict['access_token'])
     use_year = matching_config.get('use_year', False)
     
-    ingest_playlists(db, client, use_year=use_year)
+    ingest_playlists(db, client, use_year=use_year, force_refresh=force_refresh)
     ingest_liked(db, client, use_year=use_year)
     
     # Gather statistics

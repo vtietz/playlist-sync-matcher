@@ -5,6 +5,11 @@ import csv
 import logging
 
 from .html_templates import get_html_template, get_index_template
+from .formatting import (
+    format_duration, shorten_path, get_confidence_badge_class, 
+    format_badge, get_quality_badge_class, get_quality_status_text,
+    get_coverage_badge_class, get_coverage_status_text, format_playlist_count_badge
+)
 from ..providers.links import get_link_generator
 
 if TYPE_CHECKING:
@@ -127,33 +132,43 @@ def write_analysis_quality_reports(report: QualityReport, out_dir: Path, min_bit
             'bitrate': bitrate_num,
         })
     
-    # Write CSV
-    csv_path = out_dir / "metadata_quality.csv"
+    # Write CSV - Standardized column order
+    csv_path = out_dir / "metadata_quality.csv" 
     with csv_path.open('w', newline='', encoding='utf-8') as fh:
         w = csv.writer(fh)
-        w.writerow(["file_path", "artist", "title", "album", "year", "missing_count", "bitrate_kbps"])
+        w.writerow(["file_path", "title", "artist", "album", "year", "bitrate_kbps", "quality_status"])
         for row in rows:
+            quality_status = get_quality_status_text(row['missing_count'])
             w.writerow([
                 row['path'],
-                "✓" if row['has_artist'] else "✗",
                 "✓" if row['has_title'] else "✗",
+                "✓" if row['has_artist'] else "✗", 
                 "✓" if row['has_album'] else "✗",
                 "✓" if row['has_year'] else "✗",
-                row['missing_count'],
-                row['bitrate']
+                row['bitrate'],
+                quality_status
             ])
     
-    # Write HTML - use check marks and crosses
+    # HTML - Standardized structure with shortened paths and quality badges
     html_rows = []
     for row in rows:
+        # Shorten file path for display
+        short_path = shorten_path(row['path'], max_length=60)
+        path_display = f'<span class="path-short" title="{row["path"]}">{short_path}</span>'
+        
+        # Create quality status badge
+        quality_status = get_quality_status_text(row['missing_count'])
+        quality_badge_class = get_quality_badge_class(row['missing_count'])
+        quality_badge = format_badge(quality_status, quality_badge_class)
+        
         html_rows.append([
-            row['path'],
-            '<span class="check-yes">✓</span>' if row['has_artist'] else '<span class="check-no">✗</span>',
-            '<span class="check-yes">✓</span>' if row['has_title'] else '<span class="check-no">✗</span>',
-            '<span class="check-yes">✓</span>' if row['has_album'] else '<span class="check-no">✗</span>',
-            '<span class="check-yes">✓</span>' if row['has_year'] else '<span class="check-no">✗</span>',
-            row['missing_count'],
-            f"{row['bitrate']} kbps" if row['bitrate'] > 0 else "N/A"
+            path_display,                         # File (shortened)
+            '<span class="check-yes">✓</span>' if row['has_title'] else '<span class="check-no">✗</span>',   # Title
+            '<span class="check-yes">✓</span>' if row['has_artist'] else '<span class="check-no">✗</span>',  # Artist
+            '<span class="check-yes">✓</span>' if row['has_album'] else '<span class="check-no">✗</span>',   # Album
+            '<span class="check-yes">✓</span>' if row['has_year'] else '<span class="check-no">✗</span>',    # Year
+            f"{row['bitrate']} kbps" if row['bitrate'] > 0 else "N/A",  # Bitrate
+            quality_badge                         # Status (quality badge)
         ])
     
     stats = report.get_summary_stats()
@@ -166,13 +181,13 @@ def write_analysis_quality_reports(report: QualityReport, out_dir: Path, min_bit
         f"Low bitrate (<{min_bitrate_kbps}kbps): {stats['low_bitrate_count']} ({stats['low_bitrate_pct']}%)"
     )
     
-    # Default sort: Missing Count DESC, then Bitrate ASC
+    # Default sort: Status (quality), then bitrate
     html_content = get_html_template(
         title="Metadata Quality Analysis",
-        columns=["File Path", "Artist", "Title", "Album", "Year", "Missing Count", "Bitrate"],
+        columns=["File", "Title", "Artist", "Album", "Year", "Bitrate", "Status"],
         rows=html_rows,
         description=description,
-        default_order=[[5, "desc"], [6, "asc"]]  # Sort by Missing Count DESC, then Bitrate ASC
+        default_order=[[6, "desc"], [5, "asc"]]  # Sort by Status (quality), then Bitrate ASC
     )
     
     html_path = out_dir / "metadata_quality.html"
@@ -215,10 +230,16 @@ def write_match_reports(db: Database, out_dir: Path) -> dict[str, tuple[Path, Pa
             t.name as track_name,
             t.artist as track_artist,
             t.album as track_album,
+            t.artist_id as track_artist_id,
+            t.album_id as track_album_id,
+            t.duration_ms as track_duration_ms,
+            t.year as track_year,
             l.path as file_path,
             l.artist as file_artist,
             l.title as file_title,
-            l.album as file_album
+            l.album as file_album,
+            l.duration as file_duration_sec,
+            l.year as file_year
         FROM matches m
         JOIN tracks t ON m.track_id = t.id
         JOIN library_files l ON m.file_id = l.id
@@ -243,46 +264,85 @@ def write_match_reports(db: Database, out_dir: Path) -> dict[str, tuple[Path, Pa
         
         return "UNKNOWN"
     
-    # CSV
+    # CSV - Standardized column order
     csv_path = out_dir / "matched_tracks.csv"
     with csv_path.open('w', newline='', encoding='utf-8') as fh:
         w = csv.writer(fh)
         w.writerow([
-            "track_id", "confidence", "score",
-            "track_name", "track_artist", "track_album",
-            "file_path", "file_title", "file_artist", "file_album"
+            "track_name", "track_artist", "track_album", "track_duration", "track_year",
+            "file_path", "file_title", "file_artist", "file_album", "file_duration",
+            "score", "confidence"
         ])
         for row in matched_rows:
             confidence = extract_confidence(row['method'])
+            track_duration = format_duration(duration_ms=row['track_duration_ms'])
+            file_duration = format_duration(duration_sec=row['file_duration_sec'])
             w.writerow([
-                row['track_id'], confidence, row['score'],
-                row['track_name'], row['track_artist'], row['track_album'],
-                row['file_path'], row['file_title'], row['file_artist'], row['file_album']
+                row['track_name'], row['track_artist'], row['track_album'], 
+                track_duration, row['track_year'] or "",
+                row['file_path'], row['file_title'], row['file_artist'], 
+                row['file_album'], file_duration,
+                f"{row['score']:.2f}", confidence
             ])
     
-    # HTML
+    # HTML - Standardized structure with entity linking and shortened paths
     html_rows = []
     for row in matched_rows:
         confidence = extract_confidence(row['method'])
+        confidence_badge_class = get_confidence_badge_class(confidence)
+        confidence_badge = format_badge(confidence, confidence_badge_class)
+        
+        # Create provider links for track, artist, and album
         track_url = links.track_url(row['track_id'])
+        track_link = f'<a href="{track_url}" target="_blank" title="Open in {provider.title()}">{row["track_name"] or "Unknown"}</a>'
+        
+        # Artist link (if artist_id available)
+        if row['track_artist_id']:
+            artist_url = links.artist_url(row['track_artist_id'])
+            artist_link = f'<a href="{artist_url}" target="_blank" title="Open in {provider.title()}">{row["track_artist"] or "Unknown"}</a>'
+        else:
+            artist_link = row['track_artist'] or ""
+            
+        # Album link (if album_id available)  
+        if row['track_album_id']:
+            album_url = links.album_url(row['track_album_id'])
+            album_link = f'<a href="{album_url}" target="_blank" title="Open in {provider.title()}">{row["track_album"] or "Unknown"}</a>'
+        else:
+            album_link = row['track_album'] or ""
+        
+        # Format durations
+        track_duration = format_duration(duration_ms=row['track_duration_ms'])
+        file_duration = format_duration(duration_sec=row['file_duration_sec'])
+        
+        # Shorten file path (could be enhanced with base_dir detection)
+        short_path = shorten_path(row['file_path'], max_length=60)
+        path_display = f'<span class="path-short" title="{row["file_path"]}">{short_path}</span>'
+        
         html_rows.append([
-            f'<a href="{track_url}" target="_blank" title="Open in {provider.title()}">{row["track_id"]}</a>',
-            f'<span class="badge badge-{confidence.lower()}">{confidence}</span>',
-            f"{row['score']:.2f}",
-            row['track_name'], row['track_artist'], row['track_album'],
-            row['file_path'], row['file_title'], row['file_artist'], row['file_album']
+            track_link,                                    # Track (linked)
+            artist_link,                                   # Artist (linked if ID available)
+            album_link,                                    # Album (linked if ID available)
+            track_duration,                               # Duration
+            row['track_year'] or "",                      # Year
+            path_display,                                 # File (shortened)
+            row['file_title'] or "",                      # Local Title
+            row['file_artist'] or "",                     # Local Artist
+            row['file_album'] or "",                      # Local Album
+            file_duration,                                # Local Duration
+            f"{row['score']:.2f}",                        # Score
+            confidence_badge                              # Status (last column)
         ])
     
     html_content = get_html_template(
         title="Matched Tracks",
         columns=[
-            "Spotify ID", "Confidence", "Score",
-            "Track Name", "Track Artist", "Track Album",
-            "File Path", "File Title", "File Artist", "File Album"
+            "Track", "Artist", "Album", "Duration", "Year",
+            "File", "Local Title", "Local Artist", "Local Album", "Local Duration",
+            "Score", "Status"
         ],
         rows=html_rows,
         description=f"Total matched tracks: {len(matched_rows):,}",
-        default_order=[[1, "asc"], [2, "desc"]]  # Sort by Confidence ASC (CERTAIN first), then Score DESC
+        default_order=[[11, "asc"], [10, "desc"]]  # Sort by Status (confidence), then Score DESC
     )
     
     html_path = out_dir / "matched_tracks.html"
@@ -299,42 +359,84 @@ def write_match_reports(db: Database, out_dir: Path) -> dict[str, tuple[Path, Pa
             t.name,
             t.artist,
             t.album,
+            t.artist_id,
+            t.album_id,
+            t.duration_ms,
             t.year,
             COUNT(DISTINCT pt.playlist_id) as playlist_count
         FROM tracks t
         LEFT JOIN playlist_tracks pt ON t.id = pt.track_id
         WHERE t.id NOT IN (SELECT track_id FROM matches)
-        GROUP BY t.id, t.name, t.artist, t.album, t.year
+        GROUP BY t.id, t.name, t.artist, t.album, t.artist_id, t.album_id, t.year
         ORDER BY playlist_count DESC, t.artist, t.album, t.name
     """).fetchall()
     
-    # CSV
+    # CSV - Standardized column order  
     csv_path = out_dir / "unmatched_tracks.csv"
     with csv_path.open('w', newline='', encoding='utf-8') as fh:
         w = csv.writer(fh)
-        w.writerow(["track_id", "name", "artist", "album", "year", "playlist_count"])
+        w.writerow(["track_name", "artist", "album", "duration", "year", "playlists", "priority"])
         for row in unmatched_rows:
-            w.writerow([row['track_id'], row['name'], row['artist'], row['album'], row['year'], row['playlist_count']])
+            duration = format_duration(duration_ms=row['duration_ms'])
+            playlist_count = row['playlist_count']
+            # Priority based on playlist count
+            if playlist_count >= 5:
+                priority = "HIGH"
+            elif playlist_count >= 2:
+                priority = "MEDIUM"
+            elif playlist_count == 1:
+                priority = "LOW"
+            else:
+                priority = "NONE"
+            
+            w.writerow([
+                row['name'], row['artist'], row['album'], 
+                duration, row['year'] or "", playlist_count, priority
+            ])
     
-    # HTML
+    # HTML - Standardized structure with entity linking
     html_rows = []
     for row in unmatched_rows:
+        # Create provider links for track, artist, and album
         track_url = links.track_url(row['track_id'])
+        track_link = f'<a href="{track_url}" target="_blank" title="Open in {provider.title()}">{row["name"] or "Unknown"}</a>'
+        
+        # Artist link (if artist_id available)
+        if row['artist_id']:
+            artist_url = links.artist_url(row['artist_id'])
+            artist_link = f'<a href="{artist_url}" target="_blank" title="Open in {provider.title()}">{row["artist"] or "Unknown"}</a>'
+        else:
+            artist_link = row['artist'] or ""
+            
+        # Album link (if album_id available)  
+        if row['album_id']:
+            album_url = links.album_url(row['album_id'])
+            album_link = f'<a href="{album_url}" target="_blank" title="Open in {provider.title()}">{row["album"] or "Unknown"}</a>'
+        else:
+            album_link = row['album'] or ""
+        
+        # Format duration
+        duration = format_duration(duration_ms=row['duration_ms'])
+        
+        # Create priority badge based on playlist count
+        priority_badge = format_playlist_count_badge(row['playlist_count'])
+        
         html_rows.append([
-            f'<a href="{track_url}" target="_blank" title="Open in {provider.title()}">{row["track_id"]}</a>',
-            row['name'], 
-            row['artist'], 
-            row['album'], 
-            row['year'] or "",
-            row['playlist_count']
+            track_link,                           # Track (linked)
+            artist_link,                          # Artist (linked if ID available)
+            album_link,                           # Album (linked if ID available)
+            duration,                             # Duration
+            row['year'] or "",                    # Year
+            row['playlist_count'],                # Playlists count
+            priority_badge                        # Status (priority based on playlists)
         ])
     
     html_content = get_html_template(
         title="Unmatched Tracks",
-        columns=["Spotify ID", "Name", "Artist", "Album", "Year", "Playlists"],
+        columns=["Track", "Artist", "Album", "Duration", "Year", "Playlists", "Status"],
         rows=html_rows,
         description=f"Total unmatched tracks: {len(unmatched_rows):,}",
-        default_order=[[5, "desc"], [2, "asc"]]  # Sort by Playlist Count DESC, then Artist ASC
+        default_order=[[6, "desc"], [5, "desc"]]  # Sort by Status (priority), then Playlists DESC
     )
     
     html_path = out_dir / "unmatched_tracks.html"
@@ -434,13 +536,13 @@ def write_match_reports(db: Database, out_dir: Path) -> dict[str, tuple[Path, Pa
         
         # Color-coded badge based on coverage
         if coverage >= 90:
-            badge_class = "badge-certain"
+            badge_class = "badge-success"   # COMPLETE
         elif coverage >= 70:
-            badge_class = "badge-high"
+            badge_class = "badge-primary"   # HIGH
         elif coverage >= 50:
-            badge_class = "badge-medium"
+            badge_class = "badge-warning"   # PARTIAL
         else:
-            badge_class = "badge-low"
+            badge_class = "badge-danger"    # LOW
         
         # Add clickable playlist link
         playlist_url = links.playlist_url(row['playlist_id'])

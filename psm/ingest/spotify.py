@@ -143,15 +143,18 @@ def _extract_year(release_date: str | None):
     return None
 
 
-def ingest_playlists(db, client: SpotifyClient, use_year: bool = False):
+def ingest_playlists(db, client: SpotifyClient, use_year: bool = False, force_refresh: bool = False):
     """Ingest playlists from Spotify API into database.
     
     Args:
         db: Database instance
         client: SpotifyClient instance
         use_year: Include year in normalization (from config matching.use_year)
+        force_refresh: Force refresh all tracks even if playlists unchanged (populates new fields)
     """
     click.echo(click.style("=== Pulling playlists from Spotify ===", fg='cyan', bold=True))
+    if force_refresh:
+        click.echo(click.style("🔄 Force refresh mode: Re-processing all tracks to populate new fields", fg='blue'))
     t0 = time.time()
     new_playlists = 0
     updated_playlists = 0
@@ -183,7 +186,7 @@ def ingest_playlists(db, client: SpotifyClient, use_year: bool = False):
             "SELECT snapshot_id FROM playlists WHERE id = ?", (pid,)
         ).fetchone()
         
-        if not db.playlist_snapshot_changed(pid, snapshot_id):
+        if not force_refresh and not db.playlist_snapshot_changed(pid, snapshot_id):
             unchanged_playlists += 1
             # Still upsert playlist metadata (including owner fields) even when skipped
             # This ensures new schema fields get populated without reprocessing tracks
@@ -201,18 +204,31 @@ def ingest_playlists(db, client: SpotifyClient, use_year: bool = False):
             t_id = track.get('id')
             if not t_id:
                 continue
-            artist_names = ', '.join(a['name'] for a in track.get('artists', []) if a.get('name'))
+            
+            # Extract artist information
+            artists = track.get('artists', [])
+            artist_names = ', '.join(a['name'] for a in artists if a.get('name'))
+            # Get the primary artist ID (first artist)
+            artist_id = artists[0].get('id') if artists else None
+            
+            # Extract album information
+            album_data = track.get('album') or {}
+            album_name = album_data.get('name')
+            album_id = album_data.get('id')
+            
             # normalization
             nt, na, combo = normalize_title_artist(track.get('name') or '', artist_names)
-            year = _extract_year(((track.get('album') or {}).get('release_date')))
+            year = _extract_year(album_data.get('release_date'))
             if use_year and year:
                 combo = f"{combo} {year}"
             simplified.append((idx, t_id, item.get('added_at')))
             db.upsert_track({
                 'id': t_id,
                 'name': track.get('name'),
-                'album': (track.get('album') or {}).get('name'),
+                'album': album_name,
                 'artist': artist_names,
+                'album_id': album_id,
+                'artist_id': artist_id,
                 'isrc': ((track.get('external_ids') or {}).get('isrc')),
                 'duration_ms': track.get('duration_ms'),
                 'normalized': combo,
@@ -223,10 +239,14 @@ def ingest_playlists(db, client: SpotifyClient, use_year: bool = False):
         db.commit()
         
         # Determine if new or updated
-        if existing_playlist:
+        if existing_playlist and not force_refresh:
             updated_playlists += 1
             action = "updated"
             color = "blue"
+        elif existing_playlist and force_refresh:
+            updated_playlists += 1
+            action = "refreshed"
+            color = "magenta"
         else:
             new_playlists += 1
             action = "new"
@@ -279,16 +299,28 @@ def ingest_liked(db, client: SpotifyClient, use_year: bool = False):
             "SELECT id FROM tracks WHERE id = ?", (t_id,)
         ).fetchone()
         
-        artist_names = ', '.join(a['name'] for a in track.get('artists', []) if a.get('name'))
+        # Extract artist information
+        artists = track.get('artists', [])
+        artist_names = ', '.join(a['name'] for a in artists if a.get('name'))
+        # Get the primary artist ID (first artist)
+        artist_id = artists[0].get('id') if artists else None
+        
+        # Extract album information
+        album_data = track.get('album') or {}
+        album_name = album_data.get('name')
+        album_id = album_data.get('id')
+        
         nt, na, combo = normalize_title_artist(track.get('name') or '', artist_names)
-        year = _extract_year(((track.get('album') or {}).get('release_date')))
+        year = _extract_year(album_data.get('release_date'))
         if use_year and year:
             combo = f"{combo} {year}"
         db.upsert_track({
             'id': t_id,
             'name': track.get('name'),
-            'album': (track.get('album') or {}).get('name'),
+            'album': album_name,
             'artist': artist_names,
+            'album_id': album_id,
+            'artist_id': artist_id,
             'isrc': ((track.get('external_ids') or {}).get('isrc')),
             'duration_ms': track.get('duration_ms'),
             'normalized': combo,

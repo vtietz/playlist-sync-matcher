@@ -12,7 +12,7 @@ SCHEMA = [
     # Clean provider‑namespaced schema (v1). Playlists & playlist_tracks include provider in PK for cross-provider coexistence.
     "CREATE TABLE IF NOT EXISTS playlists (id TEXT NOT NULL, provider TEXT NOT NULL DEFAULT 'spotify', name TEXT NOT NULL, snapshot_id TEXT, owner_id TEXT, owner_name TEXT, PRIMARY KEY(id, provider));",
     "CREATE TABLE IF NOT EXISTS playlist_tracks (playlist_id TEXT NOT NULL, provider TEXT NOT NULL DEFAULT 'spotify', position INTEGER NOT NULL, track_id TEXT NOT NULL, added_at TEXT, PRIMARY KEY(playlist_id, provider, position));",
-    "CREATE TABLE IF NOT EXISTS tracks (id TEXT NOT NULL, provider TEXT NOT NULL DEFAULT 'spotify', name TEXT, album TEXT, artist TEXT, isrc TEXT, duration_ms INTEGER, normalized TEXT, year INTEGER, PRIMARY KEY(id, provider));",
+    "CREATE TABLE IF NOT EXISTS tracks (id TEXT NOT NULL, provider TEXT NOT NULL DEFAULT 'spotify', name TEXT, album TEXT, artist TEXT, album_id TEXT, artist_id TEXT, isrc TEXT, duration_ms INTEGER, normalized TEXT, year INTEGER, PRIMARY KEY(id, provider));",
     "CREATE TABLE IF NOT EXISTS liked_tracks (track_id TEXT NOT NULL, provider TEXT NOT NULL DEFAULT 'spotify', added_at TEXT, PRIMARY KEY(track_id, provider));",
     "CREATE TABLE IF NOT EXISTS library_files (id INTEGER PRIMARY KEY AUTOINCREMENT, path TEXT UNIQUE, size INTEGER, mtime REAL, partial_hash TEXT, title TEXT, album TEXT, artist TEXT, duration REAL, normalized TEXT, year INTEGER, bitrate_kbps INTEGER);",
     "CREATE TABLE IF NOT EXISTS matches (track_id TEXT NOT NULL, provider TEXT NOT NULL DEFAULT 'spotify', file_id INTEGER NOT NULL, score REAL NOT NULL, method TEXT NOT NULL, PRIMARY KEY(track_id, provider, file_id));",
@@ -81,6 +81,11 @@ class Database:
         cur = self.conn.cursor()
         for stmt in SCHEMA:
             cur.execute(stmt)
+        
+        # Ensure new columns exist in existing databases (v1.1 enhancement)
+        self._ensure_column('tracks', 'artist_id', 'TEXT')
+        self._ensure_column('tracks', 'album_id', 'TEXT')
+        
         # Record schema version
         cur.execute("INSERT OR REPLACE INTO meta(key,value) VALUES('schema_version','1')")
         self.conn.commit()
@@ -118,13 +123,15 @@ class Database:
 
     def upsert_track(self, track: Dict[str, Any], provider: str = 'spotify'):
         self.conn.execute(
-            "INSERT INTO tracks(id,provider,name,album,artist,isrc,duration_ms,normalized,year) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(id,provider) DO UPDATE SET name=excluded.name, album=excluded.album, artist=excluded.artist, isrc=excluded.isrc, duration_ms=excluded.duration_ms, normalized=excluded.normalized, year=excluded.year",
+            "INSERT INTO tracks(id,provider,name,album,artist,album_id,artist_id,isrc,duration_ms,normalized,year) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id,provider) DO UPDATE SET name=excluded.name, album=excluded.album, artist=excluded.artist, album_id=excluded.album_id, artist_id=excluded.artist_id, isrc=excluded.isrc, duration_ms=excluded.duration_ms, normalized=excluded.normalized, year=excluded.year",
             (
                 track.get("id"),
                 provider,
                 track.get("name"),
                 track.get("album"),
                 track.get("artist"),
+                track.get("album_id"),
+                track.get("artist_id"),
                 track.get("isrc"),
                 track.get("duration_ms"),
                 track.get("normalized"),

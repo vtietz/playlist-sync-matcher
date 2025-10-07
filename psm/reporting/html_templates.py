@@ -150,39 +150,51 @@ def get_html_template(
             font-size: 12px;
         }}
         
-        /* Badge styles for confidence levels */
+        /* Standardized Badge System */
         .badge {{
             display: inline-block;
-            padding: 4px 10px;
+            padding: 4px 8px;
             border-radius: 4px;
             font-size: 11px;
             font-weight: 600;
             text-transform: uppercase;
+            text-align: center;
+            white-space: nowrap;
         }}
         
-        .badge-certain {{
-            background: #34a853;
+        /* Status Priority (Green = Best, Red = Worst) */
+        .badge-success {{
+            background: #28a745;
             color: white;
         }}
         
-        .badge-high {{
-            background: #4285f4;
+        .badge-primary {{
+            background: #007bff;
             color: white;
         }}
         
-        .badge-medium {{
-            background: #fbbc04;
-            color: #333;
+        .badge-warning {{
+            background: #ffc107;
+            color: #212529;
         }}
         
-        .badge-low {{
-            background: #ea4335;
+        .badge-danger {{
+            background: #dc3545;
             color: white;
         }}
         
-        .badge-unknown {{
-            background: #9e9e9e;
+        .badge-secondary {{
+            background: #6c757d;
             color: white;
+        }}
+        
+        /* Path display with tooltips */
+        .path-short {{
+            max-width: 300px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            cursor: help;
         }}
         
         /* Checkbox symbols */
