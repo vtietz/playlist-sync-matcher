@@ -74,6 +74,8 @@ chmod +x run.sh
    ```
    
    > **Tip**: See `.env.example` for all available options. For one-time overrides, use `set` commands instead.
+   
+   > **Note**: Currently only **one provider** can be configured at a time. Multi-provider support is planned for a future release.
 
 3. **Run the full build**:
    ```bash

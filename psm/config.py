@@ -6,6 +6,8 @@ from typing import Any, Dict
 from pathlib import Path
 import copy
 
+logger = logging.getLogger(__name__)
+
 try:
     from .config_types import TypedConfigDict
 except ImportError:
@@ -55,6 +57,60 @@ _DEFAULTS: Dict[str, Any] = {
     "reports": {"directory": "export/reports"},
     "database": {"path": "data/spotify_sync.db", "pragma_journal_mode": "WAL"},
 }
+
+
+def validate_single_provider(cfg: Dict[str, Any]) -> str:
+    """Validate that only one provider is configured and return its name.
+    
+    Multi-provider mode is not yet supported. This ensures users don't
+    accidentally configure multiple providers, which would lead to
+    undefined behavior.
+    
+    Args:
+        cfg: Configuration dictionary
+        
+    Returns:
+        str: The name of the configured provider
+        
+    Raises:
+        ValueError: If no provider or multiple providers are configured
+    """
+    providers = cfg.get('providers', {})
+    if not providers:
+        raise ValueError(
+            "No providers section in configuration. "
+            "Please add a provider configuration (e.g., PSM__PROVIDERS__SPOTIFY__CLIENT_ID)"
+        )
+    
+    # Find all providers with a client_id configured
+    configured = [
+        name for name, conf in providers.items()
+        if isinstance(conf, dict) and conf.get('client_id')
+    ]
+    
+    if len(configured) == 0:
+        # Check if there are provider sections without client_id
+        provider_names = list(providers.keys())
+        if provider_names:
+            raise ValueError(
+                f"Provider section(s) found ({', '.join(provider_names)}) but no client_id configured. "
+                f"Please set PSM__PROVIDERS__{provider_names[0].upper()}__CLIENT_ID"
+            )
+        raise ValueError(
+            "No provider configured. "
+            "Please set a provider client_id (e.g., PSM__PROVIDERS__SPOTIFY__CLIENT_ID)"
+        )
+    
+    if len(configured) > 1:
+        raise ValueError(
+            f"Multiple providers configured: {', '.join(configured)}. "
+            "Multi-provider mode is not yet supported. "
+            "Please configure only one provider at a time."
+        )
+    
+    provider_name = configured[0]
+    logger.debug(f"Using provider: {provider_name}")
+    return provider_name
 
 
 def deep_merge(a: Dict[str, Any], b: Dict[str, Any]) -> Dict[str, Any]:
@@ -208,4 +264,4 @@ def coerce_scalar(value: str) -> Any:
     except Exception:
         return txt
 
-__all__ = ["load_config", "deep_merge", "load_typed_config"]
+__all__ = ["load_config", "deep_merge", "load_typed_config", "validate_single_provider"]

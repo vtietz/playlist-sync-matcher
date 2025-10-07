@@ -12,6 +12,7 @@ from ..services.match_service import run_matching
 from ..services.analysis_service import analyze_library_quality, print_quality_report
 from ..services.export_service import export_playlists
 from ..providers.base import available_providers, get as get_provider
+from ..config import validate_single_provider
 
 logger = logging.getLogger(__name__)
 
@@ -197,9 +198,19 @@ def token_info(ctx: click.Context):
 @click.option('--force-refresh', is_flag=True, help='Force refresh all tracks even if playlists unchanged (populates new fields)')
 @click.pass_context
 def pull(ctx: click.Context, force_auth: bool, force_refresh: bool):
-    """Pull playlists and liked tracks from streaming provider."""
+    """Pull playlists and liked tracks from streaming provider.
+    
+    Note: Currently only one provider can be configured at a time.
+    Multi-provider support is planned for a future release.
+    """
     cfg = ctx.obj
-    provider = cfg.get('provider', 'spotify')
+    
+    # Validate single provider configuration
+    try:
+        provider = validate_single_provider(cfg)
+    except ValueError as e:
+        raise click.UsageError(str(e))
+    
     provider_cfg = get_provider_config(cfg, provider)
     
     if provider == 'spotify':
@@ -219,11 +230,22 @@ def pull(ctx: click.Context, force_auth: bool, force_refresh: bool):
 @click.option('--force', is_flag=True, help='Force full auth ignoring cache')
 @click.pass_context
 def login(ctx: click.Context, force: bool):
-    """Authenticate with streaming provider (Spotify OAuth)."""
+    """Authenticate with streaming provider (Spotify OAuth).
+    
+    Note: Currently only one provider can be configured at a time.
+    Multi-provider support is planned for a future release.
+    """
     cfg = ctx.obj
+    
+    # Validate single provider configuration
+    try:
+        provider = validate_single_provider(cfg)
+    except ValueError as e:
+        raise click.UsageError(str(e))
+    
     provider_cfg = get_provider_config(cfg)
     if not provider_cfg.get('client_id'):
-        raise click.UsageError('providers.spotify.client_id not configured')
+        raise click.UsageError(f'providers.{provider}.client_id not configured')
     auth = build_auth(cfg)
     tok = auth.get_token(force=force)
     exp = tok.get('expires_at') if isinstance(tok, dict) else None
