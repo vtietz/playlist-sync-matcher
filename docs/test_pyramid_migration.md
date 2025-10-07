@@ -60,11 +60,11 @@ Note: Real network calls remain forbidden in tests. Spotify API interactions mus
 - [ ] Add `tests/mocks/fixtures.py` with reusable fixtures (pending)
 
 ### Phase 2: Service Layer DI (Dependency Injection)
-- [ ] Update imports in: `pull_service.py`, `match_service.py`, `export_service.py`, `playlist_service.py`, `analysis_service.py`, `push_service.py`
-- [ ] Replace `Database` type hints → `DatabaseInterface`
-- [ ] Ensure `__all__` exports remain stable
-- [ ] Add docstring note: "Accepts any DatabaseInterface implementation"
-- [ ] Run full test suite (`run.bat py -m pytest`) to validate no regression
+- [x] Update imports in: `pull_service.py`, `match_service.py`, `export_service.py`, `playlist_service.py`, `analysis_service.py`, `push_service.py`
+- [x] Replace `Database` type hints → `DatabaseInterface`
+- [x] Ensure `__all__` exports remain stable (no changes required)
+- [x] Add docstring/type hint note (function signatures updated across services)
+- [x] Run full test suite (`run.bat py -m pytest`) to validate no regression (all passing)
 
 ### Phase 3: Test Infrastructure
 - [ ] Create directory tree:
@@ -137,7 +137,7 @@ Rollback risk is low—changes are largely additive until Phase 5.
 ## 10. Execution Order (High-Level Checklist)
 ```
 [x] Phase 1 complete (interface + mock + parity test)  
-[ ] Phase 2 complete (services accept interface)
+[x] Phase 2 complete (services accept interface)
 [ ] Phase 3 infra ready (markers + structure)
 [ ] ≥20 tests migrated to unit
 [ ] E2E baseline added

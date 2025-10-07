@@ -16,7 +16,7 @@ from datetime import datetime
 
 from ..auth.spotify_oauth import SpotifyAuth
 from ..ingest.spotify import SpotifyClient
-from ..db import Database
+from ..db import Database, DatabaseInterface
 from ..utils.normalization import normalize_title_artist
 from ..match.engine import match_tracks
 from ..export.playlists import export_strict, export_mirrored, export_placeholders, sanitize_filename
@@ -46,7 +46,7 @@ def _extract_year(release_date: str | None):
 
 
 def pull_single_playlist(
-    db: Database,
+    db: DatabaseInterface,
     playlist_id: str,
     spotify_config: Dict[str, Any],
     matching_config: Dict[str, Any],
@@ -147,7 +147,7 @@ def pull_single_playlist(
 
 
 def match_single_playlist(
-    db: Database,
+    db: DatabaseInterface,
     playlist_id: str,
     config: Dict[str, Any]
 ) -> SinglePlaylistResult:
@@ -218,7 +218,7 @@ def match_single_playlist(
 
 
 def export_single_playlist(
-    db: Database,
+    db: DatabaseInterface,
     playlist_id: str,
     export_config: Dict[str, Any],
     organize_by_owner: bool = False,
@@ -312,7 +312,7 @@ def export_single_playlist(
 
 
 def build_single_playlist(
-    db: Database,
+    db: DatabaseInterface,
     playlist_id: str,
     spotify_config: Dict[str, Any],
     config: Dict[str, Any],

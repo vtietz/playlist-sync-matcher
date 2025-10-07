@@ -16,7 +16,7 @@ from pathlib import Path
 
 from ..auth.spotify_oauth import SpotifyAuth
 from ..ingest.spotify import SpotifyClient, ingest_playlists, ingest_liked
-from ..db import Database
+from ..db import Database, DatabaseInterface
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ class PullResult:
 
 
 def pull_data(
-    db: Database,
+    db: DatabaseInterface,
     provider: str,
     provider_config: Dict[str, Any],
     matching_config: Dict[str, Any],

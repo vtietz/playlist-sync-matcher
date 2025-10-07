@@ -12,7 +12,7 @@ from pathlib import Path
 import click
 
 from ..export.playlists import export_strict, export_mirrored, export_placeholders, sanitize_filename
-from ..db import Database
+from ..db import Database, DatabaseInterface
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +58,7 @@ def _resolve_export_dir(
 
 
 def export_playlists(
-    db: Database,
+    db: DatabaseInterface,
     export_config: Dict[str, Any],
     organize_by_owner: bool = False,
     current_user_id: str | None = None

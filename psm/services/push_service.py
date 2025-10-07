@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import List, Sequence, Dict, Any, Optional, Tuple
 import logging
 
-from ..db import Database
+from ..db import Database, DatabaseInterface
 from ..push.m3u_parser import parse_m3u_paths
 
 logger = logging.getLogger(__name__)
@@ -41,7 +41,7 @@ class PushPreview:
     applied: bool = False
 
 
-def _map_paths_to_track_ids(db: Database, paths: Sequence[str]) -> Tuple[List[str], int]:
+def _map_paths_to_track_ids(db: DatabaseInterface, paths: Sequence[str]) -> Tuple[List[str], int]:
     """Map local file system paths back to playlist track IDs via matches.
 
     Returns list of track IDs (duplicates preserved to reflect ordering) and
@@ -63,12 +63,12 @@ def _map_paths_to_track_ids(db: Database, paths: Sequence[str]) -> Tuple[List[st
     return track_ids, unresolved
 
 
-def _desired_track_ids_from_file(db: Database, playlist_id: str, m3u_path: Path) -> Tuple[List[str], int]:
+def _desired_track_ids_from_file(db: DatabaseInterface, playlist_id: str, m3u_path: Path) -> Tuple[List[str], int]:
     paths = parse_m3u_paths(m3u_path)
     return _map_paths_to_track_ids(db, paths)
 
 
-def _desired_track_ids_from_db(db: Database, playlist_id: str) -> List[str]:
+def _desired_track_ids_from_db(db: DatabaseInterface, playlist_id: str) -> List[str]:
     cur = db.conn.execute(
         "SELECT track_id FROM playlist_tracks WHERE playlist_id=? ORDER BY position",
         (playlist_id,),
@@ -95,7 +95,7 @@ def _remote_playlist_items(client, playlist_id: str) -> List[str]:  # pragma: no
     return ids
 
 
-def _fetch_playlist_meta(client, db: Database, playlist_id: str) -> Dict[str, Any]:
+def _fetch_playlist_meta(client, db: DatabaseInterface, playlist_id: str) -> Dict[str, Any]:
     # Prefer DB metadata, fallback to API
     row = db.get_playlist_by_id(playlist_id)
     meta: Dict[str, Any] = {}
@@ -113,7 +113,7 @@ def _fetch_playlist_meta(client, db: Database, playlist_id: str) -> Dict[str, An
     return meta
 
 
-def _ensure_owner(meta: Dict[str, Any], db: Database) -> None:
+def _ensure_owner(meta: Dict[str, Any], db: DatabaseInterface) -> None:
     current_user_id = db.get_meta('current_user_id')
     owner_id = meta.get('owner_id')
     if current_user_id and owner_id and current_user_id != owner_id:
@@ -130,7 +130,7 @@ def _apply_remote_replace(client, playlist_id: str, track_ids: Sequence[str]):  
 
 
 def push_playlist(
-    db: Database,
+    db: DatabaseInterface,
     playlist_id: str,
     client,
     m3u_path: Path | None = None,

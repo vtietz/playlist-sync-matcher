@@ -13,6 +13,7 @@ from pathlib import Path
 import logging
 
 import click
+from ..db import DatabaseInterface  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +59,7 @@ class QualityReport:
         }
 
 
-def analyze_library_quality(db, min_bitrate_kbps: int = 320, max_issues: int = 50, silent: bool = False) -> QualityReport:
+def analyze_library_quality(db: DatabaseInterface, min_bitrate_kbps: int = 320, max_issues: int = 50, silent: bool = False) -> QualityReport:
     """
     Analyze library metadata quality.
     
