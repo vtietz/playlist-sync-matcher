@@ -1,6 +1,7 @@
 from __future__ import annotations
 import sqlite3
 import logging
+import sys
 from pathlib import Path
 from typing import Iterable, Sequence, Any, Dict, Tuple, Optional
 from .interface import DatabaseInterface
@@ -72,10 +73,26 @@ class Database(DatabaseInterface):
             self.conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}")
             self.conn.commit()
 
+    def _execute_with_lock_handling(self, sql: str, params: Any = None):
+        """Execute SQL with better diagnostics on database lock (but let SQLite retry)."""
+        try:
+            if params is not None:
+                return self.conn.execute(sql, params)
+            else:
+                return self.conn.execute(sql)
+        except sqlite3.OperationalError as e:
+            if "database is locked" in str(e).lower():
+                # Log diagnostic info but re-raise to let calling code handle it
+                logger.warning("Database lock detected - SQLite will retry for up to 30 seconds")
+                logger.warning("If this persists, check for:")
+                logger.warning("  • DB Browser or other tools with database open")
+                logger.warning("  • Long-running transactions in other processes")
+            raise
+
     def upsert_playlist(self, pid: str, name: str, snapshot_id: str | None, owner_id: str | None = None, owner_name: str | None = None, provider: str | None = None) -> None:
         if provider is None:
             raise ValueError("provider parameter is required")
-        self.conn.execute(
+        self._execute_with_lock_handling(
             "INSERT INTO playlists(id,provider,name,snapshot_id,owner_id,owner_name) VALUES(?,?,?,?,?,?) ON CONFLICT(id,provider) DO UPDATE SET name=excluded.name, snapshot_id=excluded.snapshot_id, owner_id=excluded.owner_id, owner_name=excluded.owner_name",
             (pid, provider, name, snapshot_id, owner_id, owner_name),
         )
@@ -93,7 +110,7 @@ class Database(DatabaseInterface):
     def replace_playlist_tracks(self, pid: str, tracks: Sequence[Tuple[int, str, str | None]], provider: str | None = None):
         if provider is None:
             raise ValueError("provider parameter is required")
-        self.conn.execute("DELETE FROM playlist_tracks WHERE playlist_id=? AND provider=?", (pid, provider))
+        self._execute_with_lock_handling("DELETE FROM playlist_tracks WHERE playlist_id=? AND provider=?", (pid, provider))
         self.conn.executemany(
             "INSERT INTO playlist_tracks(playlist_id, provider, position, track_id, added_at) VALUES(?,?,?,?,?)",
             [(pid, provider, pos, tid, added) for (pos, tid, added) in tracks],
@@ -103,7 +120,7 @@ class Database(DatabaseInterface):
     def upsert_track(self, track: Dict[str, Any], provider: str | None = None):
         if provider is None:
             raise ValueError("provider parameter is required")
-        self.conn.execute(
+        self._execute_with_lock_handling(
             "INSERT INTO tracks(id,provider,name,album,artist,album_id,artist_id,isrc,duration_ms,normalized,year) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id,provider) DO UPDATE SET name=excluded.name, album=excluded.album, artist=excluded.artist, album_id=excluded.album_id, artist_id=excluded.artist_id, isrc=excluded.isrc, duration_ms=excluded.duration_ms, normalized=excluded.normalized, year=excluded.year",
             (
                 track.get("id"), provider, track.get("name"), track.get("album"), track.get("artist"),
