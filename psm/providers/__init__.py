@@ -17,6 +17,10 @@ from .base import (
 # Import spotify provider so it registers itself on package import.
 from . import spotify_provider  # noqa: F401
 
+# Register Spotify provider instance
+from .spotify import SpotifyProvider
+register_provider(SpotifyProvider())
+
 
 def create_provider(name: str, **kwargs):  # future kwargs for auth tokens
     """Factory returning a provider client class instance.

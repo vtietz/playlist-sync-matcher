@@ -236,52 +236,66 @@ class Provider(ABC):
 
 ---
 
-### Phase 4: Create SpotifyProvider Class
+### Phase 4: Create SpotifyProvider Class ✅ COMPLETE
 **Goal:** Unified Spotify provider implementation
 
-1. **Create provider implementation:**
-   ```python
-   # psm/providers/spotify/provider.py
-   from ..base import Provider, AuthProvider, StreamingProviderClient
-   from .auth import SpotifyAuthProvider
-   from .client import SpotifyAPIClient
-   from .config import validate_spotify_config, get_spotify_defaults
-   
-   class SpotifyProvider(Provider):
-       name = 'spotify'
-       
-       def create_auth(self, config: Dict[str, Any]) -> AuthProvider:
-           self.validate_config(config)
-           return SpotifyAuthProvider(
-               client_id=config['client_id'],
-               redirect_scheme=config.get('redirect_scheme', 'http'),
-               # ... etc
-           )
-       
-       def create_client(self, access_token: str) -> StreamingProviderClient:
-           return SpotifyAPIClient(access_token)
-       
-       def validate_config(self, config: Dict[str, Any]) -> None:
-           if not config.get('client_id'):
-               raise ValueError('spotify.client_id required')
-           # ... more validation
-       
-       def get_default_config(self) -> Dict[str, Any]:
-           return get_spotify_defaults()
-   ```
+**Completed Actions:**
+1. ✅ **Created provider implementation:**
+   - Created `psm/providers/spotify/provider.py` (164 lines)
+   - `SpotifyProvider` class implements complete `Provider` interface
+   - Implements all required methods:
+     - `create_auth(config)` - Factory for SpotifyAuthProvider
+     - `create_client(token)` - Factory for SpotifyAPIClient
+     - `validate_config(config)` - Validates client_id, port, scheme, timeout
+     - `get_default_config()` - Returns default values for all config keys
+     - `get_link_generator()` - Returns SpotifyLinkGenerator instance
+   - Property `name` returns "spotify"
 
-2. **Register provider:**
-   ```python
-   # psm/providers/spotify/__init__.py
-   from .provider import SpotifyProvider
-   from ..base import register_provider
-   
-   register_provider(SpotifyProvider())
-   
-   __all__ = ['SpotifyProvider']
-   ```
+2. ✅ **Moved link generator:**
+   - `SpotifyLinkGenerator` moved from `spotify_provider.py` to `provider.py`
+   - Generates web URLs for tracks, albums, artists, playlists
+   - Available via `provider.get_link_generator()`
 
-**Deliverable:** Complete Spotify provider implementation.
+3. ✅ **Registered provider instance:**
+   - Added registration in `psm/providers/__init__.py`
+   - `register_provider(SpotifyProvider())` called on package import
+   - Available via `get_provider_instance('spotify')`
+
+4. ✅ **Updated exports:**
+   - `psm/providers/spotify/__init__.py` exports `SpotifyProvider` and `SpotifyLinkGenerator`
+   - Public API: `from psm.providers.spotify import SpotifyProvider`
+
+5. ✅ **Comprehensive validation:**
+   - Config validation with clear error messages
+   - Type checking for port (1-65535), scheme (http/https), timeout (positive int)
+   - Required field validation (client_id)
+   - Default config includes all optional fields
+
+6. ✅ **Tests verified:**
+   - All 119 tests passing
+   - Provider factory methods tested (create_auth, create_client)
+   - Config validation tested (rejects invalid, accepts valid)
+   - Link generator tested (generates correct URLs)
+   - Provider retrievable from registry
+
+**Files Changed:**
+- `psm/providers/spotify/provider.py` (created, 164 lines)
+- `psm/providers/spotify/__init__.py` (updated to export SpotifyProvider)
+- `psm/providers/__init__.py` (added provider registration)
+
+**Usage Example:**
+```python
+from psm.providers import get_provider_instance
+
+provider = get_provider_instance('spotify')
+provider.validate_config(config['spotify'])
+auth = provider.create_auth(config['spotify'])
+token = auth.get_token()
+client = provider.create_client(token['access_token'])
+links = provider.get_link_generator()
+```
+
+**Deliverable:** ✅ Complete Spotify provider implementation, registered and ready to use, all tests passing.
 
 ---
 

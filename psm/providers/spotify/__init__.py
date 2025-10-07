@@ -13,6 +13,7 @@ the Provider interface from psm.providers.base instead of direct imports.
 from .auth import SpotifyAuthProvider
 from .client import SpotifyAPIClient
 from .ingestion import extract_year, ingest_playlists, ingest_liked
+from .provider import SpotifyProvider, SpotifyLinkGenerator
 
 __all__ = [
     "SpotifyAuthProvider",
@@ -20,4 +21,6 @@ __all__ = [
     "extract_year",
     "ingest_playlists",
     "ingest_liked",
+    "SpotifyProvider",
+    "SpotifyLinkGenerator",
 ]
