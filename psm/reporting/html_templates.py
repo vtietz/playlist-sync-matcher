@@ -457,16 +457,22 @@ def get_index_template(reports: dict[str, dict]) -> str:
             # Format the count nicely
             count_str = f"{count:,}" if count is not None else "N/A"
             
-            # Choose icon based on report type
-            if 'matched' in report_name:
+            # Choose icon based on report type - match navigation bar icons
+            if report_name == 'matched_tracks':
                 icon = '✓'
                 color = '#34a853'
-            elif 'unmatched' in report_name or 'missing' in report_name:
+            elif report_name == 'unmatched_tracks':
                 icon = '✗'
                 color = '#ea4335'
-            elif 'coverage' in report_name or 'playlist' in report_name:
+            elif report_name == 'unmatched_albums':
+                icon = '💿'
+                color = '#ea4335'
+            elif report_name == 'playlist_coverage':
                 icon = '📊'
                 color = '#4285f4'
+            elif report_name == 'metadata_quality':
+                icon = '🔍'
+                color = '#fbbc04'
             else:
                 icon = '📄'
                 color = '#1a73e8'
