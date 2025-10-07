@@ -1,0 +1,147 @@
+"""Unmatched tracks report generator."""
+
+import csv
+from pathlib import Path
+
+from ...db import Database
+from ...providers.links import get_link_generator
+from ..formatting import (
+    format_duration,
+    format_playlist_count_badge
+)
+from ..html_templates import get_html_template
+from .base import format_liked
+
+
+def write_unmatched_tracks_report(
+    db: Database,
+    out_dir: Path,
+    provider: str = 'spotify'
+) -> tuple[Path, Path]:
+    """Write unmatched tracks report to CSV and HTML.
+    
+    Args:
+        db: Database instance
+        out_dir: Output directory for reports
+        provider: Provider name (default: spotify)
+    
+    Returns:
+        Tuple of (csv_path, html_path)
+    """
+    out_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Fetch unmatched tracks data
+    unmatched_rows = db.conn.execute("""
+        SELECT 
+            t.id as track_id,
+            t.name,
+            t.artist,
+            t.album,
+            t.artist_id,
+            t.album_id,
+            t.duration_ms,
+            t.year,
+            COUNT(DISTINCT pt.playlist_id) as playlist_count,
+            EXISTS(
+                SELECT 1 FROM liked_tracks lt
+                WHERE lt.track_id = t.id AND lt.provider = t.provider
+            ) as is_liked
+        FROM tracks t
+        LEFT JOIN playlist_tracks pt ON t.id = pt.track_id AND t.provider = pt.provider
+        WHERE t.id NOT IN (SELECT track_id FROM matches WHERE provider = t.provider)
+        GROUP BY t.id, t.name, t.artist, t.album, t.artist_id, t.album_id, t.year, t.provider
+        ORDER BY playlist_count DESC, t.artist, t.album, t.name
+    """).fetchall()
+    
+    # Write CSV
+    csv_path = out_dir / "unmatched_tracks.csv"
+    _write_csv(csv_path, unmatched_rows)
+    
+    # Write HTML
+    html_path = out_dir / "unmatched_tracks.html"
+    _write_html(html_path, unmatched_rows, provider)
+    
+    return (csv_path, html_path)
+
+
+def _get_priority(playlist_count: int) -> str:
+    """Determine priority based on playlist count."""
+    if playlist_count >= 5:
+        return "HIGH"
+    elif playlist_count >= 2:
+        return "MEDIUM"
+    elif playlist_count == 1:
+        return "LOW"
+    else:
+        return "NONE"
+
+
+def _write_csv(csv_path: Path, unmatched_rows: list) -> None:
+    """Write unmatched tracks CSV report."""
+    with csv_path.open('w', newline='', encoding='utf-8') as fh:
+        w = csv.writer(fh)
+        w.writerow(["track_name", "artist", "album", "duration", "year", "playlists", "liked", "priority"])
+        for row in unmatched_rows:
+            duration = format_duration(duration_ms=row['duration_ms'])
+            priority = _get_priority(row['playlist_count'])
+            
+            w.writerow([
+                row['name'], row['artist'], row['album'],
+                duration, row['year'] or "", row['playlist_count'],
+                format_liked(row['is_liked']), priority
+            ])
+
+
+def _write_html(html_path: Path, unmatched_rows: list, provider: str) -> None:
+    """Write unmatched tracks HTML report."""
+    links = get_link_generator(provider)
+    html_rows = []
+    
+    for row in unmatched_rows:
+        # Create provider links for track, artist, and album
+        track_url = links.track_url(row['track_id'])
+        track_link = f'<a href="{track_url}" target="_blank" title="Open in {provider.title()}">{row["name"] or "Unknown"}</a>'
+        
+        # Artist link (if artist_id available)
+        if row['artist_id']:
+            artist_url = links.artist_url(row['artist_id'])
+            artist_link = f'<a href="{artist_url}" target="_blank" title="Open in {provider.title()}">{row["artist"] or "Unknown"}</a>'
+        else:
+            artist_link = row['artist'] or ""
+        
+        # Album link (if album_id available)
+        if row['album_id']:
+            album_url = links.album_url(row['album_id'])
+            album_link = f'<a href="{album_url}" target="_blank" title="Open in {provider.title()}">{row["album"] or "Unknown"}</a>'
+        else:
+            album_link = row['album'] or ""
+        
+        # Format duration
+        duration = format_duration(duration_ms=row['duration_ms'])
+        
+        # Create priority badge based on playlist count
+        priority_badge = format_playlist_count_badge(row['playlist_count'])
+        
+        # Liked status
+        liked_display = format_liked(row['is_liked'])
+        
+        html_rows.append([
+            track_link,
+            artist_link,
+            album_link,
+            duration,
+            row['year'] or "",
+            row['playlist_count'],
+            liked_display,
+            priority_badge
+        ])
+    
+    html_content = get_html_template(
+        title="Unmatched Tracks",
+        columns=["Track", "Artist", "Album", "Duration", "Year", "Playlists", "Liked", "Status"],
+        rows=html_rows,
+        description=f"Total unmatched tracks: {len(unmatched_rows):,}",
+        default_order=[[7, "desc"], [5, "desc"]]  # Sort by Status (priority), then Playlists DESC
+    )
+    
+    html_path.write_text(html_content, encoding='utf-8')

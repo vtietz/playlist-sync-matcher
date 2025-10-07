@@ -47,9 +47,9 @@ def _resolve_export_dir(
     if not organize_by_owner:
         return base_dir
     
-    if owner_id and owner_id == current_user_id:
-        return base_dir / 'my_playlists'
-    elif owner_name:
+    # Always use the actual owner name, even if it's the current user
+    # This provides clearer organization and consistency
+    if owner_name:
         # Sanitize owner name to avoid invalid path characters
         folder_name = sanitize_filename(owner_name)
         return base_dir / folder_name

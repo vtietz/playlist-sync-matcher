@@ -412,9 +412,10 @@ PSM__EXPORT__ORGANIZE_BY_OWNER=true
 Result:
 ```
 data/export/playlists/
-├── my_playlists/      # Your playlists
-├── Friend_Name/       # Followed playlists
-└── other/             # Unknown owner
+├── randomdj/           # Your playlists (uses your Spotify username)
+├── Radio_FM4/          # Followed playlists from Radio FM4
+├── radioeins/          # Followed playlists from radioeins
+└── other/              # Unknown owner
 ```
 
 **Note**: Spotify's API doesn't expose playlist folders (UI-only), so we organize by owner instead.

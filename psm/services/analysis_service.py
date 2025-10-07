@@ -25,6 +25,8 @@ class QualityIssue:
     missing_fields: List[str] = field(default_factory=list)
     low_bitrate: bool = False
     bitrate_kbps: int | None = None
+    playlist_count: int = 0
+    is_liked: bool = False
 
 
 @dataclass
@@ -78,11 +80,26 @@ def analyze_library_quality(db: DatabaseInterface, min_bitrate_kbps: int = 320, 
     report = QualityReport()
     issues_collected = 0
     
-    # Query all files with their metadata
+    # Query all files with their metadata, playlist count, and liked status
     rows = db.conn.execute("""
-        SELECT path, artist, title, album, year, bitrate_kbps
-        FROM library_files
-        ORDER BY path
+        SELECT 
+            lf.path, 
+            lf.artist, 
+            lf.title, 
+            lf.album, 
+            lf.year, 
+            lf.bitrate_kbps,
+            COUNT(DISTINCT pt.playlist_id) as playlist_count,
+            EXISTS(
+                SELECT 1 FROM liked_tracks lt
+                JOIN matches m2 ON lt.track_id = m2.track_id AND lt.provider = m2.provider
+                WHERE m2.file_id = lf.id
+            ) as is_liked
+        FROM library_files lf
+        LEFT JOIN matches m ON lf.id = m.file_id
+        LEFT JOIN playlist_tracks pt ON m.track_id = pt.track_id AND m.provider = pt.provider
+        GROUP BY lf.id
+        ORDER BY lf.path
     """).fetchall()
     
     report.total_files = len(rows)
@@ -135,7 +152,9 @@ def analyze_library_quality(db: DatabaseInterface, min_bitrate_kbps: int = 320, 
                 path=path,
                 missing_fields=missing,
                 low_bitrate=low_bitrate,
-                bitrate_kbps=bitrate
+                bitrate_kbps=bitrate,
+                playlist_count=row['playlist_count'],
+                is_liked=bool(row['is_liked'])
             ))
             issues_collected += 1
     
