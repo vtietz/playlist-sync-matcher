@@ -103,25 +103,87 @@ Advanced tuning (requires code modification of `ScoringConfig` defaults):
 
 ### Automatic Reports (Generated on Every Match)
 
-The `match` command automatically generates comprehensive reports:
+The `match` command automatically generates comprehensive interactive reports:
 
-1. **matched_tracks.csv / .html**
-   - All successfully matched tracks
-   - Includes confidence levels (CERTAIN, HIGH, MEDIUM, LOW)
-   - Shows match scores and both Spotify and local metadata
-   - Sortable HTML table for easy exploration
+#### 1. Matched Tracks Report (`matched_tracks.csv` / `.html`)
+**What it shows:**
+- All successfully matched tracks with confidence levels (CERTAIN/HIGH/MEDIUM/LOW)
+- Match strategy used (ISRC, exact, fuzzy, album context, etc.)
+- Side-by-side comparison: Spotify metadata ↔ Local file metadata
+- Match scores and confidence indicators
+- Duration comparison and file paths
 
-2. **unmatched_tracks.csv / .html**
-   - All Spotify tracks that couldn't be matched
-   - Sorted by artist/album/name
-   - Helps identify missing files in your library
+**Interactive features:**
+- Sort by confidence, strategy, artist, album, or any column
+- Search to filter specific tracks or artists
+- Clickable Spotify track links to verify matches
+- CSV export for spreadsheet analysis
 
-3. **unmatched_albums.csv / .html**
-   - Unmatched tracks grouped by album
-   - Shows track count per album
-   - Quickly identifies which albums to acquire
+#### 2. Unmatched Tracks Report (`unmatched_tracks.csv` / `.html`)
+**What it shows:**
+- All Spotify tracks without local matches
+- Sorted by playlist popularity (tracks in multiple playlists listed first)
+- Artist, album, duration, release year for identification
+- Liked tracks marked with ❤️ for priority
 
-All reports saved to `data/export/reports/` (configurable via `PSM__REPORTS__DIRECTORY`).
+**Use cases:**
+- Identify which tracks to download/purchase
+- Verify if tracks are truly missing or just poorly tagged
+- Prioritize acquisitions by playlist popularity
+- Clickable Spotify links to preview tracks
+
+#### 3. Unmatched Albums Report (`unmatched_albums.csv` / `.html`)
+**What it shows:**
+- Missing tracks grouped by album
+- Track count per album (helps prioritize complete album purchases)
+- Sorted by occurrence frequency (albums in multiple playlists first)
+- Total playlist occurrences to gauge importance
+
+**Strategic value:**
+- Answer "which albums should I buy next?"
+- More efficient than acquiring scattered singles
+- See which albums would maximize playlist coverage
+- Identify partial vs. complete album gaps
+
+#### 4. Playlist Coverage Report (`playlist_coverage.csv` / `.html`)
+**What it shows:**
+- Coverage percentage for each playlist
+- Track counts: Total, Matched, Missing per playlist
+- Owner information and playlist metadata
+- Clickable links to detailed per-playlist reports
+
+**Interactive features:**
+- Sort by coverage percentage to find problem playlists
+- Drill down to see exactly which tracks are missing from each playlist
+- Clickable playlist names link to Spotify
+- Filter by owner to focus on your own vs. followed playlists
+
+#### 5. Index Dashboard (`index.html`)
+**Central navigation hub:**
+- Card-based layout with all available reports
+- Quick stats: item counts per report
+- Color-coded sections: Match Reports vs. Analysis Reports
+- One-click access to any report
+- Responsive design for mobile/desktop
+
+**All HTML reports powered by jQuery DataTables:**
+- ✅ Sortable columns (click headers)
+- ✅ Live search (instant filtering)
+- ✅ Pagination (10/25/50/100 entries per page)
+- ✅ Responsive design
+- ✅ CSV download buttons
+
+Reports saved to `data/export/reports/` (configurable via `PSM__REPORTS__DIRECTORY`).
+
+**Opening reports:**
+```bash
+# Windows
+start data\export\reports\index.html
+
+# Linux/Mac
+open data/export/reports/index.html
+xdg-open data/export/reports/index.html  # Alternative
+```
 
 ### Console Diagnostics (INFO Mode)
 
@@ -142,7 +204,26 @@ After matching completes, the console shows:
 **Customize diagnostic counts:**
 ```bash
 run.bat match --top-tracks 50 --top-albums 20
+
+# Or configure permanently in .env:
+PSM__MATCHING__SHOW_UNMATCHED_TRACKS=50
+PSM__MATCHING__SHOW_UNMATCHED_ALBUMS=20
 ```
+
+### Standalone Report Generation
+
+Regenerate reports from existing database without re-running match:
+
+```bash
+run.bat report                       # All reports
+run.bat report --no-analysis-reports # Only match reports
+run.bat report --no-match-reports    # Only analysis reports
+```
+
+Perfect for:
+- Sharing results with others
+- Tweaking report formats without re-matching
+- Generating fresh reports after manual database edits
 
 ## Expected Performance
 

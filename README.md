@@ -19,6 +19,31 @@ Perfect for syncing to devices, offline listening, or just organizing your colle
 
 No more manually recreating playlists or wondering what you're missing from your collection.
 
+## Rich Interactive Reports
+
+Get comprehensive insights into your music collection with beautiful, interactive HTML reports:
+
+![Reports Dashboard](docs/screenshots/reports-overview.png)
+
+**What You Get:**
+- 📊 **Sortable & Searchable Tables** – Click column headers to sort, use search to filter thousands of tracks instantly
+- 🔗 **Clickable Spotify Links** – Track names, playlists, and albums link directly to Spotify for easy reference
+- 📈 **Match Quality Insights** – Confidence scores, match strategies, and metadata comparison side-by-side
+- 🎵 **Missing Content Analysis** – See exactly which albums to download for maximum playlist coverage
+- 🔍 **Library Quality Reports** – Find metadata gaps, low-bitrate files grouped by album for efficient fixing
+- 📱 **Responsive Design** – Works beautifully on desktop and mobile
+
+**Report Types:**
+- **Matched Tracks** – All successful matches with confidence scores and match strategies
+- **Unmatched Tracks** – What you're missing from Spotify, sorted by popularity
+- **Unmatched Albums** – Missing content grouped by album for smart downloading decisions
+- **Playlist Coverage** – Track completion percentage for each playlist with drill-down details
+- **Metadata Quality** – Library files with missing tags or quality issues, grouped by album
+
+![Report Example](docs/screenshots/report.png)
+
+All reports export as both CSV (for spreadsheets) and interactive HTML (for exploration).
+
 ## Installation
 
 ### Option 1: Standalone Executable (Easiest)
@@ -60,30 +85,77 @@ chmod +x run.sh
 
 > **First run**: The script creates a `.venv` directory and installs dependencies automatically.
 
-## Quick Start
+## Getting Started
 
-1. **Get a Spotify Client ID** (see [Setup](#spotify-setup) below)
+### 1. Get a Spotify Client ID
 
-2. **Create a `.env` file** for permanent configuration:
-   ```bash
-   # .env
-   PSM__PROVIDERS__SPOTIFY__CLIENT_ID=your_client_id_here
-   PSM__LIBRARY__PATHS=["C:/Music"]
-   PSM__EXPORT__MODE=mirrored
-   PSM__EXPORT__ORGANIZE_BY_OWNER=true
-   ```
-   
-   > **Tip**: See `.env.example` for all available options. For one-time overrides, use `set` commands instead.
-   
-   > **Note**: Currently only **one provider** can be configured at a time. Multi-provider support is planned for a future release.
+You'll need a Spotify Developer app to access your playlists:
 
-3. **Run the full build**:
-   ```bash
-   run.bat build     # Windows
-   ./run.sh build    # Linux/Mac
-   ```
+1. Go to https://developer.spotify.com/dashboard
+2. Click **Create App**
+3. Fill in any name (e.g., "My Playlist Sync")
+4. Add Redirect URI: `http://127.0.0.1:9876/callback`
+5. Copy your **Client ID** (you don't need the Client Secret)
 
-This will authenticate with Spotify, scan your library, match tracks, export playlists, and generate reports.
+### 2. Configure the Tool
+
+Create a `.env` file in the same directory as the executable (or project root):
+
+```bash
+# .env - Minimum required configuration
+PSM__PROVIDERS__SPOTIFY__CLIENT_ID=your_client_id_here
+PSM__LIBRARY__PATHS=["C:/Music"]
+```
+
+**Optional settings** for better results:
+```bash
+PSM__EXPORT__MODE=mirrored                # Show missing tracks as comments
+PSM__EXPORT__ORGANIZE_BY_OWNER=true      # Group playlists by owner
+```
+
+> **Tip**: See `.env.example` for all available options.
+
+### 3. Authenticate with Spotify
+
+Run the login command to connect your Spotify account:
+
+```bash
+run.bat login     # Windows
+./run.sh login    # Linux/Mac
+psm login         # Standalone executable
+```
+
+A browser window will open for Spotify authorization. After you approve, the tool saves your credentials to `tokens.json` (auto-refreshed).
+
+### 4. Run Your First Build
+
+Now run the complete pipeline:
+
+```bash
+run.bat build     # Windows
+./run.sh build    # Linux/Mac
+psm build         # Standalone executable
+```
+
+This single command will:
+1. **Pull** your Spotify playlists and tracks
+2. **Scan** your local music library
+3. **Match** streaming tracks to local files
+4. **Export** M3U playlists pointing to your files
+5. **Generate** interactive HTML reports
+
+**Find your results**:
+- M3U playlists: `data/export/playlists/`
+- Interactive reports: `data/export/reports/index.html`
+
+**Open the report dashboard**:
+```bash
+start data\export\reports\index.html        # Windows
+open data/export/reports/index.html         # Mac
+xdg-open data/export/reports/index.html     # Linux
+```
+
+> **Note**: Currently only **one provider** (Spotify) can be configured. Multi-provider support is planned for a future release.
 
 ## Features
 
@@ -103,41 +175,32 @@ This will authenticate with Spotify, scan your library, match tracks, export pla
 
 > **Note**: Replace `run.bat` with `./run.sh` on Linux/Mac, or use `psm` if using standalone executable.
 
-**Get workflow guidance**:
+**Full pipeline** (recommended for first-time and regular use):
 ```bash
-run.bat --help           # Shows typical workflow examples
-./run.sh --help          # Linux/Mac Python
-psm --help               # Standalone executable
+run.bat build         # Runs: pull → scan → match → export
 ```
 
-**Full pipeline (recommended)**:
+**Individual steps** (for selective updates):
 ```bash
-run.bat build         # Windows Python
-./run.sh build        # Linux/Mac Python
-psm build             # Standalone executable (all platforms)
+run.bat pull          # Fetch Spotify playlists and tracks
+run.bat scan          # Scan local music library
+run.bat match         # Match tracks (auto-generates reports)
+run.bat export        # Generate M3U playlists
+run.bat analyze       # Analyze library quality (auto-generates quality reports)
 ```
 
-**Individual steps**:
+**Reports**:
 ```bash
-run.bat pull          # Fetch Spotify data
-run.bat scan          # Scan local library → Shows directories + live progress
-run.bat match         # Match tracks → Auto-generates match reports (CSV + HTML)
-run.bat export        # Export playlists
+run.bat report        # Regenerate all reports from database
+                      # Options: --match-reports, --analysis-reports, 
+                      #          --no-match-reports, --no-analysis-reports
 ```
 
-**Analysis & Reports**:
+**Other**:
 ```bash
-run.bat analyze             # Analyze library quality → Auto-generates quality reports (CSV + HTML)
-run.bat report              # Generate HTML/CSV reports from existing database
-                            #   Options: --match-reports, --analysis-reports, --no-match-reports, --no-analysis-reports
-```
-
-**Other commands**:
-```bash
-run.bat version
-run.bat install            # Install or update dependencies
-run.bat config              # Show current configuration
-run.bat test -q             # Run tests (Python source only)
+run.bat --help        # Show workflow examples
+run.bat config        # Show current configuration
+run.bat version       # Show version info
 ```
 
 ### Library Scan
@@ -168,34 +231,100 @@ Scanning 2 directories:
 
 ### Automatic Reporting
 
-**`match` command automatically generates:**
-- `matched_tracks.csv` / `.html` - All matched tracks with confidence scores, clickable Spotify track links
-- `unmatched_tracks.csv` / `.html` - All unmatched Spotify tracks, clickable Spotify track links
-- `unmatched_albums.csv` / `.html` - Unmatched albums grouped by popularity
-- `playlist_coverage.csv` / `.html` - Playlist coverage analysis with clickable Spotify playlist links
-- Console: Top 20 unmatched tracks + top 10 unmatched albums (INFO mode)
+Every workflow step automatically generates comprehensive reports to help you understand your collection.
 
-**`analyze` command automatically generates:**
-- `metadata_quality.csv` / `.html` - All files with quality issues (missing tags, low bitrate)
-- Console: **Intelligent grouping by album** - Shows top albums with most files needing fixes
-  - Example: "📁 The Beatles - Abbey Road (18 files missing year)"
-  - Maximizes impact: Fix one album → fix many files at once
+#### Match Reports (`run.bat match`)
 
-**`report` command (standalone):**
-Generate reports from existing database without re-running match/analyze:
+When matching tracks, you get:
+
+**📊 Matched Tracks Report**
+- Every successfully matched track with confidence score (CERTAIN/HIGH/MEDIUM/LOW)
+- Match strategy used (ISRC, exact match, fuzzy match, album context, etc.)
+- Side-by-side comparison: Spotify metadata ↔ Local file metadata
+- Clickable Spotify track links to verify matches
+- Duration comparison and match quality indicators
+
+**❌ Unmatched Tracks Report**  
+- All Spotify tracks without local matches
+- Sorted by playlist popularity (tracks in multiple playlists shown first)
+- Artist, album, duration, and release year for easy identification
+- Clickable Spotify links to preview/purchase missing tracks
+- Liked tracks marked with ❤️ for priority downloading
+
+**💿 Unmatched Albums Report**
+- Missing tracks grouped by album for efficient bulk downloading
+- Shows track count per album to prioritize complete album acquisitions
+- Sorted by frequency (albums appearing in multiple playlists listed first)
+- Perfect for identifying "which albums should I buy next?"
+
+**📈 Playlist Coverage Report**
+- Coverage percentage for each of your playlists
+- Track counts: Total, Matched, Missing for every playlist
+- Clickable playlist names link to Spotify
+- Drill-down links to detailed per-playlist track reports
+- Owner information and playlist URLs
+
+**Console Output:**
+- Top 20 unmatched tracks by popularity (configurable)
+- Top 10 unmatched albums by occurrence frequency (configurable)
+- Quick summary of match quality and coverage
+
+#### Analysis Reports (`run.bat analyze`)
+
+Library quality analysis helps you improve match accuracy:
+
+**🔍 Metadata Quality Report**
+- Files with missing tags (artist, title, album, year)
+- Files below bitrate threshold (default: 320 kbps)
+- Grouped by issue type for targeted fixing
+- Full file paths for easy batch editing
+- Bitrate and duration information
+
+**Console Output with Intelligent Grouping:**
+- Top albums with most files needing fixes
+- Example: "📁 The Beatles - Abbey Road (18 files missing year)"
+- Maximizes impact: Fix one album's metadata → improve many files at once
+- Prioritizes albums over scattered individual files
+
+#### Standalone Report Generation
+
+Regenerate all reports from existing database without re-running analysis:
+
 ```bash
 run.bat report                       # Generate all reports (default)
 run.bat report --no-analysis-reports # Generate only match reports
 run.bat report --no-match-reports    # Generate only analysis reports
 ```
 
-All HTML reports include:
-- **Sortable tables** - Click column headers to sort
-- **Search & pagination** - Powered by jQuery DataTables
-- **Clickable Spotify links** - Track IDs, playlist names link directly to Spotify
-- **Navigation dashboard** - `index.html` provides quick access to all reports
+Perfect for tweaking report formats or sharing results without re-processing.
 
-Reports saved to `data/export/reports/` by default.
+#### Interactive HTML Features
+
+All HTML reports include:
+
+✅ **Sortable Tables** – Click any column header to sort ascending/descending  
+✅ **Live Search** – Filter thousands of tracks instantly as you type  
+✅ **Pagination** – Navigate large datasets with configurable page sizes (10/25/50/100 entries)  
+✅ **Clickable Spotify Links** – Track IDs, playlist names, album names link directly to Spotify  
+✅ **Navigation Dashboard** – Beautiful `index.html` homepage with quick access to all reports  
+✅ **CSV Export** – Download button on every report for spreadsheet analysis  
+✅ **Responsive Design** – Works on desktop, tablet, and mobile  
+✅ **Dark/Light Friendly** – Clean, professional styling that works in any environment
+
+Powered by jQuery DataTables for enterprise-grade table functionality.
+
+**Reports Location:**  
+Default: `data/export/reports/` (configurable via `PSM__REPORTS__DIRECTORY`)
+
+**Open Reports:**
+```bash
+# Windows
+start data\export\reports\index.html
+
+# Linux/Mac  
+open data/export/reports/index.html
+xdg-open data/export/reports/index.html  # Linux alternative
+```
 
 ### Single Playlist Operations (Optional)
 
@@ -420,32 +549,37 @@ data/export/playlists/
 
 **Note**: Spotify's API doesn't expose playlist folders (UI-only), so we organize by owner instead.
 
-### Spotify Setup
+## Advanced Usage
 
-This tool uses **HTTP loopback** (recommended by Spotify) with default redirect: `http://127.0.0.1:9876/callback`
+### Re-authenticate
 
-**Steps**:
-1. Go to https://developer.spotify.com/dashboard
-2. Create an app (name: anything, e.g., "Playlist Build")
-3. Add Redirect URI: `http://127.0.0.1:9876/callback`
-4. Copy the Client ID
-5. Add it to your `.env` file:
+Force fresh login (ignores cached tokens):
+```bash
+run.bat login --force
+```
+
+### Debug Mode
+
+Enable detailed logging for diagnostics:
+```bash
+PSM__LOG_LEVEL=DEBUG run.bat match
+```
+
+Shows: OAuth flow, match scores, normalization, file scanning progress, and more.
+
+### Optional HTTPS Redirect
+
+By default, Spotify redirect uses HTTP (`http://127.0.0.1:9876/callback`). For HTTPS:
+
+1. Register `https://localhost:9876/callback` in Spotify Dashboard
+2. Add to `.env`:
    ```bash
-   PSM__PROVIDERS__SPOTIFY__CLIENT_ID=your_client_id_here
+   PSM__PROVIDERS__SPOTIFY__REDIRECT_SCHEME=https
+   PSM__PROVIDERS__SPOTIFY__REDIRECT_HOST=localhost
    ```
-   Or set temporarily (Windows: `set`, Linux/Mac: `export`)
-6. Authenticate:
-   ```bash
-   run.bat pull      # Windows
-   ./run.sh pull     # Linux/Mac
-   psm pull          # Standalone executable
-   ```
+3. Tool auto-generates self-signed cert if `cryptography` or `openssl` available
 
-Token cache is saved to `tokens.json` and refreshed automatically.
-
-Detailed architecture & matching docs moved to: `docs/architecture.md` and `docs/matching.md`.
-
-## Advanced (See docs for details)
+## Configuration
 
 ### Diagnostics
 
@@ -496,71 +630,36 @@ Token cache: `tokens.json` (auto-refreshed).
    ```
 3. Auto-generates self-signed cert if `cryptography` or `openssl` available
 
-## Tests
-
-**Python source only** (not available for standalone executables):
-```bash
-run.bat test -q           # Windows
-./run.sh test -q          # Linux/Mac
-```
-
-Run specific test:
-```bash
-run.bat test tests\test_hashing.py -q       # Windows
-./run.sh test tests/test_hashing.py -q      # Linux/Mac
-```
-
-## Performance
-
-**Fast Scan Mode** (enabled by default):
-- Skips re-parsing audio tags for unchanged files (size + mtime match)
-- Reuses metadata from database
-- Saves 50-200ms per file = **15-30 minutes** on 10K files
-
-Disable if you need to re-verify all tags in `.env`:
-```bash
-PSM__LIBRARY__FAST_SCAN=false
-```
-
-Other optimizations:
-- `library.skip_unchanged: true` - Skip unchanged files
-- `library.commit_interval: 100` - Batch database commits
-
 ## Technical Details
 
-Condensed overview (see `docs/architecture.md` for full explanation):
+Brief overview (see `docs/architecture.md` for comprehensive details):
 
-- **Database**: SQLite, composite (id, provider) keys for tracks & playlists
-- **Concurrency**: WAL mode enables safe parallel operations (see below)
+- **Database**: SQLite with composite (id, provider) keys for multi-provider support
 - **Matching**: Weighted scoring system with confidence tiers (CERTAIN/HIGH/MEDIUM/LOW)
-- **Performance**: LRU normalization cache, fast scan, bulk inserts, indexed normalized/isrc columns
-- **Schema versioning**: `meta` table entry `schema_version=1` (clean baseline)
+- **Performance**: LRU caching, fast scan mode, bulk inserts, indexed columns
+- **Concurrency**: WAL mode enables safe parallel operations (pull + scan + match simultaneously)
+- **Schema**: Clean v1 baseline with provider namespacing
 
-### Concurrent Operations
+For technical deep-dives, see `docs/architecture.md` and `docs/matching.md`.
 
-**You can safely run multiple commands simultaneously** thanks to SQLite's Write-Ahead Logging (WAL) mode:
+## Troubleshooting
 
+**INVALID_CLIENT error?**
+- Check redirect URI: `run.bat redirect-uri`
+- Default is `http://127.0.0.1:9876/callback`
+- Must match exactly in Spotify Developer Dashboard
+
+**Low match rate?**
+- Run `run.bat analyze` to find metadata issues
+- Check reports: `data/export/reports/index.html`
+- See `docs/troubleshooting.md` for detailed solutions
+
+**Need detailed logs?**
 ```bash
-# Example: Run all three in parallel (different terminals)
-run.bat pull    # Terminal 1: Fetch Spotify data
-run.bat scan    # Terminal 2: Scan local library  
-run.bat match   # Terminal 3: Match tracks
+PSM__LOG_LEVEL=DEBUG run.bat match
 ```
 
-**How it works**:
-- WAL mode allows multiple readers + one writer concurrently
-- 30-second timeout automatically retries brief lock conflicts
-- No database corruption or "database is locked" errors
-- Each operation is isolated and atomic
-
-**What to expect**:
-- ✅ **Safe**: Operations won't corrupt data or interfere with each other
-- ✅ **Fast**: I/O-bound tasks (scan, pull) benefit from parallelization
-- ⚠️ **Data visibility**: New data from concurrent operations appears on next run
-  - Example: If `match` runs while `pull` is adding tracks, newly added tracks won't be matched until next `match` run
-  - This is normal behavior, not a bug
-
-**Performance tip**: Running compute-heavy operations simultaneously (e.g., 3+ concurrent scans) may slow down due to disk I/O contention, but won't cause errors.
+See `docs/troubleshooting.md` for complete troubleshooting guide.
 
 ## Multi-Provider Architecture
 

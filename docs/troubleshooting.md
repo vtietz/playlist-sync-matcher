@@ -19,14 +19,62 @@ Register `https://localhost:9876/callback`.
 - Increase commit interval for large initial scans.
 
 ## Low Match Rate
-- Run `run.bat analyze` and fix missing tags.
-- Lower fuzzy threshold slightly (e.g. 0.78).
-- Enable year strategy if disabled.
+
+**Quick diagnostic workflow:**
+
+1. **Check automatic reports** (generated during match):
+   ```bash
+   run.bat match  # Generates reports automatically
+   start data\export\reports\index.html  # Open report dashboard
+   ```
+
+2. **Review unmatched tracks/albums reports**:
+   - Look for patterns: Are specific albums consistently missing?
+   - Check Spotify metadata vs. what you expected
+   - Use search/sort to find problem areas
+
+3. **Run library quality analysis**:
+   ```bash
+   run.bat analyze  # Generates metadata_quality report
+   ```
+   - Check for missing artist/title/album/year tags
+   - Fix metadata using your preferred tag editor
+   - Sort HTML report by album to batch-edit efficiently
+
+4. **Re-scan and re-match after fixing tags**:
+   ```bash
+   run.bat scan   # Pick up updated tags
+   run.bat match  # Re-match with better metadata
+   ```
+
+**Configuration adjustments:**
+- Lower fuzzy threshold slightly: `PSM__MATCHING__FUZZY_THRESHOLD=0.75`
+- Enable year strategy if disabled: `PSM__MATCHING__USE_YEAR=true`
+- Check duration tolerance if many duration mismatches: `PSM__MATCHING__DURATION_TOLERANCE=3.0`
 
 ## Wrong Matches
-- Increase fuzzy threshold (>0.85).
-- Add `year_match` earlier in strategy list.
-- Inspect normalization collisions (enable DEBUG logging).
+
+**Diagnosis:**
+1. **Review matched_tracks report**:
+   ```bash
+   start data\export\reports\matched_tracks.html
+   ```
+   - Sort by confidence score (look for LOW/MEDIUM matches)
+   - Compare Spotify vs. Local metadata columns
+   - Check which match strategy was used
+
+2. **Look for normalization collisions**:
+   ```bash
+   PSM__LOG_LEVEL=DEBUG run.bat match
+   ```
+   - Shows exact normalization results
+   - Reveals when different songs normalize to same text
+
+**Solutions:**
+- Increase fuzzy threshold: `PSM__MATCHING__FUZZY_THRESHOLD=0.85` (stricter)
+- Add `year_match` earlier in strategy list for better disambiguation
+- Enable year in normalization: `PSM__MATCHING__USE_YEAR=true`
+- Check duration tolerance isn't too permissive: `PSM__MATCHING__DURATION_TOLERANCE=2.0`
 
 ## Debug Logging
 ```
