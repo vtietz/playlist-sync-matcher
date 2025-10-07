@@ -195,7 +195,7 @@ All HTML reports include:
 - **Clickable Spotify links** - Track IDs, playlist names link directly to Spotify
 - **Navigation dashboard** - `index.html` provides quick access to all reports
 
-Reports saved to `export/reports/` by default.
+Reports saved to `data/export/reports/` by default.
 
 ### Single Playlist Operations (Optional)
 
@@ -300,7 +300,7 @@ Examples:
 run.bat playlist push 3cEYpjA9oz9GiPac4AsH4n
 
 # Preview from exported M3U file
-run.bat playlist push 3cEYpjA9oz9GiPac4AsH4n --file export/playlists/MyList_xxxxxxxx.m3u8
+run.bat playlist push 3cEYpjA9oz9GiPac4AsH4n --file data/export/playlists/MyList_xxxxxxxx.m3u8
 
 # Apply changes after reviewing preview output
 run.bat playlist push 3cEYpjA9oz9GiPac4AsH4n --apply
@@ -382,10 +382,13 @@ Settings are merged in this order (later overrides earlier):
 **Export**:
 - `PSM__EXPORT__MODE` - strict | mirrored | placeholders (default: strict)
 - `PSM__EXPORT__ORGANIZE_BY_OWNER` - Group by owner (default: false)
-- `PSM__EXPORT__DIRECTORY` - Output directory (default: export/playlists)
+- `PSM__EXPORT__DIRECTORY` - Output directory (default: data/export/playlists)
+
+**Reports**:
+- `PSM__REPORTS__DIRECTORY` - Report output directory (default: data/export/reports)
 
 **Database**:
-- `PSM__DATABASE__PATH` - SQLite file location (default: data/spotify_sync.db)
+- `PSM__DATABASE__PATH` - SQLite file location (default: data/db/spotify_sync.db)
 
 **Logging**:
 - `PSM__LOG_LEVEL` - Control output verbosity: `DEBUG` (detailed diagnostics), `INFO` (normal progress, default), `WARNING` (quiet, errors only)
@@ -408,7 +411,7 @@ PSM__EXPORT__ORGANIZE_BY_OWNER=true
 
 Result:
 ```
-export/playlists/
+data/export/playlists/
 ├── my_playlists/      # Your playlists
 ├── Friend_Name/       # Followed playlists
 └── other/             # Unknown owner

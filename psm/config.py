@@ -49,13 +49,13 @@ _DEFAULTS: Dict[str, Any] = {
         "max_candidates_per_track": 500,  # Performance safeguard: cap candidates per track
     },
     "export": {
-        "directory": "export/playlists",
+        "directory": "data/export/playlists",
         "mode": "strict",
         "placeholder_extension": ".missing",
         "organize_by_owner": False,
     },
-    "reports": {"directory": "export/reports"},
-    "database": {"path": "data/spotify_sync.db", "pragma_journal_mode": "WAL"},
+    "reports": {"directory": "data/export/reports"},
+    "database": {"path": "data/db/spotify_sync.db", "pragma_journal_mode": "WAL"},
 }
 
 

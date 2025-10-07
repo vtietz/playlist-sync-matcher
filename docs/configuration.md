@@ -39,14 +39,14 @@ Environment variable naming: `PSM__SECTION__KEY` (double underscores as separato
 ### Export
 - `PSM__EXPORT__MODE` - strict|mirrored|placeholders (default strict).
 - `PSM__EXPORT__ORGANIZE_BY_OWNER` - Group playlists by owner (default false).
-- `PSM__EXPORT__DIRECTORY` - Target folder.
+- `PSM__EXPORT__DIRECTORY` - Target folder (default data/export/playlists).
 - `PSM__EXPORT__PLACEHOLDER_EXTENSION` - Extension for placeholder files (default .missing).
 
 ### Reports
-- `PSM__REPORTS__DIRECTORY` - Report output directory.
+- `PSM__REPORTS__DIRECTORY` - Report output directory (default data/export/reports).
 
 ### Database / Logging
-- `PSM__DATABASE__PATH` - SQLite path.
+- `PSM__DATABASE__PATH` - SQLite path (default data/db/spotify_sync.db).
 - `PSM__DATABASE__PRAGMA_JOURNAL_MODE` - Journal mode (default WAL).
 - `PSM__LOG_LEVEL` - DEBUG|INFO|WARNING.
 

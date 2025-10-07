@@ -121,7 +121,7 @@ The `match` command automatically generates comprehensive reports:
    - Shows track count per album
    - Quickly identifies which albums to acquire
 
-All reports saved to `export/reports/` (configurable via `reports.directory`).
+All reports saved to `data/export/reports/` (configurable via `PSM__REPORTS__DIRECTORY`).
 
 ### Console Diagnostics (INFO Mode)
 
@@ -173,7 +173,7 @@ run.bat match --top-tracks 50 --top-albums 20
    ```
 
 3. **Review unmatched diagnostics**
-   - Check the auto-generated reports in `export/reports/`
+   - Check the auto-generated reports in `data/export/reports/`
    - Are albums consistently missing? (acquisition needed)
    - Are tracks low-occurrence? (may not be worth matching)
 

@@ -36,8 +36,13 @@ Shows match decisions and normalization outputs.
 
 ## Reset State
 Delete database and token cache if needed:
-```
-rm data/spotify_sync.db
+```bash
+# Windows
+del data\db\spotify_sync.db
+del tokens.json
+
+# Linux/Mac
+rm data/db/spotify_sync.db
 rm tokens.json
 ```
 (Re-ingest will rebuild.)
