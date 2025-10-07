@@ -72,21 +72,24 @@ class Database(DatabaseInterface):
             self.conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}")
             self.conn.commit()
 
-    def upsert_playlist(self, pid: str, name: str, snapshot_id: str | None, owner_id: str | None = None, owner_name: str | None = None, provider: str = 'spotify') -> None:
+    def upsert_playlist(self, pid: str, name: str, snapshot_id: str | None, owner_id: str | None = None, owner_name: str | None = None, provider: str | None = None) -> None:
+        provider = provider or 'spotify'  # Fallback for backward compatibility
         self.conn.execute(
             "INSERT INTO playlists(id,provider,name,snapshot_id,owner_id,owner_name) VALUES(?,?,?,?,?,?) ON CONFLICT(id,provider) DO UPDATE SET name=excluded.name, snapshot_id=excluded.snapshot_id, owner_id=excluded.owner_id, owner_name=excluded.owner_name",
             (pid, provider, name, snapshot_id, owner_id, owner_name),
         )
         self.conn.commit()
 
-    def playlist_snapshot_changed(self, pid: str, snapshot_id: str, provider: str = 'spotify') -> bool:
+    def playlist_snapshot_changed(self, pid: str, snapshot_id: str, provider: str | None = None) -> bool:
+        provider = provider or 'spotify'  # Fallback for backward compatibility
         cur = self.conn.execute("SELECT snapshot_id FROM playlists WHERE id=? AND provider=?", (pid, provider))
         row = cur.fetchone()
         if not row:
             return True
         return row[0] != snapshot_id
 
-    def replace_playlist_tracks(self, pid: str, tracks: Sequence[Tuple[int, str, str | None]], provider: str = 'spotify'):
+    def replace_playlist_tracks(self, pid: str, tracks: Sequence[Tuple[int, str, str | None]], provider: str | None = None):
+        provider = provider or 'spotify'  # Fallback for backward compatibility
         self.conn.execute("DELETE FROM playlist_tracks WHERE playlist_id=? AND provider=?", (pid, provider))
         self.conn.executemany(
             "INSERT INTO playlist_tracks(playlist_id, provider, position, track_id, added_at) VALUES(?,?,?,?,?)",
@@ -94,7 +97,8 @@ class Database(DatabaseInterface):
         )
         self.conn.commit()
 
-    def upsert_track(self, track: Dict[str, Any], provider: str = 'spotify'):
+    def upsert_track(self, track: Dict[str, Any], provider: str | None = None):
+        provider = provider or 'spotify'  # Fallback for backward compatibility
         self.conn.execute(
             "INSERT INTO tracks(id,provider,name,album,artist,album_id,artist_id,isrc,duration_ms,normalized,year) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id,provider) DO UPDATE SET name=excluded.name, album=excluded.album, artist=excluded.artist, album_id=excluded.album_id, artist_id=excluded.artist_id, isrc=excluded.isrc, duration_ms=excluded.duration_ms, normalized=excluded.normalized, year=excluded.year",
             (
@@ -104,7 +108,8 @@ class Database(DatabaseInterface):
             ),
         )
 
-    def upsert_liked(self, track_id: str, added_at: str, provider: str = 'spotify'):
+    def upsert_liked(self, track_id: str, added_at: str, provider: str | None = None):
+        provider = provider or 'spotify'  # Fallback for backward compatibility
         self.conn.execute(
             "INSERT INTO liked_tracks(track_id,provider,added_at) VALUES(?,?,?) ON CONFLICT(track_id,provider) DO UPDATE SET added_at=excluded.added_at",
             (track_id, provider, added_at),
@@ -123,7 +128,8 @@ class Database(DatabaseInterface):
             ),
         )
 
-    def add_match(self, track_id: str, file_id: int, score: float, method: str, provider: str = 'spotify'):
+    def add_match(self, track_id: str, file_id: int, score: float, method: str, provider: str | None = None):
+        provider = provider or 'spotify'  # Fallback for backward compatibility
         self.conn.execute(
             "INSERT INTO matches(track_id,provider,file_id,score,method) VALUES(?,?,?,?,?) ON CONFLICT(track_id,provider,file_id) DO UPDATE SET score=excluded.score, method=excluded.method",
             (track_id, provider, file_id, score, method),
@@ -147,28 +153,32 @@ class Database(DatabaseInterface):
         row = cur.fetchone()
         return row[0] if row else None
 
-    def count_playlists(self, provider: str | None = 'spotify') -> int:
+    def count_playlists(self, provider: str | None = None) -> int:
+        # None means all providers, empty string not supported
         if provider:
             cursor = self.conn.execute("SELECT COUNT(*) FROM playlists WHERE provider=?", (provider,))
         else:
             cursor = self.conn.execute("SELECT COUNT(*) FROM playlists")
         return cursor.fetchone()[0]
 
-    def count_unique_playlist_tracks(self, provider: str | None = 'spotify') -> int:
+    def count_unique_playlist_tracks(self, provider: str | None = None) -> int:
+        # None means all providers
         if provider:
             cursor = self.conn.execute("SELECT COUNT(DISTINCT track_id) FROM playlist_tracks WHERE provider=?", (provider,))
         else:
             cursor = self.conn.execute("SELECT COUNT(DISTINCT track_id) FROM playlist_tracks")
         return cursor.fetchone()[0]
 
-    def count_liked_tracks(self, provider: str | None = 'spotify') -> int:
+    def count_liked_tracks(self, provider: str | None = None) -> int:
+        # None means all providers
         if provider:
             cursor = self.conn.execute("SELECT COUNT(*) FROM liked_tracks WHERE provider=?", (provider,))
         else:
             cursor = self.conn.execute("SELECT COUNT(*) FROM liked_tracks")
         return cursor.fetchone()[0]
 
-    def count_tracks(self, provider: str | None = 'spotify') -> int:
+    def count_tracks(self, provider: str | None = None) -> int:
+        # None means all providers
         if provider:
             cursor = self.conn.execute("SELECT COUNT(*) FROM tracks WHERE provider=?", (provider,))
         else:
@@ -183,7 +193,9 @@ class Database(DatabaseInterface):
         cursor = self.conn.execute("SELECT COUNT(*) FROM matches")
         return cursor.fetchone()[0]
 
-    def get_all_playlists(self, provider: str | None = 'spotify') -> list[sqlite3.Row]:
+    def get_all_playlists(self, provider: str | None = None) -> list[sqlite3.Row]:
+        # Default to 'spotify' for backward compatibility when None
+        provider = provider if provider is not None else 'spotify'
         if provider:
             sql = """
             SELECT p.id, p.provider, p.name, p.owner_id, p.owner_name, p.snapshot_id,
@@ -206,12 +218,14 @@ class Database(DatabaseInterface):
             """
             return self.conn.execute(sql).fetchall()
 
-    def get_playlist_by_id(self, playlist_id: str, provider: str = 'spotify') -> Optional[sqlite3.Row]:
+    def get_playlist_by_id(self, playlist_id: str, provider: str | None = None) -> Optional[sqlite3.Row]:
+        provider = provider or 'spotify'  # Fallback for backward compatibility
         sql = "SELECT id, provider, name, owner_id, owner_name, snapshot_id FROM playlists WHERE id=? AND provider=?"
         cur = self.conn.execute(sql, (playlist_id, provider))
         return cur.fetchone()
 
-    def count_playlist_tracks(self, playlist_id: str, provider: str = 'spotify') -> int:
+    def count_playlist_tracks(self, playlist_id: str, provider: str | None = None) -> int:
+        provider = provider or 'spotify'  # Fallback for backward compatibility
         cursor = self.conn.execute("SELECT COUNT(*) FROM playlist_tracks WHERE playlist_id=? AND provider=?", (playlist_id, provider))
         return cursor.fetchone()[0]
 

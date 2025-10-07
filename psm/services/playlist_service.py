@@ -119,11 +119,11 @@ def pull_single_playlist(
             'duration_ms': track.get('duration_ms'),
             'normalized': combo,
             'year': year,
-        })
+        }, provider='spotify')
     
     # Update playlist and tracks
-    db.upsert_playlist(playlist_id, pl_name, snapshot_id, owner_id, owner_name)
-    db.replace_playlist_tracks(playlist_id, simplified)
+    db.upsert_playlist(playlist_id, pl_name, snapshot_id, owner_id, owner_name, provider='spotify')
+    db.replace_playlist_tracks(playlist_id, simplified, provider='spotify')
     db.commit()
     
     result.tracks_processed = len(simplified)
@@ -191,7 +191,7 @@ def match_single_playlist(
     # Store matches
     matched_count = 0
     for track_id, file_id, score, method in matches:
-        db.add_match(track_id=track_id, file_id=file_id, score=score, method=method)
+        db.add_match(track_id=track_id, file_id=file_id, score=score, method=method, provider='spotify')
         matched_count += 1
     
     db.commit()

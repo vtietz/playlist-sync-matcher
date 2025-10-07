@@ -59,6 +59,16 @@ class MatchingConfig:
 
 
 @dataclass
+class ProvidersConfig:
+    """Configuration for all providers."""
+    spotify: SpotifyConfig = field(default_factory=SpotifyConfig)
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for backward compatibility."""
+        return {"spotify": self.spotify.to_dict()}
+
+
+@dataclass
 class ExportConfig:
     """Playlist export configuration."""
     directory: str = "export/playlists"
@@ -97,6 +107,8 @@ class AppConfig:
     """Root application configuration with all subsections."""
     log_level: str = "INFO"
     provider: str = "spotify"
+    providers: ProvidersConfig = field(default_factory=ProvidersConfig)
+    # Backward compatibility: keep spotify at top level
     spotify: SpotifyConfig = field(default_factory=SpotifyConfig)
     library: LibraryConfig = field(default_factory=LibraryConfig)
     matching: MatchingConfig = field(default_factory=MatchingConfig)
@@ -113,7 +125,8 @@ class AppConfig:
         return {
             "log_level": self.log_level,
             "provider": self.provider,
-            "spotify": self.spotify.to_dict(),
+            "providers": self.providers.to_dict(),
+            "spotify": self.spotify.to_dict(),  # Keep for backward compat
             "library": self.library.to_dict(),
             "matching": self.matching.to_dict(),
             "export": self.export.to_dict(),
@@ -131,10 +144,15 @@ class AppConfig:
         Returns:
             Typed AppConfig instance
         """
+        # Support both providers.spotify and spotify (backward compat)
+        providers_data = data.get("providers", {})
+        spotify_data = providers_data.get("spotify", data.get("spotify", {}))
+        
         return cls(
             log_level=data.get("log_level", "INFO"),
             provider=data.get("provider", "spotify"),
-            spotify=SpotifyConfig(**data.get("spotify", {})),
+            providers=ProvidersConfig(spotify=SpotifyConfig(**spotify_data)),
+            spotify=SpotifyConfig(**spotify_data),  # Keep for backward compat
             library=LibraryConfig(**data.get("library", {})),
             matching=MatchingConfig(**data.get("matching", {})),
             export=ExportConfig(**data.get("export", {})),
@@ -180,6 +198,7 @@ class TypedConfigDict(dict):
 
 __all__ = [
     "AppConfig",
+    "ProvidersConfig",
     "SpotifyConfig",
     "LibraryConfig",
     "MatchingConfig",

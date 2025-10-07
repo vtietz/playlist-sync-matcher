@@ -160,8 +160,9 @@ def match_and_store(db, config: Dict[str, Any] | None = None, fuzzy_threshold: f
             matches, new_matched = strategy.match(tracks, files, matched_track_ids)
             
             # Store matches
+            provider = config.get('provider', 'spotify')
             for track_id, file_id, score, method in matches:
-                db.add_match(track_id, file_id, score, method)
+                db.add_match(track_id, file_id, score, method, provider=provider)
             
             all_matches.extend(matches)
             matched_track_ids.update(new_matched)
@@ -176,8 +177,9 @@ def match_and_store(db, config: Dict[str, Any] | None = None, fuzzy_threshold: f
             matches, new_matched = strategy.match(tracks, files, matched_track_ids)
             
             # Store matches
+            provider = config.get('provider', 'spotify')
             for track_id, file_id, score, method in matches:
-                db.add_match(track_id, file_id, score, method)
+                db.add_match(track_id, file_id, score, method, provider=provider)
             
             all_matches.extend(matches)
             matched_track_ids.update(new_matched)
@@ -192,8 +194,9 @@ def match_and_store(db, config: Dict[str, Any] | None = None, fuzzy_threshold: f
             matches, new_matched = strategy.match(tracks, files, matched_track_ids)
             
             # Store matches
+            provider = config.get('provider', 'spotify')
             for track_id, file_id, score, method in matches:
-                db.add_match(track_id, file_id, score, method)
+                db.add_match(track_id, file_id, score, method, provider=provider)
             
             all_matches.extend(matches)
             matched_track_ids.update(new_matched)
@@ -226,8 +229,9 @@ def match_and_store(db, config: Dict[str, Any] | None = None, fuzzy_threshold: f
             matches, new_matched = strategy.match(tracks, files, matched_track_ids)
             
             # Store matches
+            provider = config.get('provider', 'spotify')
             for track_id, file_id, score, method in matches:
-                db.add_match(track_id, file_id, score, method)
+                db.add_match(track_id, file_id, score, method, provider=provider)
             
             all_matches.extend(matches)
             matched_track_ids.update(new_matched)

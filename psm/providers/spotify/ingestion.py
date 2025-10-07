@@ -15,6 +15,9 @@ from typing import TYPE_CHECKING
 from ...utils.normalization import normalize_title_artist
 from ...utils.logging_helpers import format_summary
 
+# Provider identifier for database operations
+PROVIDER_NAME = 'spotify'
+
 if TYPE_CHECKING:
     from .client import SpotifyAPIClient
 
@@ -86,11 +89,11 @@ def ingest_playlists(db, client: 'SpotifyAPIClient', use_year: bool = False, for
             "SELECT snapshot_id FROM playlists WHERE id = ?", (pid,)
         ).fetchone()
         
-        if not force_refresh and not db.playlist_snapshot_changed(pid, snapshot_id):
+        if not force_refresh and not db.playlist_snapshot_changed(pid, snapshot_id, provider=PROVIDER_NAME):
             unchanged_playlists += 1
             # Still upsert playlist metadata (including owner fields) even when skipped
             # This ensures new schema fields get populated without reprocessing tracks
-            db.upsert_playlist(pid, name, snapshot_id, owner_id, owner_name)
+            db.upsert_playlist(pid, name, snapshot_id, owner_id, owner_name, provider=PROVIDER_NAME)
             track_count = pl.get('tracks', {}).get('total', 0) if isinstance(pl.get('tracks'), dict) else 0
             logger.info(f"{click.style('[skip]', fg='yellow')} {name} ({track_count} tracks) - unchanged snapshot")
             continue
@@ -133,9 +136,9 @@ def ingest_playlists(db, client: 'SpotifyAPIClient', use_year: bool = False, for
                 'duration_ms': track.get('duration_ms'),
                 'normalized': combo,
                 'year': year,
-            })
-        db.upsert_playlist(pid, name, snapshot_id, owner_id, owner_name)
-        db.replace_playlist_tracks(pid, simplified)
+            }, provider=PROVIDER_NAME)
+        db.upsert_playlist(pid, name, snapshot_id, owner_id, owner_name, provider=PROVIDER_NAME)
+        db.replace_playlist_tracks(pid, simplified, provider=PROVIDER_NAME)
         db.commit()
         
         # Determine if new or updated
@@ -228,8 +231,8 @@ def ingest_liked(db, client: 'SpotifyAPIClient', use_year: bool = False):
             'duration_ms': track.get('duration_ms'),
             'normalized': combo,
             'year': year,
-        })
-        db.upsert_liked(t_id, added_at)
+        }, provider=PROVIDER_NAME)
+        db.upsert_liked(t_id, added_at, provider=PROVIDER_NAME)
         
         # Determine if new or updated
         if existing_track:

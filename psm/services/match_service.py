@@ -221,7 +221,8 @@ def _run_scoring_engine(db: Database, config: Dict[str, Any]) -> int:
 
         if not best_breakdown or best_local_id is None:
             continue
-        db.add_match(t['id'], best_local_id, best_breakdown.raw_score / 100.0, f"score:{best_breakdown.confidence}")
+        provider = config.get('provider', 'spotify')
+        db.add_match(t['id'], best_local_id, best_breakdown.raw_score / 100.0, f"score:{best_breakdown.confidence}", provider=provider)
         matches += 1
         
         # Log progress every N tracks

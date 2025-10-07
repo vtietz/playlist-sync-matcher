@@ -129,7 +129,7 @@ def report_albums(ctx: click.Context):
 
 
 @cli.command(name='config')
-@click.option('--section', '-s', help='Only show a specific top-level section (e.g. spotify, export, database).')
+@click.option('--section', '-s', help='Only show a specific top-level section (e.g. providers, export, database).')
 @click.option('--redact', is_flag=True, help='Redact sensitive values like client_id.')
 @click.pass_context
 def show_config(ctx: click.Context, section: str | None, redact: bool):

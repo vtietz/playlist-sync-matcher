@@ -11,7 +11,7 @@ def playlists_group(ctx: click.Context):
 
 
 @playlists_group.command(name='list')
-@click.option('--show-urls', is_flag=True, help='Show Spotify URLs for each playlist')
+@click.option('--show-urls', is_flag=True, help='Show provider URLs for each playlist')
 @click.pass_context
 def playlists_list(ctx: click.Context, show_urls: bool):
     cfg = ctx.obj

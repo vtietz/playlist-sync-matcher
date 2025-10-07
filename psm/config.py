@@ -15,6 +15,20 @@ except ImportError:
 _DEFAULTS: Dict[str, Any] = {
     "log_level": "INFO",
     "provider": "spotify",
+    "providers": {
+        "spotify": {
+            "client_id": None,
+            "redirect_scheme": "http",
+            "redirect_host": "127.0.0.1",
+            "redirect_port": 9876,
+            "redirect_path": "/callback",
+            "scope": "user-library-read playlist-read-private playlist-read-collaborative",
+            "cache_file": "tokens.json",
+            "cert_file": "cert.pem",
+            "key_file": "key.pem",
+        },
+    },
+    # Backward compatibility: keep spotify at top level
     "spotify": {
         "client_id": None,
         "redirect_scheme": "http",
