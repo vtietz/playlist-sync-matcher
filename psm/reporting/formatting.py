@@ -78,23 +78,27 @@ def get_confidence_badge_class(confidence: str) -> str:
         return "badge-secondary"
 
 
-def get_quality_badge_class(missing_count: int) -> str:
+def get_quality_badge_class(missing_count: int, bitrate_kbps: int | None = None, min_bitrate: int = 320) -> str:
     """Get Bootstrap badge class for metadata quality.
     
     Args:
         missing_count: Number of missing metadata fields
+        bitrate_kbps: Audio bitrate in kbps (optional)
+        min_bitrate: Minimum bitrate for EXCELLENT quality (default: 320)
         
     Returns:
         CSS class name for badge styling
     """
-    if missing_count == 0:
-        return "badge-success"  # EXCELLENT
-    elif missing_count <= 1:
-        return "badge-primary"  # GOOD
-    elif missing_count <= 2:
-        return "badge-warning"  # PARTIAL
-    else:
-        return "badge-danger"   # POOR
+    quality = get_quality_status_text(missing_count, bitrate_kbps, min_bitrate)
+    
+    if quality == "EXCELLENT":
+        return "badge-success"
+    elif quality == "GOOD":
+        return "badge-primary"
+    elif quality == "PARTIAL":
+        return "badge-warning"
+    else:  # POOR
+        return "badge-danger"
 
 
 def get_coverage_badge_class(percentage: float) -> str:
@@ -129,23 +133,52 @@ def format_badge(text: str, badge_class: str) -> str:
     return f'<span class="badge {badge_class}">{text}</span>'
 
 
-def get_quality_status_text(missing_count: int) -> str:
-    """Get quality status text based on missing field count.
+def get_quality_status_text(missing_count: int, bitrate_kbps: int | None = None, min_bitrate: int = 320) -> str:
+    """Get quality status text based on missing field count and bitrate.
+    
+    Quality is determined by both metadata completeness and audio quality:
+    - POOR: 3+ missing fields OR bitrate < 128 kbps
+    - PARTIAL: 2 missing fields OR bitrate 128-191 kbps
+    - GOOD: 1 missing field OR bitrate 192-319 kbps
+    - EXCELLENT: No missing fields AND bitrate >= 320 kbps (or no bitrate info)
     
     Args:
-        missing_count: Number of missing metadata fields
+        missing_count: Number of missing metadata fields (0-4)
+        bitrate_kbps: Audio bitrate in kbps (optional)
+        min_bitrate: Minimum bitrate for EXCELLENT quality (default: 320)
         
     Returns:
         Quality status text
     """
-    if missing_count == 0:
-        return "EXCELLENT"
-    elif missing_count <= 1:
-        return "GOOD"
-    elif missing_count <= 2:
-        return "PARTIAL"
+    # Start with metadata-based quality
+    if missing_count >= 3:
+        metadata_quality = "POOR"
+    elif missing_count == 2:
+        metadata_quality = "PARTIAL"
+    elif missing_count == 1:
+        metadata_quality = "GOOD"
     else:
-        return "POOR"
+        metadata_quality = "EXCELLENT"
+    
+    # Factor in bitrate if available
+    if bitrate_kbps is not None:
+        if bitrate_kbps < 128:
+            bitrate_quality = "POOR"
+        elif bitrate_kbps < 192:
+            bitrate_quality = "PARTIAL"
+        elif bitrate_kbps < min_bitrate:
+            bitrate_quality = "GOOD"
+        else:
+            bitrate_quality = "EXCELLENT"
+        
+        # Return the worse of the two qualities
+        quality_order = {"POOR": 0, "PARTIAL": 1, "GOOD": 2, "EXCELLENT": 3}
+        if quality_order[bitrate_quality] < quality_order[metadata_quality]:
+            return bitrate_quality
+        else:
+            return metadata_quality
+    
+    return metadata_quality
 
 
 def get_coverage_status_text(percentage: float) -> str:
@@ -189,4 +222,26 @@ def format_playlist_count_badge(count: int) -> str:
         badge_class = "badge-secondary" # No playlists
         text = "NONE"
     
+    return format_badge(text, badge_class)
+
+
+def format_playlist_count_simple(count: int) -> str:
+    """Format playlist count as a simple colored number badge.
+    
+    Args:
+        count: Number of playlists containing the track
+        
+    Returns:
+        HTML badge showing just the count with color-coding
+    """
+    if count >= 5:
+        badge_class = "badge-danger"   # HIGH priority (many playlists)
+    elif count >= 2:
+        badge_class = "badge-warning"  # MEDIUM priority
+    elif count == 1:
+        badge_class = "badge-primary"  # LOW priority
+    else:
+        badge_class = "badge-secondary" # No playlists
+    
+    text = str(count) if count > 0 else "0"
     return format_badge(text, badge_class)

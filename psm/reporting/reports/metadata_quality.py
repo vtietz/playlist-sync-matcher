@@ -60,7 +60,7 @@ def write_metadata_quality_report(
     
     # Write CSV
     csv_path = out_dir / "metadata_quality.csv"
-    _write_csv(csv_path, rows)
+    _write_csv(csv_path, rows, min_bitrate_kbps)
     
     # Write HTML
     html_path = out_dir / "metadata_quality.html"
@@ -69,7 +69,7 @@ def write_metadata_quality_report(
     return (csv_path, html_path)
 
 
-def _write_csv(csv_path: Path, rows: list[dict]) -> None:
+def _write_csv(csv_path: Path, rows: list[dict], min_bitrate_kbps: int = 320) -> None:
     """Write metadata quality CSV report."""
     with csv_path.open('w', newline='', encoding='utf-8') as fh:
         w = csv.writer(fh)
@@ -78,7 +78,11 @@ def _write_csv(csv_path: Path, rows: list[dict]) -> None:
             "bitrate_kbps", "playlists", "liked", "quality_status"
         ])
         for row in rows:
-            quality_status = get_quality_status_text(row['missing_count'])
+            quality_status = get_quality_status_text(
+                row['missing_count'], 
+                row['bitrate'], 
+                min_bitrate_kbps
+            )
             w.writerow([
                 row['path'],
                 "✓" if row['has_title'] else "✗",
@@ -106,8 +110,8 @@ def _write_html(
         path_display = f'<span class="path-short" title="{row["path"]}">{short_path}</span>'
         
         # Create quality status badge
-        quality_status = get_quality_status_text(row['missing_count'])
-        quality_badge_class = get_quality_badge_class(row['missing_count'])
+        quality_status = get_quality_status_text(row['missing_count'], row['bitrate'], min_bitrate_kbps)
+        quality_badge_class = get_quality_badge_class(row['missing_count'], row['bitrate'], min_bitrate_kbps)
         quality_badge = format_badge(quality_status, quality_badge_class)
         
         # Playlist count and liked status
@@ -141,7 +145,9 @@ def _write_html(
         columns=["File", "Title", "Artist", "Album", "Year", "Bitrate", "Playlists", "Liked", "Status"],
         rows=html_rows,
         description=description,
-        default_order=[[8, "desc"], [5, "asc"]]  # Sort by Status, then Bitrate
+        default_order=[[8, "desc"], [5, "asc"]],  # Sort by Status, then Bitrate
+        csv_filename="metadata_quality.csv",
+        active_page="metadata_quality"
     )
     
     html_path.write_text(html_content, encoding='utf-8')

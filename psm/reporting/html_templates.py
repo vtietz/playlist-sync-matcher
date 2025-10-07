@@ -7,7 +7,10 @@ def get_html_template(
     columns: list[str], 
     rows: list[list], 
     description: str = "",
-    default_order: Optional[list[list[int | str]]] = None
+    default_order: Optional[list[list[int | str]]] = None,
+    csv_filename: Optional[str] = None,
+    show_navigation: bool = True,
+    active_page: Optional[str] = None
 ) -> str:
     """Generate a DataTables-powered HTML report with pagination and search.
     
@@ -18,6 +21,10 @@ def get_html_template(
         description: Optional description text shown above the table
         default_order: Default sort order as [[col_idx, 'asc'/'desc'], ...]. 
                       Example: [[0, 'desc'], [1, 'asc']] sorts by col 0 DESC, then col 1 ASC
+        csv_filename: Optional CSV filename for download button (e.g., "report.csv")
+        show_navigation: Whether to show the top navigation bar (default: True)
+        active_page: Which page is currently active for navigation highlighting 
+                    (e.g., "matched_tracks", "unmatched_albums", etc.)
     
     Returns:
         Complete HTML document as string
@@ -38,6 +45,46 @@ def get_html_template(
         order_json = str(default_order).replace("'", '"')
     else:
         order_json = "[[0, 'asc']]"
+    
+    # CSV download button HTML
+    download_btn_html = ""
+    if csv_filename:
+        download_btn_html = f'<a href="{csv_filename}" class="download-btn" download>📥 Download CSV</a>'
+    
+    # Navigation HTML - determine path prefix based on directory depth
+    # For playlist detail pages (in playlists/ subdirectory), we need to go up one level (../)
+    # We detect this by checking if csv_filename doesn't contain a slash
+    # (because main reports have simple filenames like "matched_tracks.csv",
+    #  while playlist details just have "{id}.csv" when in the playlists/ dir)
+    nav_prefix = ""
+    if show_navigation and csv_filename:
+        # If we're rendering from within a subdirectory, we need to go up
+        # Main reports have full paths like "matched_tracks.csv" (no slash)
+        # Playlist details are rendered with just "playlist_id.csv" after being placed in playlists/
+        # So if the filename looks like a UUID/ID (contains no underscore), it's in a subdir
+        if "_" not in csv_filename and "/" not in csv_filename and "\\" not in csv_filename:
+            nav_prefix = "../"
+    
+    # Helper to add 'active' class to current page
+    def nav_class(page_name: str) -> str:
+        return ' class="active"' if active_page == page_name else ''
+    
+    nav_html = ""
+    if show_navigation:
+        nav_html = f'''
+    <nav class="nav-bar">
+        <div class="nav-container">
+            <a href="{nav_prefix}index.html" class="nav-home">🏠 Home</a>
+            <div class="nav-links">
+                <a href="{nav_prefix}matched_tracks.html"{nav_class("matched_tracks")}>✓ Matched Tracks</a>
+                <a href="{nav_prefix}unmatched_tracks.html"{nav_class("unmatched_tracks")}>✗ Unmatched Tracks</a>
+                <a href="{nav_prefix}unmatched_albums.html"{nav_class("unmatched_albums")}>💿 Unmatched Albums</a>
+                <a href="{nav_prefix}playlist_coverage.html"{nav_class("playlist_coverage")}>📊 Playlist Coverage</a>
+                <a href="{nav_prefix}metadata_quality.html"{nav_class("metadata_quality")}>🔍 Metadata Quality</a>
+            </div>
+        </div>
+    </nav>
+    '''
     
     return f'''<!DOCTYPE html>
 <html lang="en">
@@ -71,6 +118,68 @@ def get_html_template(
             color: #333;
         }}
         
+        /* Navigation Bar */
+        .nav-bar {{
+            background: #1a73e8;
+            padding: 0;
+            margin: 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }}
+        
+        .nav-container {{
+            max-width: 1600px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            padding: 0;
+        }}
+        
+        .nav-home {{
+            padding: 15px 20px;
+            background: #1557b0;
+            color: white;
+            text-decoration: none;
+            font-weight: 600;
+            transition: background 0.2s ease;
+            border-right: 1px solid rgba(255,255,255,0.2);
+        }}
+        
+        .nav-home:hover {{
+            background: #0d3c7a;
+            color: white;
+            text-decoration: none;
+        }}
+        
+        .nav-links {{
+            display: flex;
+            flex-wrap: wrap;
+            flex: 1;
+        }}
+        
+        .nav-links a {{
+            padding: 15px 20px;
+            color: white;
+            text-decoration: none;
+            transition: background 0.2s ease;
+            border-right: 1px solid rgba(255,255,255,0.1);
+        }}
+        
+        .nav-links a:hover {{
+            background: #1557b0;
+            color: white;
+            text-decoration: none;
+        }}
+        
+        .nav-links a.active {{
+            background: #0d3c7a;
+            font-weight: 600;
+            border-bottom: 3px solid #fff;
+        }}
+        
+        .nav-links a:last-child {{
+            border-right: none;
+        }}
+        
         .container {{
             max-width: 1600px;
             margin: 0 auto;
@@ -81,6 +190,31 @@ def get_html_template(
             color: #1a73e8;
             margin-bottom: 10px;
             font-size: 28px;
+        }}
+        
+        .header-section {{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }}
+        
+        .download-btn {{
+            background: #1a73e8;
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            text-decoration: none;
+            display: inline-block;
+            transition: background 0.2s ease;
+        }}
+        
+        .download-btn:hover {{
+            background: #1557b0;
+            color: white;
         }}
         
         .description {{
@@ -212,8 +346,12 @@ def get_html_template(
     </style>
 </head>
 <body>
+    {nav_html}
     <div class="container">
-        <h1>{title}</h1>
+        <div class="header-section">
+            <h1>{title}</h1>
+            {download_btn_html}
+        </div>
         {f'<div class="description">{description}</div>' if description else ''}
         
         <table id="dataTable" class="display">

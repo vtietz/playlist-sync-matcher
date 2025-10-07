@@ -5,7 +5,6 @@ from pathlib import Path
 
 from ...db import Database
 from ..html_templates import get_html_template
-from .base import format_liked
 
 
 def write_unmatched_albums_report(
@@ -24,26 +23,43 @@ def write_unmatched_albums_report(
     out_dir.mkdir(parents=True, exist_ok=True)
     
     # Fetch unmatched albums data
+    # Use CTEs to compute counts first, then get distinct track names
     unmatched_album_rows = db.conn.execute("""
+        WITH album_stats AS (
+            -- Compute track and playlist counts per album
+            SELECT 
+                t.artist,
+                t.album,
+                COUNT(DISTINCT t.id) as track_count,
+                COUNT(DISTINCT pt.playlist_id) as playlist_count
+            FROM tracks t
+            LEFT JOIN playlist_tracks pt ON t.id = pt.track_id AND t.provider = pt.provider
+            WHERE t.id NOT IN (SELECT track_id FROM matches)
+              AND t.album IS NOT NULL
+              AND t.artist IS NOT NULL
+            GROUP BY t.artist, t.album
+        ),
+        distinct_tracks AS (
+            -- Get distinct track names per album (no duplicates from playlist joins)
+            SELECT DISTINCT
+                t.artist,
+                t.album,
+                t.name as track_name
+            FROM tracks t
+            WHERE t.id NOT IN (SELECT track_id FROM matches)
+              AND t.album IS NOT NULL
+              AND t.artist IS NOT NULL
+        )
         SELECT 
-            t.artist,
-            t.album,
-            COUNT(DISTINCT t.id) as track_count,
-            COUNT(DISTINCT pt.playlist_id) as playlist_count,
-            MAX(
-                CASE WHEN EXISTS(
-                    SELECT 1 FROM liked_tracks lt 
-                    WHERE lt.track_id = t.id AND lt.provider = t.provider
-                ) THEN 1 ELSE 0 END
-            ) as is_liked,
-            GROUP_CONCAT(t.name, '; ') as tracks
-        FROM tracks t
-        LEFT JOIN playlist_tracks pt ON t.id = pt.track_id AND t.provider = pt.provider
-        WHERE t.id NOT IN (SELECT track_id FROM matches)
-          AND t.album IS NOT NULL
-          AND t.artist IS NOT NULL
-        GROUP BY t.artist, t.album
-        ORDER BY playlist_count DESC, track_count DESC, t.artist, t.album
+            s.artist,
+            s.album,
+            s.track_count,
+            s.playlist_count,
+            GROUP_CONCAT(d.track_name, '; ') as tracks
+        FROM album_stats s
+        JOIN distinct_tracks d ON s.artist = d.artist AND s.album = d.album
+        GROUP BY s.artist, s.album
+        ORDER BY s.playlist_count DESC, s.track_count DESC, s.artist, s.album
     """).fetchall()
     
     # Write CSV
@@ -61,14 +77,13 @@ def _write_csv(csv_path: Path, unmatched_album_rows: list) -> None:
     """Write unmatched albums CSV report."""
     with csv_path.open('w', newline='', encoding='utf-8') as fh:
         w = csv.writer(fh)
-        w.writerow(["artist", "album", "track_count", "playlist_count", "liked", "tracks"])
+        w.writerow(["artist", "album", "track_count", "playlist_count", "tracks"])
         for row in unmatched_album_rows:
             w.writerow([
                 row['artist'],
                 row['album'],
                 row['track_count'],
                 row['playlist_count'],
-                format_liked(row['is_liked']),
                 row['tracks']
             ])
 
@@ -77,22 +92,22 @@ def _write_html(html_path: Path, unmatched_album_rows: list) -> None:
     """Write unmatched albums HTML report."""
     html_rows = []
     for row in unmatched_album_rows:
-        liked_display = format_liked(row['is_liked'])
         html_rows.append([
             row['artist'],
             row['album'],
             row['track_count'],
             row['playlist_count'],
-            liked_display,
             row['tracks']
         ])
     
     html_content = get_html_template(
         title="Unmatched Albums",
-        columns=["Artist", "Album", "Track Count", "Playlists", "Liked", "Tracks"],
+        columns=["Artist", "Album", "Track Count", "Playlists", "Tracks"],
         rows=html_rows,
         description=f"Total unmatched albums: {len(unmatched_album_rows):,}",
-        default_order=[[3, "desc"], [2, "desc"], [0, "asc"]]  # Sort by Playlists, Tracks, Artist
+        default_order=[[3, "desc"], [2, "desc"], [0, "asc"]],  # Sort by Playlists, Tracks, Artist
+        csv_filename="unmatched_albums.csv",
+        active_page="unmatched_albums"
     )
     
     html_path.write_text(html_content, encoding='utf-8')

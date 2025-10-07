@@ -7,7 +7,7 @@ from ...db import Database
 from ...providers.links import get_link_generator
 from ..formatting import (
     format_duration,
-    format_playlist_count_badge
+    format_playlist_count_simple
 )
 from ..html_templates import get_html_template
 from .base import format_liked
@@ -64,31 +64,18 @@ def write_unmatched_tracks_report(
     return (csv_path, html_path)
 
 
-def _get_priority(playlist_count: int) -> str:
-    """Determine priority based on playlist count."""
-    if playlist_count >= 5:
-        return "HIGH"
-    elif playlist_count >= 2:
-        return "MEDIUM"
-    elif playlist_count == 1:
-        return "LOW"
-    else:
-        return "NONE"
-
-
 def _write_csv(csv_path: Path, unmatched_rows: list) -> None:
     """Write unmatched tracks CSV report."""
     with csv_path.open('w', newline='', encoding='utf-8') as fh:
         w = csv.writer(fh)
-        w.writerow(["track_name", "artist", "album", "duration", "year", "playlists", "liked", "priority"])
+        w.writerow(["track_name", "artist", "album", "duration", "year", "playlists", "liked"])
         for row in unmatched_rows:
             duration = format_duration(duration_ms=row['duration_ms'])
-            priority = _get_priority(row['playlist_count'])
             
             w.writerow([
                 row['name'], row['artist'], row['album'],
                 duration, row['year'] or "", row['playlist_count'],
-                format_liked(row['is_liked']), priority
+                format_liked(row['is_liked'])
             ])
 
 
@@ -119,8 +106,8 @@ def _write_html(html_path: Path, unmatched_rows: list, provider: str) -> None:
         # Format duration
         duration = format_duration(duration_ms=row['duration_ms'])
         
-        # Create priority badge based on playlist count
-        priority_badge = format_playlist_count_badge(row['playlist_count'])
+        # Simple colored badge with just the number
+        playlist_badge = format_playlist_count_simple(row['playlist_count'])
         
         # Liked status
         liked_display = format_liked(row['is_liked'])
@@ -131,17 +118,18 @@ def _write_html(html_path: Path, unmatched_rows: list, provider: str) -> None:
             album_link,
             duration,
             row['year'] or "",
-            row['playlist_count'],
-            liked_display,
-            priority_badge
+            playlist_badge,
+            liked_display
         ])
     
     html_content = get_html_template(
         title="Unmatched Tracks",
-        columns=["Track", "Artist", "Album", "Duration", "Year", "Playlists", "Liked", "Status"],
+        columns=["Track", "Artist", "Album", "Duration", "Year", "Playlists", "Liked"],
         rows=html_rows,
         description=f"Total unmatched tracks: {len(unmatched_rows):,}",
-        default_order=[[7, "desc"], [5, "desc"]]  # Sort by Status (priority), then Playlists DESC
+        default_order=[[5, "desc"]],  # Sort by Playlists DESC
+        csv_filename="unmatched_tracks.csv",
+        active_page="unmatched_tracks"
     )
     
     html_path.write_text(html_content, encoding='utf-8')

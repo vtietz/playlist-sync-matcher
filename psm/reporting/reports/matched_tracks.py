@@ -184,7 +184,9 @@ def _write_html(html_path: Path, matched_rows: list, provider: str) -> None:
         ],
         rows=html_rows,
         description=f"Total matched tracks: {len(matched_rows):,}",
-        default_order=[[11, "asc"], [10, "desc"]]  # Sort by Status, then Score DESC
+        default_order=[[11, "asc"], [10, "desc"]],  # Sort by Status, then Score DESC
+        csv_filename="matched_tracks.csv",
+        active_page="matched_tracks"
     )
     
     html_path.write_text(html_content, encoding='utf-8')

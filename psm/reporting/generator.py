@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Iterable, Any, TYPE_CHECKING
 import csv
 import logging
+import shutil
 
 from .html_templates import get_html_template, get_index_template
 from .formatting import (
@@ -16,6 +17,7 @@ from .reports import (
     write_unmatched_tracks_report,
     write_unmatched_albums_report,
     write_playlist_coverage_report,
+    write_playlist_detail_report,
     write_metadata_quality_report,
     write_album_completeness_report,
 )
@@ -114,6 +116,9 @@ def write_match_reports(db: Database, out_dir: Path) -> dict[str, tuple[Path, Pa
     """
     out_dir.mkdir(parents=True, exist_ok=True)
     
+    # Clean up old reports to avoid stale data
+    _cleanup_reports_directory(out_dir)
+    
     # Get provider from database (default to spotify)
     provider_row = db.conn.execute("SELECT DISTINCT provider FROM tracks LIMIT 1").fetchone()
     provider = provider_row['provider'] if provider_row else 'spotify'
@@ -125,7 +130,61 @@ def write_match_reports(db: Database, out_dir: Path) -> dict[str, tuple[Path, Pa
     reports['unmatched_albums'] = write_unmatched_albums_report(db, out_dir)
     reports['playlist_coverage'] = write_playlist_coverage_report(db, out_dir, provider)
     
+    # Generate playlist detail pages
+    _generate_playlist_details(db, out_dir, provider)
+    
     return reports
+
+
+def _cleanup_reports_directory(out_dir: Path) -> None:
+    """Clean up old report files to avoid stale data.
+    
+    Args:
+        out_dir: Reports directory to clean
+    """
+    if not out_dir.exists():
+        return
+    
+    logger.info(f"Cleaning up old reports in {out_dir}")
+    
+    # Remove all HTML and CSV files
+    for pattern in ['*.html', '*.csv']:
+        for file in out_dir.glob(pattern):
+            try:
+                file.unlink()
+                logger.debug(f"Removed old report: {file.name}")
+            except Exception as e:
+                logger.warning(f"Failed to remove {file}: {e}")
+    
+    # Remove playlists subdirectory
+    playlists_dir = out_dir / "playlists"
+    if playlists_dir.exists():
+        try:
+            shutil.rmtree(playlists_dir)
+            logger.debug(f"Removed old playlists directory")
+        except Exception as e:
+            logger.warning(f"Failed to remove playlists directory: {e}")
+
+
+def _generate_playlist_details(db: Database, out_dir: Path, provider: str) -> None:
+    """Generate detail page for each playlist.
+    
+    Args:
+        db: Database instance
+        out_dir: Reports directory
+        provider: Provider name
+    """
+    # Get all playlists
+    playlists = db.conn.execute("SELECT id, name FROM playlists").fetchall()
+    
+    logger.info(f"Generating detail pages for {len(playlists)} playlists")
+    
+    for playlist in playlists:
+        try:
+            write_playlist_detail_report(db, out_dir, playlist['id'], provider)
+            logger.debug(f"Generated detail page for playlist: {playlist['name']}")
+        except Exception as e:
+            logger.warning(f"Failed to generate detail page for playlist {playlist['name']}: {e}")
 
 
 __all__ = [

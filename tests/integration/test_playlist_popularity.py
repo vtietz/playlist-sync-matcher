@@ -44,13 +44,13 @@ def test_unmatched_tracks_has_playlist_count(tmp_path):
     out_dir = tmp_path / "reports"
     reports = write_match_reports(db, out_dir)
     
-    # Verify unmatched tracks CSV - New standardized format
+    # Verify unmatched tracks CSV - Simple playlist count column
     csv_path = reports['unmatched_tracks'][0]
     with csv_path.open('r', encoding='utf-8') as f:
         reader = csv.DictReader(f)
         rows = list(reader)
         
-        # Should be sorted by playlist_count DESC (track names instead of IDs)
+        # Should be sorted by playlist count DESC
         assert rows[0]['track_name'] == 'Popular Song'
         assert rows[0]['playlists'] == '3'
         
@@ -60,7 +60,7 @@ def test_unmatched_tracks_has_playlist_count(tmp_path):
         assert rows[2]['track_name'] == 'Not in Playlist'
         assert rows[2]['playlists'] == '0'
     
-    print("✓ Unmatched tracks report includes playlist popularity")
+    print("✓ Unmatched tracks report includes playlist count")
     print("✓ Sorted by playlist count DESC")
 
 

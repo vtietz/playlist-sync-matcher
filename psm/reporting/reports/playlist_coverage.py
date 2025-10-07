@@ -75,7 +75,6 @@ def _write_csv(csv_path: Path, playlist_coverage_rows: list) -> None:
 
 def _write_html(html_path: Path, playlist_coverage_rows: list, provider: str) -> None:
     """Write playlist coverage HTML report."""
-    links = get_link_generator(provider)
     html_rows = []
     
     for row in playlist_coverage_rows:
@@ -92,9 +91,9 @@ def _write_html(html_path: Path, playlist_coverage_rows: list, provider: str) ->
         else:
             badge_class = "badge-danger"    # LOW
         
-        # Add clickable playlist link
-        playlist_url = links.playlist_url(row['playlist_id'])
-        playlist_link = f'<a href="{playlist_url}" target="_blank" title="Open in {provider.title()}">{row["playlist_name"]}</a>'
+        # Link to detail page
+        detail_url = f"playlists/{row['playlist_id']}.html"
+        playlist_link = f'<a href="{detail_url}">{row["playlist_name"]}</a>'
         
         html_rows.append([
             playlist_link,
@@ -110,7 +109,9 @@ def _write_html(html_path: Path, playlist_coverage_rows: list, provider: str) ->
         columns=["Playlist Name", "Owner", "Total Tracks", "Matched", "Missing", "Coverage"],
         rows=html_rows,
         description=f"Total playlists: {len(playlist_coverage_rows):,}",
-        default_order=[[5, "asc"], [2, "desc"]]  # Sort by Coverage ASC, Total Tracks DESC
+        default_order=[[5, "asc"], [2, "desc"]],  # Sort by Coverage ASC, Total Tracks DESC
+        csv_filename="playlist_coverage.csv",
+        active_page="playlist_coverage"
     )
     
     html_path.write_text(html_content, encoding='utf-8')
