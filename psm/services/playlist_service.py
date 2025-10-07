@@ -14,8 +14,8 @@ from typing import Dict, Any
 from pathlib import Path
 from datetime import datetime
 
-from ..auth.spotify_oauth import SpotifyAuth
-from ..ingest.spotify import SpotifyClient
+from ..providers import get_provider_instance
+from ..providers.spotify import extract_year
 from ..db import Database, DatabaseInterface
 from ..utils.normalization import normalize_title_artist
 from ..match.engine import match_tracks
@@ -34,15 +34,6 @@ class SinglePlaylistResult:
         self.tracks_matched = 0
         self.exported_file: str | None = None
         self.duration_seconds = 0.0
-
-
-def _extract_year(release_date: str | None):
-    """Extract year from Spotify release date."""
-    if not release_date:
-        return None
-    if len(release_date) >= 4 and release_date[:4].isdigit():
-        return int(release_date[:4])
-    return None
 
 
 def pull_single_playlist(
@@ -69,18 +60,14 @@ def pull_single_playlist(
     result.playlist_id = playlist_id
     start = time.time()
     
+    # Get provider instance (currently hard-coded to Spotify)
+    provider = get_provider_instance('spotify')
+    
+    # Validate configuration
+    provider.validate_config(spotify_config)
+    
     # Build auth and get token
-    auth = SpotifyAuth(
-        client_id=spotify_config['client_id'],
-        redirect_scheme=spotify_config.get('redirect_scheme', 'http'),
-        redirect_host=spotify_config.get('redirect_host', '127.0.0.1'),
-        redirect_port=spotify_config.get('redirect_port', 9876),
-        redirect_path=spotify_config.get('redirect_path', '/callback'),
-        scope=spotify_config.get('scope', 'user-library-read playlist-read-private'),
-        cache_file=spotify_config.get('cache_file', 'tokens.json'),
-        cert_file=spotify_config.get('cert_file', 'cert.pem'),
-        key_file=spotify_config.get('key_file', 'key.pem'),
-    )
+    auth = provider.create_auth(spotify_config)
     
     # In test mode we avoid invoking the real auth flow entirely (no browser / network)
     # Tests should use MockDatabase and mock the service layer, not call real Spotify services
@@ -88,7 +75,7 @@ def pull_single_playlist(
     if not isinstance(tok_dict, dict) or 'access_token' not in tok_dict:
         raise RuntimeError('Failed to obtain access token')
     
-    client = SpotifyClient(tok_dict['access_token'])
+    client = provider.create_client(tok_dict['access_token'])
     use_year = matching_config.get('use_year', False)
     
     # Fetch playlist metadata
@@ -117,7 +104,7 @@ def pull_single_playlist(
         
         artist_names = ', '.join(a['name'] for a in track.get('artists', []) if a.get('name'))
         nt, na, combo = normalize_title_artist(track.get('name') or '', artist_names)
-        year = _extract_year(((track.get('album') or {}).get('release_date')))
+        year = extract_year(((track.get('album') or {}).get('release_date')))
         
         if use_year and year:
             combo = f"{combo} {year}"

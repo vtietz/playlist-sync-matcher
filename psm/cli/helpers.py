@@ -5,7 +5,7 @@ import copy
 from ..config import load_typed_config
 from ..version import __version__
 from ..db import Database
-from ..auth.spotify_oauth import SpotifyAuth
+from ..providers import get_provider_instance
 
 
 def _redact_spotify_config(cfg: dict) -> dict:
@@ -70,21 +70,29 @@ def get_db(cfg):
 
 
 def build_auth(cfg):
+    """Build authentication provider from config.
+    
+    Args:
+        cfg: Full configuration dict with 'spotify' key
+        
+    Returns:
+        AuthProvider instance
+    """
     sp = cfg['spotify']
-    return SpotifyAuth(
-        client_id=sp['client_id'],
-        redirect_port=sp['redirect_port'],
-        redirect_path=sp.get('redirect_path', '/callback'),
-        scope=sp['scope'],
-        cache_file=sp['cache_file'],
-        redirect_scheme=sp.get('redirect_scheme', 'http'),
-        redirect_host=sp.get('redirect_host', '127.0.0.1'),
-        cert_file=sp.get('cert_file'),
-        key_file=sp.get('key_file'),
-    )
+    provider = get_provider_instance('spotify')
+    provider.validate_config(sp)
+    return provider.create_auth(sp)
 
 
 def get_token(cfg):
+    """Get access token using authentication provider.
+    
+    Args:
+        cfg: Full configuration dict with 'spotify' key
+        
+    Returns:
+        Access token string
+    """
     auth = build_auth(cfg)
     tok = auth.get_token()
     return tok['access_token']

@@ -1,39 +1,25 @@
 """Spotify provider wrapper.
 
-Wraps the existing legacy `SpotifyClient` so higher layers can refer to a
-provider-neutral interface. This is an internal adaptation layer; when other
-providers (e.g. Deezer, Tidal) are added they should implement the same
-Protocol defined in `spx.providers.base` and register themselves.
+Legacy wrapper that extends SpotifyAPIClient with ProviderClient protocol.
+This is maintained for backward compatibility with existing code that uses
+the old ProviderClient registry pattern.
+
+New code should use psm.providers.spotify.SpotifyProvider instead.
 """
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterable, Dict, Any, Sequence
 from .base import ProviderCapabilities, ProviderLinkGenerator, register, ProviderClient
-from ..ingest.spotify import SpotifyClient
-
-
-class SpotifyLinkGenerator:
-    """Generates Spotify web URLs for tracks, albums, artists, and playlists."""
-    
-    def track_url(self, track_id: str) -> str:
-        """Generate Spotify track URL."""
-        return f"https://open.spotify.com/track/{track_id}"
-    
-    def album_url(self, album_id: str) -> str:
-        """Generate Spotify album URL."""
-        return f"https://open.spotify.com/album/{album_id}"
-    
-    def artist_url(self, artist_id: str) -> str:
-        """Generate Spotify artist URL."""
-        return f"https://open.spotify.com/artist/{artist_id}"
-    
-    def playlist_url(self, playlist_id: str) -> str:
-        """Generate Spotify playlist URL."""
-        return f"https://open.spotify.com/playlist/{playlist_id}"
+from .spotify import SpotifyAPIClient, SpotifyLinkGenerator
 
 
 @register
-class SpotifyProviderClient(SpotifyClient):  # type: ignore[misc]
+class SpotifyProviderClient(SpotifyAPIClient):  # type: ignore[misc]
+    """Legacy ProviderClient wrapper around SpotifyAPIClient.
+    
+    Registered in the old client registry for backward compatibility.
+    New code should use SpotifyProvider from psm.providers.spotify instead.
+    """
     name = 'spotify'
     capabilities = ProviderCapabilities(
         search=False,          # search not yet abstracted here
@@ -45,12 +31,12 @@ class SpotifyProviderClient(SpotifyClient):  # type: ignore[misc]
     )
     link_generator = SpotifyLinkGenerator()
     
-    # The SpotifyClient already supplies the ingestion methods used by services.
+    # The SpotifyAPIClient already supplies the ingestion methods used by services.
     # We inherit directly and rely on its existing methods: current_user_profile,
     # current_user_playlists, playlist_items.
 
     # If future cross-provider features need additional normalized helpers,
-    # they can be added here without touching the base SpotifyClient.
+    # they can be added here without touching the base SpotifyAPIClient.
 
 
 __all__ = ['SpotifyProviderClient', 'SpotifyLinkGenerator']

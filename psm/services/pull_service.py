@@ -1,10 +1,9 @@
-"""Pull service: Orchestrate provider data ingestion (currently Spotify).
+"""Pull service: Orchestrate provider data ingestion.
 
-This service presently handles authentication, client creation, and ingestion
-of playlists and liked tracks from Spotify. A provider abstraction layer has
-been introduced (see ``spx.providers``) so additional streaming services can
-be integrated in the future with minimal changes here. For now we still
-construct the concrete Spotify auth & client objects directly.
+This service handles authentication, client creation, and ingestion
+of playlists and liked tracks from streaming providers. Uses the provider
+abstraction layer so additional streaming services can be integrated with
+minimal changes.
 """
 
 from __future__ import annotations
@@ -14,8 +13,8 @@ from typing import Dict, Any
 from datetime import datetime
 from pathlib import Path
 
-from ..auth.spotify_oauth import SpotifyAuth
-from ..ingest.spotify import SpotifyClient, ingest_playlists, ingest_liked
+from ..providers import get_provider_instance
+from ..providers.spotify import ingest_playlists, ingest_liked
 from ..db import Database, DatabaseInterface
 
 logger = logging.getLogger(__name__)
@@ -44,22 +43,28 @@ def pull_data(
 ) -> PullResult:
     """Ingest playlists and liked tracks for the selected provider.
 
-    Currently only the 'spotify' provider is implemented. The interface is
-    stable so additional providers can be added later without changing callers.
+    Uses provider abstraction to support multiple streaming services.
+    Currently 'spotify' is the only implemented provider.
     
     Args:
         db: Database instance
-        provider: Provider name (currently only 'spotify')
+        provider: Provider name (e.g., 'spotify')
         provider_config: Provider-specific configuration
         matching_config: Matching configuration (use_year, etc.)
         force_auth: Force full auth flow ignoring cached tokens
         force_refresh: Force refresh all tracks even if playlists unchanged
     """
-    if provider != 'spotify':
-        raise NotImplementedError(f"Provider '{provider}' not implemented")
-
     result = PullResult()
     start = time.time()
+    
+    # Get provider instance from registry
+    try:
+        provider_instance = get_provider_instance(provider)
+    except KeyError:
+        raise NotImplementedError(f"Provider '{provider}' not registered")
+    
+    # Validate configuration
+    provider_instance.validate_config(provider_config)
     
     # Build auth and get token
     cache_file = provider_config.get('cache_file')
@@ -71,18 +76,11 @@ def pull_data(
         fname = os.path.basename(cache_file)
         if provider != 'spotify' and provider not in fname:
             cache_file = os.path.join(os.path.dirname(cache_file) or '.', f"{provider}_{fname}")
-
-    auth = SpotifyAuth(
-        client_id=provider_config['client_id'],
-        redirect_scheme=provider_config.get('redirect_scheme', 'http'),
-        redirect_host=provider_config.get('redirect_host', '127.0.0.1'),
-        redirect_port=provider_config.get('redirect_port', 9876),
-        redirect_path=provider_config.get('redirect_path', '/callback'),
-        scope=provider_config.get('scope', 'user-library-read playlist-read-private'),
-        cache_file=cache_file,
-        cert_file=provider_config.get('cert_file', 'cert.pem'),
-        key_file=provider_config.get('key_file', 'key.pem'),
-    )
+    
+    # Ensure cache_file is in the config for auth provider
+    provider_config_with_cache = {**provider_config, 'cache_file': cache_file}
+    
+    auth = provider_instance.create_auth(provider_config_with_cache)
     
     tok_dict = auth.get_token(force=force_auth)
     if not isinstance(tok_dict, dict) or 'access_token' not in tok_dict:
@@ -95,7 +93,7 @@ def pull_data(
         logger.debug(f"Using access token (expires {datetime.fromtimestamp(result.token_expiry)}; +{remaining}s)")
     
     # Build client and ingest data
-    client = SpotifyClient(tok_dict['access_token'])
+    client = provider_instance.create_client(tok_dict['access_token'])
     use_year = matching_config.get('use_year', False)
     
     ingest_playlists(db, client, use_year=use_year, force_refresh=force_refresh)
