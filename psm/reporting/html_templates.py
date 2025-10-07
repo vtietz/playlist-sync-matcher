@@ -343,9 +343,51 @@ def get_html_template(
             font-weight: bold;
             font-size: 16px;
         }}
+        
+        /* Loading indicator */
+        #loading-overlay {{
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.9);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            flex-direction: column;
+        }}
+        
+        .spinner {{
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #1a73e8;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }}
+        
+        @keyframes spin {{
+            0% {{ transform: rotate(0deg); }}
+            100% {{ transform: rotate(360deg); }}
+        }}
+        
+        .loading-text {{
+            margin-top: 20px;
+            color: #1a73e8;
+            font-size: 16px;
+            font-weight: 500;
+        }}
     </style>
 </head>
 <body>
+    <!-- Loading overlay -->
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+        <div class="loading-text">Loading table data...</div>
+    </div>
+    
     {nav_html}
     <div class="container">
         <div class="header-section">
@@ -370,7 +412,8 @@ def get_html_template(
     
     <script>
         $(document).ready(function() {{
-            $('#dataTable').DataTable({{
+            // Initialize DataTable
+            var table = $('#dataTable').DataTable({{
                 "order": {order_json},
                 "pageLength": 25,
                 "lengthMenu": [[10, 25, 50, 100, -1], [10, 25, 50, 100, "All"]],
@@ -379,6 +422,10 @@ def get_html_template(
                     "lengthMenu": "Show _MENU_ rows",
                     "info": "Showing _START_ to _END_ of _TOTAL_ rows",
                     "infoFiltered": "(filtered from _MAX_ total rows)"
+                }},
+                "initComplete": function(settings, json) {{
+                    // Hide loading overlay when DataTable is fully initialized
+                    $('#loading-overlay').fadeOut(300);
                 }}
             }});
         }});

@@ -6,7 +6,7 @@ from psm.db import Database
 import pytest
 
 
-def test_report_command_generates_all_reports(tmp_path, monkeypatch):
+def test_report_command_generates_all_reports(tmp_path, test_config):
     """Verify 'report' command regenerates all reports from existing database."""
     # Setup test environment
     db_path = tmp_path / "test.db"
@@ -22,13 +22,13 @@ def test_report_command_generates_all_reports(tmp_path, monkeypatch):
     db.conn.commit()
     db.close()
     
-    # Mock config
-    monkeypatch.setenv('PSM__DATABASE__PATH', str(db_path))
-    monkeypatch.setenv('PSM__REPORTS__DIRECTORY', str(reports_dir))
+    # Use test_config fixture and override paths
+    test_config['database']['path'] = str(db_path)
+    test_config['reports']['directory'] = str(reports_dir)
     
-    # Run report command
+    # Run report command with test config passed via obj
     runner = CliRunner()
-    result = runner.invoke(cli, ['report'])
+    result = runner.invoke(cli, ['report'], obj=test_config)
     
     # Verify success
     assert result.exit_code == 0
@@ -46,7 +46,7 @@ def test_report_command_generates_all_reports(tmp_path, monkeypatch):
     print("✓ Report command generates all reports")
 
 
-def test_report_command_selective_generation(tmp_path, monkeypatch):
+def test_report_command_selective_generation(tmp_path, test_config):
     """Verify report command can selectively generate only match or analysis reports."""
     db_path = tmp_path / "test.db"
     reports_dir = tmp_path / "reports"
@@ -58,12 +58,13 @@ def test_report_command_selective_generation(tmp_path, monkeypatch):
     db.conn.commit()
     db.close()
     
-    monkeypatch.setenv('PSM__DATABASE__PATH', str(db_path))
-    monkeypatch.setenv('PSM__REPORTS__DIRECTORY', str(reports_dir))
+    # Use test_config fixture and override paths
+    test_config['database']['path'] = str(db_path)
+    test_config['reports']['directory'] = str(reports_dir)
     
-    # Run with only match reports
+    # Run with only match reports, passing test config via obj
     runner = CliRunner()
-    result = runner.invoke(cli, ['report', '--no-analysis-reports'])
+    result = runner.invoke(cli, ['report', '--no-analysis-reports'], obj=test_config)
     
     assert result.exit_code == 0
     assert "✓ Match reports generated" in result.output

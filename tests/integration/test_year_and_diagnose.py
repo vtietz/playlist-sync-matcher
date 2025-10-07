@@ -4,11 +4,11 @@ from psm.cli import cli
 from psm.db import Database
 
 
-def test_year_column_migration_and_normalization(tmp_path: Path, monkeypatch):
+def test_year_column_migration_and_normalization(tmp_path: Path, test_config):
     db_path = tmp_path / 'db.sqlite'
-    monkeypatch.setenv('PSM__DATABASE__PATH', str(db_path))
+    test_config['database']['path'] = str(db_path)
     # Enable use_year
-    monkeypatch.setenv('PSM__MATCHING__USE_YEAR', 'true')
+    test_config['matching']['use_year'] = True
     db = Database(db_path)
     # Insert a track without normalized (simulate pre-change) and with year
     db.upsert_track({
@@ -39,7 +39,7 @@ def test_year_column_migration_and_normalization(tmp_path: Path, monkeypatch):
     runner = CliRunner()
     # Close direct handle so CLI can acquire its own lock
     db.close()
-    result = runner.invoke(cli, ['match'])
+    result = runner.invoke(cli, ['match'], obj=test_config)
     assert result.exit_code == 0
     # Re-open to inspect results
     db2 = Database(db_path)
@@ -48,9 +48,9 @@ def test_year_column_migration_and_normalization(tmp_path: Path, monkeypatch):
     db2.close()
 
 
-def test_match_diagnose_outputs(tmp_path: Path, monkeypatch):
+def test_match_diagnose_outputs(tmp_path: Path, test_config):
     db_path = tmp_path / 'db.sqlite'
-    monkeypatch.setenv('PSM__DATABASE__PATH', str(db_path))
+    test_config['database']['path'] = str(db_path)
     db = Database(db_path)
     # Prepare data
     db.upsert_track({
@@ -79,7 +79,7 @@ def test_match_diagnose_outputs(tmp_path: Path, monkeypatch):
     # Close direct handle so CLI can acquire its own lock
     db.close()
     runner = CliRunner()
-    res = runner.invoke(cli, ['match-diagnose', 't2'])
+    res = runner.invoke(cli, ['match-diagnose', 't2'], obj=test_config)
     assert res.exit_code == 0
     assert 'Track: t2' in res.output
     assert 'Top candidates' in res.output

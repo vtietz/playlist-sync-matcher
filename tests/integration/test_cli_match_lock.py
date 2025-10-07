@@ -4,9 +4,9 @@ from psm.cli import cli
 from psm.db import Database
 
 
-def test_cli_match_twice_no_lock(tmp_path: Path, monkeypatch):
+def test_cli_match_twice_no_lock(tmp_path: Path, test_config):
     db_path = tmp_path / 'lock.db'
-    monkeypatch.setenv('PSM__DATABASE__PATH', str(db_path))
+    test_config['database']['path'] = str(db_path)
     db = Database(db_path)
     # Minimal data: one track + one file
     db.upsert_track({
@@ -22,9 +22,9 @@ def test_cli_match_twice_no_lock(tmp_path: Path, monkeypatch):
     db.close()
 
     runner = CliRunner()
-    r1 = runner.invoke(cli, ['match'])
+    r1 = runner.invoke(cli, ['match'], obj=test_config)
     assert r1.exit_code == 0, r1.output
-    r2 = runner.invoke(cli, ['match'])
+    r2 = runner.invoke(cli, ['match'], obj=test_config)
     assert r2.exit_code == 0, r2.output
 
     # Ensure only one match stored (idempotent behavior expected)
