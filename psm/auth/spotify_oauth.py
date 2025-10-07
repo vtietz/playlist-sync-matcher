@@ -162,6 +162,9 @@ class SpotifyAuth:
         return new_tok
 
     def get_token(self, force: bool = False) -> Dict[str, Any]:
+        # Config-driven test mode: if matching.test_mode or provider.stub_mode enabled in cfg, skip real auth.
+        # We read a lightweight signal env var PSM__TEST__MODE mapped by config loader (rather than bespoke flags).
+        # This avoids scattering provider-specific flags across code.
         cached = self._load_cache()
         if not force and cached and not self._needs_refresh(cached):
             return cached

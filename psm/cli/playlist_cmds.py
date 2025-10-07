@@ -75,8 +75,9 @@ def playlist_build(ctx: click.Context, playlist_id: str, force_auth: bool):
     cfg = ctx.obj
     if not cfg['spotify']['client_id']:
         raise click.UsageError('spotify.client_id not configured')
+    test_mode = cfg.get('test', {}).get('mode', False)
     with get_db(cfg) as db:
-        result = build_single_playlist(db=db, playlist_id=playlist_id, spotify_config=cfg['spotify'], config=cfg, force_auth=force_auth)
+        result = build_single_playlist(db=db, playlist_id=playlist_id, spotify_config=cfg['spotify'], config=cfg, force_auth=force_auth, test_mode=test_mode)
     click.echo(f"Built playlist '{result.playlist_name}' ({result.playlist_id})")
     click.echo(f"Tracks processed: {result.tracks_processed}")
     click.echo(f"Tracks matched: {result.tracks_matched}")

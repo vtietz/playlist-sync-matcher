@@ -1,3 +1,4 @@
+import pytest
 from psm.match.scoring import evaluate_pair, ScoringConfig, MatchConfidence
 
 
@@ -32,6 +33,7 @@ def make_local(**overrides):
     return base
 
 
+@pytest.mark.unit
 def test_scoring_exact_all():
     cfg = ScoringConfig()
     b = evaluate_pair(make_remote(), make_local(), cfg)
@@ -39,6 +41,7 @@ def test_scoring_exact_all():
     assert b.matched_title and b.matched_artist and b.matched_album and b.matched_year and b.matched_isrc
 
 
+@pytest.mark.unit
 def test_scoring_missing_album_year_penalties():
     cfg = ScoringConfig()
     remote = make_remote(album=None, year=None, isrc=None)
@@ -49,9 +52,10 @@ def test_scoring_missing_album_year_penalties():
     assert 'penalty_year_missing_local' in b.notes
     assert 'penalty_year_missing_remote' in b.notes
     assert 'penalty_all_metadata_missing' in b.notes
-    assert b.raw_score < 60  # ensure demoted sufficiently
+    assert b.raw_score < 60
 
 
+@pytest.mark.unit
 def test_scoring_fuzzy_title_artist():
     cfg = ScoringConfig()
     remote = make_remote(name='Song Title (Live)', artist='Artist')
@@ -59,9 +63,10 @@ def test_scoring_fuzzy_title_artist():
     b = evaluate_pair(remote, local, cfg)
     assert b.matched_title
     assert b.matched_artist
-    assert b.raw_score > 40  # got some title + artist score
+    assert b.raw_score > 40
 
 
+@pytest.mark.unit
 def test_scoring_reject_low_similarity():
     cfg = ScoringConfig()
     remote = make_remote(name='Completely Different', artist='Someone Else', album='Other')
@@ -70,6 +75,7 @@ def test_scoring_reject_low_similarity():
     assert b.confidence == MatchConfidence.REJECTED
 
 
+@pytest.mark.unit
 def test_duration_tight_vs_loose():
     cfg = ScoringConfig()
     remote = make_remote(duration_ms=180000)

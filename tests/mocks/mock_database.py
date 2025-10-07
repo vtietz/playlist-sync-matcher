@@ -26,6 +26,57 @@ class MockDatabase(DatabaseInterface):
         self.meta: Dict[str,str] = {}
         self._closed = False
         self.call_log: List[str] = []
+        self.conn = self._ConnShim(self)  # minimal shim for legacy raw SQL paths
+
+    class _ConnShim:
+        def __init__(self, outer: 'MockDatabase'):
+            self._outer = outer
+
+        def execute(self, sql: str, params: Tuple[Any,...] | Tuple[()] = ()):  # pragma: no cover - thin shim
+            sql_lower = sql.lower().strip()
+            # Very small subset of queries used in services; extend when needed.
+            if 'from tracks' in sql_lower and 'select id' in sql_lower:
+                rows = []
+                for (tid,prov), data in self._outer.tracks.items():
+                    rows.append(MockRow({
+                        'id': tid,
+                        'name': data.get('name'),
+                        'artist': data.get('artist'),
+                        'album': data.get('album'),
+                        'year': data.get('year'),
+                        'isrc': data.get('isrc'),
+                        'duration_ms': data.get('duration_ms'),
+                        'normalized': data.get('normalized'),
+                    }))
+                return self._Result(rows)
+            if 'count(distinct album)' in sql_lower and 'from library_files' in sql_lower:
+                albums = {data.get('album') for data in self._outer.library_files.values() if data.get('album')}
+                return self._Result([ (len(albums),) ])
+            if 'from library_files' in sql_lower:
+                rows = []
+                for i,(path,data) in enumerate(self._outer.library_files.items(), start=1):
+                    rows.append(MockRow({
+                        'file_id': i,
+                        'id': i,
+                        'path': path,
+                        'title': data.get('title'),
+                        'artist': data.get('artist'),
+                        'album': data.get('album'),
+                        'normalized': data.get('normalized'),
+                        'duration': data.get('duration'),
+                        'year': data.get('year'),
+                    }))
+                return self._Result(rows)
+            # Default empty result
+            return self._Result([])
+
+        class _Result:
+            def __init__(self, rows):
+                self._rows = rows
+            def fetchall(self):
+                return self._rows
+            def fetchone(self):
+                return self._rows[0] if self._rows else None
 
     # --- playlist ---
     def upsert_playlist(self, pid: str, name: str, snapshot_id: str | None, owner_id: str | None = None, owner_name: str | None = None, provider: str = 'spotify') -> None:

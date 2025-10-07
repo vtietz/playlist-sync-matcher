@@ -1,5 +1,8 @@
+import pytest
 from psm.utils.normalization import normalize_title_artist, normalize_token
 
+
+@pytest.mark.unit
 def test_normalize_basic():
     nt, na, combo = normalize_title_artist("Song (Remastered 2011)", "The Beatles feat. Someone")
     assert "remastered" not in nt
@@ -7,6 +10,7 @@ def test_normalize_basic():
     assert "beatles" in combo
 
 
+@pytest.mark.unit
 def test_token_removes_stopwords_and_diacritics():
     t = normalize_token("Án Thé (feat. Artist)")
     assert "the" not in t

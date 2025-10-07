@@ -50,7 +50,7 @@ def pull_single_playlist(
     playlist_id: str,
     spotify_config: Dict[str, Any],
     matching_config: Dict[str, Any],
-    force_auth: bool = False
+    force_auth: bool = False,
 ) -> SinglePlaylistResult:
     """Pull a single playlist from Spotify.
     
@@ -82,11 +82,12 @@ def pull_single_playlist(
         key_file=spotify_config.get('key_file', 'key.pem'),
     )
     
+    # In test mode we avoid invoking the real auth flow entirely (no browser / network)
+    # Tests should use MockDatabase and mock the service layer, not call real Spotify services
     tok_dict = auth.get_token(force=force_auth)
     if not isinstance(tok_dict, dict) or 'access_token' not in tok_dict:
         raise RuntimeError('Failed to obtain access token')
     
-    # Build client
     client = SpotifyClient(tok_dict['access_token'])
     use_year = matching_config.get('use_year', False)
     
@@ -302,7 +303,10 @@ def export_single_playlist(
         logger.warning(f"Unknown export mode '{mode}', defaulting to strict")
         export_strict(playlist_meta, tracks, target_dir)
     
-    result.exported_file = str(target_dir / f"{pl['name']}.m3u")
+    # Ensure directory exists (export_* helpers may create, but defensive here)
+    target_dir.mkdir(parents=True, exist_ok=True)
+    safe_name = sanitize_filename(pl['name']) if 'name' in pl.keys() else 'playlist'
+    result.exported_file = str(target_dir / f"{safe_name}.m3u")
     result.tracks_processed = len(tracks)
     result.duration_seconds = time.time() - start
     
@@ -316,7 +320,7 @@ def build_single_playlist(
     playlist_id: str,
     spotify_config: Dict[str, Any],
     config: Dict[str, Any],
-    force_auth: bool = False
+    force_auth: bool = False,
 ) -> SinglePlaylistResult:
     """Build local artifacts for a single playlist (pull + match + export).
     

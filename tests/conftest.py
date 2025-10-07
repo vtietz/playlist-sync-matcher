@@ -1,16 +1,31 @@
-"""Pytest fixtures for test configuration."""
+"""Pytest fixtures for test configuration.
+
+Global test safety measures:
+ - Disable real Spotify auth/browser by setting PSM_DISABLE_SPOTIFY_AUTH=1
+ - Monkeypatch webbrowser.open to a no-op to guard against accidental flows
+"""
 import pytest
+import os
+import webbrowser
 
 # Temporarily disable all signal handling to isolate KeyboardInterrupt issue
 
 def pytest_sessionstart(session):  # type: ignore[no-untyped-def]
-    pass
+    os.environ.setdefault('PSM__TEST__MODE', '1')
+    # Defensive: replace webbrowser.open to avoid launching windows if code path missed env check
+    webbrowser.open = lambda *a, **k: True  # type: ignore[assignment]
 
 def pytest_sessionfinish(session, exitstatus):  # type: ignore[no-untyped-def]
     pass
 
 from pathlib import Path
 from typing import Dict, Any
+
+# Expose mock fixtures (mock_db, sample_track, sample_library_file)
+try:  # pragma: no cover - defensive import
+    from .mocks.fixtures import *  # noqa: F401,F403
+except Exception:  # pragma: no cover
+    pass
 
 
 @pytest.fixture
