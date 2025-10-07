@@ -3,7 +3,7 @@
 This package contains all Spotify-specific logic:
 - auth.py: OAuth authentication
 - client.py: API client for fetching/pushing data
-- config.py: Configuration validation and defaults
+- ingestion.py: Playlist and liked tracks ingestion
 - provider.py: Complete Spotify provider implementation
 
 All Spotify logic should live here. Other parts of the codebase should use
@@ -18,9 +18,10 @@ from .provider import SpotifyProvider, SpotifyLinkGenerator
 __all__ = [
     "SpotifyAuthProvider",
     "SpotifyAPIClient",
+    "SpotifyProvider",
+    "SpotifyLinkGenerator",
     "extract_year",
     "ingest_playlists",
     "ingest_liked",
-    "SpotifyProvider",
-    "SpotifyLinkGenerator",
 ]
+

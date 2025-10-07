@@ -141,7 +141,7 @@ def push_playlist(
     Args:
         db: Database instance
         playlist_id: Target playlist ID
-        client: Provider client (SpotifyProviderClient / SpotifyClient with write methods)
+        client: API client with playlist write methods (e.g., SpotifyAPIClient)
         m3u_path: Optional path to exported M3U file. If omitted, DB mode is used.
         apply: Execute remote replacement if True
         verbose: Emit detailed diff logging

@@ -130,41 +130,6 @@ class AuthProvider(ABC):
         """
         pass
 
-# ---------------- Provider client protocol -----------------
-
-@runtime_checkable
-class ProviderClient(Protocol):
-    """Protocol for provider clients.
-
-    Only methods actually needed by current services are specified. New
-    functionality should be added incrementally once a second provider
-    demonstrates the need, to avoid speculative over-abstraction.
-    """
-
-    name: str
-    capabilities: ProviderCapabilities
-
-    def current_user_profile(self) -> Dict[str, Any]: ...  # pragma: no cover
-    def current_user_playlists(self, verbose: bool = False) -> Iterable[Dict[str, Any]]: ...  # pragma: no cover
-    def playlist_items(self, playlist_id: str, verbose: bool = False) -> Sequence[Dict[str, Any]]: ...  # pragma: no cover
-
-# ---------------- Registry -----------------
-
-_registry: dict[str, type] = {}
-
-
-def register(client_cls: type) -> type:
-    _registry[getattr(client_cls, 'name', client_cls.__name__.lower())] = client_cls
-    return client_cls
-
-
-def get(provider_name: str) -> type:
-    return _registry[provider_name]
-
-
-def available_providers() -> list[str]:
-    return sorted(_registry.keys())
-
 # ---------------- Provider Factory (Complete Provider) -----------------
 
 class Provider(ABC):
@@ -203,14 +168,14 @@ class Provider(ABC):
         pass
     
     @abstractmethod
-    def create_client(self, access_token: str) -> ProviderClient:
+    def create_client(self, access_token: str) -> Any:
         """Create API client with access token.
         
         Args:
             access_token: Valid OAuth access token
             
         Returns:
-            ProviderClient instance for API calls
+            Provider-specific API client instance
         """
         pass
     
@@ -280,8 +245,7 @@ def available_provider_instances() -> list[str]:
 
 
 __all__ = [
-    'Artist', 'Album', 'Track', 'Playlist', 'ProviderCapabilities', 'ProviderClient',
+    'Artist', 'Album', 'Track', 'Playlist', 'ProviderCapabilities',
     'ProviderLinkGenerator', 'AuthProvider', 'Provider',
-    'register', 'get', 'available_providers',
     'register_provider', 'get_provider_instance', 'available_provider_instances',
 ]

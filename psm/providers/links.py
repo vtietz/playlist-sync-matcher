@@ -28,7 +28,7 @@ def get_link_generator(provider: str = "spotify") -> "ProviderLinkGenerator":
         >>> # Returns: "https://open.spotify.com/track/3n3Ppam7vgaVa1iaRUc9Lp"
     """
     if provider.lower() == "spotify":
-        from .spotify_provider import SpotifyLinkGenerator
+        from .spotify.provider import SpotifyLinkGenerator
         return SpotifyLinkGenerator()
     
     # Future providers can be added here

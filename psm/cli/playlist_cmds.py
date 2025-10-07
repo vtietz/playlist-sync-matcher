@@ -10,7 +10,6 @@ from ..services.playlist_service import (
     build_single_playlist,
 )
 from ..services.push_service import push_playlist
-from ..providers.base import get as get_provider, available_providers
 
 logger = logging.getLogger(__name__)
 
@@ -93,32 +92,23 @@ def playlist_build(ctx: click.Context, playlist_id: str, force_auth: bool):
 @click.option('--apply', is_flag=True, help='Apply changes (otherwise preview only)')
 @click.pass_context
 def playlist_push(ctx: click.Context, playlist_id: str, file_path: Path | None, apply: bool):
-    """Push local changes to update a remote playlist."""
-    """Preview (and optionally apply) a remote playlist full replace."""
+    """Push local changes to update a remote playlist (Spotify only)."""
     cfg = ctx.obj
     provider = cfg.get('provider', 'spotify')
-    try:
-        provider_cls = get_provider(provider)
-    except KeyError:
-        raise click.UsageError(f"Unknown provider '{provider}'. Available: {', '.join(available_providers())}")
-    caps = getattr(provider_cls, 'capabilities', None)
-    if not caps or not getattr(caps, 'replace_playlist', False):
-        raise click.UsageError(f"Provider '{provider}' does not support push (replace_playlist capability missing)")
+    
+    # For now, only Spotify is supported for push
+    if provider != 'spotify':
+        raise click.UsageError(f"Push is currently only supported for Spotify, not '{provider}'")
 
     provider_cfg = get_provider_config(cfg, provider)
-    if provider == 'spotify':
-        if not provider_cfg.get('client_id'):
-            raise click.UsageError('providers.spotify.client_id not configured')
-        token = get_token(cfg)
-        try:
-            client = provider_cls(token)  # type: ignore[call-arg]
-        except TypeError:
-            client = provider_cls()  # type: ignore[call-arg]
-    else:
-        try:
-            client = provider_cls()  # type: ignore[call-arg]
-        except TypeError as e:
-            raise click.UsageError(f"Provider '{provider}' requires auth not yet implemented: {e}")
+    if not provider_cfg.get('client_id'):
+        raise click.UsageError('providers.spotify.client_id not configured')
+    
+    token = get_token(cfg)
+    
+    # Use SpotifyAPIClient directly
+    from ..providers.spotify import SpotifyAPIClient
+    client = SpotifyAPIClient(token)
 
     with get_db(cfg) as db:
         preview = push_playlist(

@@ -6,7 +6,7 @@ Handles authentication, client creation, configuration validation, and link gene
 
 from __future__ import annotations
 from typing import Dict, Any
-from ..base import Provider, AuthProvider, ProviderClient, ProviderLinkGenerator
+from ..base import Provider, AuthProvider, ProviderLinkGenerator
 from .auth import SpotifyAuthProvider
 from .client import SpotifyAPIClient
 
@@ -83,7 +83,7 @@ class SpotifyProvider(Provider):
             timeout_seconds=config.get('timeout_seconds', 300),
         )
     
-    def create_client(self, access_token: str) -> ProviderClient:
+    def create_client(self, access_token: str) -> SpotifyAPIClient:
         """Create Spotify API client.
         
         Args:
@@ -92,7 +92,7 @@ class SpotifyProvider(Provider):
         Returns:
             SpotifyAPIClient instance
         """
-        return SpotifyAPIClient(access_token)  # type: ignore[return-value]
+        return SpotifyAPIClient(access_token)
     
     def validate_config(self, config: Dict[str, Any]) -> None:
         """Validate Spotify configuration.

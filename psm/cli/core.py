@@ -11,7 +11,7 @@ from ..ingest.library import scan_library
 from ..services.match_service import run_matching
 from ..services.analysis_service import analyze_library_quality, print_quality_report
 from ..services.export_service import export_playlists
-from ..providers.base import available_providers, get as get_provider
+from ..providers.base import available_provider_instances, get_provider_instance
 from ..config import validate_single_provider
 
 logger = logging.getLogger(__name__)
@@ -422,14 +422,18 @@ def providers_group(ctx: click.Context):  # pragma: no cover simple group
 def providers_capabilities(ctx: click.Context):
     """List registered providers and their capabilities."""
     rows = []
-    for p in available_providers():
-        cls = get_provider(p)
-        caps = getattr(cls, 'capabilities', None)
-        if not caps:
-            rows.append((p, 'NO CAPABILITY OBJECT'))
-            continue
-        rows.append((p, f"replace_playlist={caps.replace_playlist} supports_isrc={caps.supports_isrc} create_playlist={caps.create_playlist}"))
-    width = max(len(r[0]) for r in rows) if rows else 8
+    for p in available_provider_instances():
+        provider = get_provider_instance(p)
+        # Provider instances don't expose capabilities directly yet,
+        # but we can create a client to check
+        # For now, just show the provider name
+        rows.append((p, "Registered"))
+    
+    if not rows:
+        click.echo("No providers registered.")
+        return
+        
+    width = max(len(r[0]) for r in rows)
     click.echo("Providers:")
     for name, desc in rows:
         click.echo(f"  {name.ljust(width)}  {desc}")
