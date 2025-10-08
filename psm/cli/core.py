@@ -690,3 +690,44 @@ def diagnose(ctx: click.Context, track_id: str, provider: str, top_n: int):
         result = diagnose_track(db, track_id, provider=provider, top_n=top_n)
         output = format_diagnostic_output(result)
         click.echo(output)
+
+
+@cli.command()
+@click.pass_context
+def gui(ctx):
+    """Launch the desktop GUI application.
+    
+    Opens a graphical interface for managing playlists, viewing reports,
+    and running sync operations with visual progress tracking.
+    
+    Requires PySide6 to be installed (included in requirements.txt).
+    
+    \b
+    Features:
+    - Browse playlists and tracks
+    - View unmatched tracks and coverage statistics
+    - Run Pull, Scan, Match, Export, Report operations
+    - Watch mode with live progress updates
+    - Real-time log streaming
+    
+    \b
+    Example:
+        psm gui
+    """
+    import sys
+    
+    try:
+        from psm.gui.app import main as gui_main
+        sys.exit(gui_main())
+    except ImportError as e:
+        if 'PySide6' in str(e):
+            click.echo(click.style("✗ Error: PySide6 not installed", fg='red', bold=True))
+            click.echo("")
+            click.echo("The GUI requires PySide6. Install it with:")
+            click.echo(click.style("  pip install PySide6>=6.6.0", fg='cyan'))
+            click.echo("")
+            click.echo("Or install all dependencies:")
+            click.echo(click.style("  pip install -r requirements.txt", fg='cyan'))
+            sys.exit(1)
+        else:
+            raise

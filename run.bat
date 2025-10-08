@@ -9,6 +9,7 @@ CALL %VENV%\Scripts\activate.bat
 IF /I "%~1"=="install" GOTO install
 
 IF /I "%~1"=="test" GOTO test
+IF /I "%~1"=="gui" GOTO gui
 IF /I "%~1"=="help" GOTO help
 IF /I "%~1"=="version" GOTO version
 IF /I "%~1"=="py" GOTO py
@@ -58,10 +59,15 @@ IF %TEST_EXIT% GEQ 2 (
 :test_success
 GOTO :EOF
 
+:gui
+python -m psm.gui
+GOTO :EOF
+
 :help
 ECHO Usage: run.bat [command]
 ECHO Commands:
 ECHO   pull ^| scan ^| match ^| export ^| report ^| report-albums ^| build
+ECHO   gui                   Launch desktop GUI
 ECHO   install               Install or update dependencies
 ECHO   test [pytest args]    Run test suite (e.g. run.bat test -q tests\test_hashing.py)
 ECHO   version               Show CLI version

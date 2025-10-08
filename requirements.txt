@@ -8,3 +8,4 @@ cryptography>=42.0.0
 watchdog>=4.0.0  # filesystem watching for --watch mode
 pytest>=8.0.0  # needed for running test suite via run.bat test
 pyinstaller==6.3.0  # pinned for reproducible release builds
+PySide6>=6.6.0  # Qt GUI framework

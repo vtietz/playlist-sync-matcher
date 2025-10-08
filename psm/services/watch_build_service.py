@@ -27,6 +27,7 @@ from ..services.match_service import match_changed_files, run_matching
 from ..services.export_service import export_playlists
 from ..reporting.generator import write_match_reports, write_index_page
 from ..services.watch_service import LibraryWatcher
+from ..utils import progress
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +68,7 @@ def _handle_library_changes(
     try:
         with watch_config.get_db(watch_config.config) as db:
             # 1. Scan changed files
-            click.echo(click.style("[1/4] Scanning changed files...", fg='yellow'))
+            progress.step(1, 4, "Scanning changed files")
             scan_result = scan_specific_files(db, watch_config.config, changed_file_paths)
             
             # Track which file IDs were affected
@@ -87,40 +88,40 @@ def _handle_library_changes(
                 if file_row:
                     file_ids_to_match.append(file_row['id'])
             
-            click.echo(click.style(f"  ✓ {scan_result.inserted} new, {scan_result.updated} updated, {scan_result.deleted} deleted", fg='green'))
+            progress.status(f"✓ {scan_result.inserted} new, {scan_result.updated} updated, {scan_result.deleted} deleted")
             
             # 2. Incrementally match only changed files
             matched_track_ids = []
             if file_ids_to_match:
-                click.echo(click.style(f"[2/4] Matching {len(file_ids_to_match)} changed file(s)...", fg='yellow'))
+                progress.step(2, 4, f"Matching {len(file_ids_to_match)} changed file(s)")
                 new_matches, matched_track_ids = match_changed_files(db, watch_config.config, file_ids=file_ids_to_match)
-                click.echo(click.style(f"  ✓ {new_matches} new match(es)", fg='green'))
+                progress.status(f"✓ {new_matches} new match(es)")
             else:
-                click.echo(click.style("[2/4] No files to match (all deleted)", fg='yellow', dim=True))
+                progress.step(2, 4, "No files to match (all deleted)")
             
             # 3. Export (only playlists containing newly matched tracks)
             if not watch_config.skip_export and matched_track_ids:
-                click.echo(click.style("[3/4] Exporting affected playlists...", fg='yellow'))
+                progress.step(3, 4, "Exporting affected playlists")
                 # Find which playlists contain the newly matched tracks
                 affected_playlist_ids = db.get_playlists_containing_tracks(matched_track_ids)
                 _export_playlists(db, watch_config.config, playlist_ids=affected_playlist_ids)
             else:
-                click.echo(click.style("[3/4] Export skipped", fg='yellow', dim=True))
+                progress.step(3, 4, "Export skipped")
             
             # 4. Regenerate reports (only if matches changed)
             if not watch_config.skip_report and matched_track_ids:
-                click.echo(click.style("[4/4] Regenerating reports...", fg='yellow'))
+                progress.step(4, 4, "Regenerating reports")
                 _generate_reports(db, watch_config.config)
             else:
-                click.echo(click.style("[4/4] Reports skipped", fg='yellow', dim=True))
+                progress.step(4, 4, "Reports skipped")
         
-        click.echo(click.style("✓ Incremental rebuild complete", fg='green', bold=True))
+        progress.complete("Incremental rebuild")
     except Exception as e:
-        click.echo(click.style(f"✗ Rebuild failed: {e}", fg='red', bold=True))
+        progress.error(f"Rebuild failed: {e}")
         logger.exception("Watch mode error details:")
     
     click.echo("")
-    click.echo(click.style("Watching for changes...", fg='cyan'))
+    progress.status("Watching for changes...")
     
     # Return updated DB mtime to prevent false-positive database change detection
     return watch_config.db_path.stat().st_mtime if watch_config.db_path.exists() else 0.0
@@ -136,7 +137,7 @@ def _handle_database_changes(watch_config: WatchBuildConfig) -> float:
         Updated database mtime after all operations complete
     """
     click.echo("")
-    click.echo(click.style("▶ Database changed (tracks/playlists updated)", fg='cyan', bold=True))
+    progress.status("▶ Database changed (tracks/playlists updated)")
     
     try:
         with watch_config.get_db(watch_config.config) as db:
@@ -150,44 +151,47 @@ def _handle_database_changes(watch_config: WatchBuildConfig) -> float:
                 if changed_track_ids:
                     from .match_service import match_changed_tracks
                     
-                    click.echo(click.style(f"[1/3] Incrementally matching {len(changed_track_ids)} changed track(s)...", fg='yellow'))
+                    progress.step(1, 3, f"Incrementally matching {len(changed_track_ids)} changed track(s)")
                     new_matches = match_changed_tracks(db, watch_config.config, track_ids=changed_track_ids)
-                    click.echo(click.style(f"  ✓ {new_matches} new match(es)", fg='green'))
+                    progress.status(f"✓ {new_matches} new match(es)")
                     
                     # Clear the metadata after processing
                     db.set_meta('last_pull_changed_tracks', None)
                     db.commit()
                 else:
-                    click.echo(click.style("[1/3] No track changes detected, skipping match", fg='yellow'))
+                    progress.step(1, 3, "No track changes detected, skipping match")
             else:
                 # Fallback: Full re-match since we don't know what changed
-                click.echo(click.style("[1/3] Re-matching all tracks (no change tracking available)...", fg='yellow'))
-                click.echo(click.style("=== Matching tracks to library files ===", fg='cyan', bold=True))
+                progress.step(1, 3, "Re-matching all tracks (no change tracking available)")
                 result = run_matching(db, config=watch_config.config, verbose=False, top_unmatched_tracks=0, top_unmatched_albums=0)
-                click.echo(click.style(f"  ✓ Matched {result.matched} tracks", fg='green'))
+                progress.status(f"✓ Matched {result.matched} tracks")
             
             # Export
             if not watch_config.skip_export:
-                click.echo(click.style("[2/3] Exporting playlists...", fg='yellow'))
+                progress.step(2, 3, "Exporting playlists")
                 _export_playlists(db, watch_config.config)
             else:
-                click.echo(click.style("[2/3] Export skipped", fg='yellow', dim=True))
+                progress.step(2, 3, "Export skipped")
             
             # Reports
             if not watch_config.skip_report:
-                click.echo(click.style("[3/3] Regenerating reports...", fg='yellow'))
+                progress.step(3, 3, "Regenerating reports")
                 _generate_reports(db, watch_config.config)
             else:
-                click.echo(click.style("[3/3] Reports skipped", fg='yellow', dim=True))
+                progress.step(3, 3, "Reports skipped")
         
-        click.echo(click.style("✓ Database sync complete", fg='green', bold=True))
+        progress.complete("Database sync")
     except Exception as e:
-        click.echo(click.style(f"✗ Database sync failed: {e}", fg='red', bold=True))
+        progress.error(f"Database sync failed: {e}")
         logger.exception("Database sync error details:")
         # Return current mtime even on error to prevent infinite re-trigger loops
         return watch_config.db_path.stat().st_mtime if watch_config.db_path.exists() else 0.0
     
     click.echo("")
+    progress.status("Watching for changes...")
+    
+    # Return updated DB mtime to prevent false-positive database change detection
+    return watch_config.db_path.stat().st_mtime if watch_config.db_path.exists() else 0.0
     click.echo(click.style("Watching for changes...", fg='cyan'))
     
     # Return updated database mtime

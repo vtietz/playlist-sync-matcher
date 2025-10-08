@@ -34,10 +34,15 @@ case "${1:-}" in
         python -m pytest "$@"
         exit 0
         ;;
+    gui)
+        python -m psm.gui
+        exit 0
+        ;;
     help)
         echo "Usage: ./run.sh [command]"
         echo "Commands:"
         echo "  pull | scan | match | export | report | report-albums | build"
+        echo "  gui                   Launch desktop GUI"
         echo "  install               Install or update dependencies"
         echo "  test [pytest args]    Run test suite (e.g. ./run.sh test -q tests/test_hashing.py)"
         echo "  version               Show CLI version"

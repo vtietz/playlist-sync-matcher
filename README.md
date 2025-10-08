@@ -87,6 +87,38 @@ chmod +x run.sh
 
 > **First run**: The install script creates a `.venv` directory and installs all dependencies automatically.
 
+## Desktop GUI 🆕
+
+A fully-featured desktop GUI is now available with PySide6 (Qt for Python):
+
+**Launch GUI**:
+**Launch GUI**:
+```bash
+run.bat gui          # Windows (via run script)
+./run.sh gui         # Linux/Mac (via run script)
+
+# OR via CLI command:
+psm gui              # If installed globally
+python -m psm.cli gui   # Direct Python invocation
+```
+
+**Features**:
+- 📊 **Master-Detail Playlists** – Browse all playlists, click to see tracks with local paths
+- 🎯 **Actionable Views** – Tabs for Unmatched Tracks, Matched Tracks, Coverage, Unmatched Albums, Liked Songs
+- ⚡ **All CLI Actions** – Pull, Scan, Match, Export, Report, Build via toolbar buttons
+- 🔄 **Watch Mode Toggle** – Enable continuous monitoring with one click
+- 📝 **Live Logs** – Real-time CLI output streaming to log window
+- 📈 **Progress Tracking** – Live progress bar with percentage and action labels
+- 🎨 **Professional UI** – Dark-themed Qt interface with hover effects
+
+**Architecture**:
+- Zero changes to existing CLI/service code (isolated `psm/gui/` module)
+- Read-only data layer using `DatabaseInterface` only (no raw SQL)
+- All actions execute actual CLI commands as subprocesses (CLI parity)
+- Live progress parsing from CLI stdout
+
+**Documentation**: See [`psm/gui/README.md`](psm/gui/README.md) for detailed usage, keyboard shortcuts, and architecture.
+
 ## Getting Started
 
 ### 1. Get a Spotify Client ID

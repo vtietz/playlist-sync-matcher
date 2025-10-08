@@ -1,0 +1,92 @@
+/* Playlist Sync Matcher - System Theme-Aware Stylesheet */
+/* Uses Qt palette colors to automatically adapt to light/dark system themes */
+
+/* Toolbar */
+QToolBar {
+    padding: 4px;
+    spacing: 4px;
+}
+
+QPushButton {
+    background-color: palette(highlight);
+    color: palette(highlighted-text);
+    border: none;
+    padding: 6px 12px;
+    border-radius: 3px;
+    font-weight: bold;
+}
+
+QPushButton:hover {
+    background-color: palette(light);
+}
+
+QPushButton:pressed {
+    background-color: palette(dark);
+}
+
+QPushButton:disabled {
+    background-color: palette(mid);
+    color: palette(disabled-text);
+}
+
+QPushButton:checked {
+    background-color: #d83b01;
+    color: white;
+}
+
+QPushButton:checked:hover {
+    background-color: #c13a00;
+    color: white;
+}
+
+/* Tables */
+QTableView {
+    alternate-background-color: palette(alternate-base);
+}
+
+QTableView::item {
+    padding: 4px;
+}
+
+QHeaderView::section {
+    padding: 6px 4px;
+    font-weight: bold;
+}
+
+/* Tabs */
+QTabBar::tab {
+    padding: 8px 16px;
+    margin-right: 2px;
+}
+
+QTabBar::tab:selected {
+    font-weight: bold;
+}
+
+/* Log window - use inverted colors for terminal-like appearance */
+QTextEdit#logWindow {
+    background-color: palette(dark);
+    color: palette(bright-text);
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 10pt;
+}
+
+/* Progress bar */
+QProgressBar {
+    border-radius: 3px;
+    text-align: center;
+}
+
+QProgressBar::chunk {
+    background-color: palette(highlight);
+    border-radius: 2px;
+}
+
+/* Splitter */
+QSplitter::handle {
+    width: 1px;
+}
+
+QSplitter::handle:hover {
+    background-color: palette(highlight);
+}

@@ -277,9 +277,14 @@ class MatchingEngine:
         logger.info(f"Incrementally matching {len(all_files)} file(s) against {len(tracks_to_match)} changed track(s)...")
         
         new_matches = 0
+        processed = 0
+        total = len(tracks_to_match)
+        start = time.time()
+        last_progress_log = 0
         
         # For each changed track, find best file from library
         for track in tracks_to_match:
+            processed += 1
             # Build candidate subset using CandidateSelector
             candidates = self.selector.duration_prefilter(track, all_files, dur_tolerance=self.dur_tolerance)
             if not candidates:
@@ -313,9 +318,27 @@ class MatchingEngine:
                     provider=self.provider
                 )
                 new_matches += 1
+            
+            # Log progress periodically
+            if processed - last_progress_log >= self.progress_interval:
+                elapsed = time.time() - start
+                match_rate = (new_matches / processed * 100) if processed > 0 else 0
+                logger.info(
+                    f"Progress: {processed}/{total} tracks ({processed/total*100:.0f}%) | "
+                    f"{new_matches} matched ({match_rate:.1f}% match rate) | "
+                    f"{processed/elapsed:.1f} tracks/s"
+                )
+                last_progress_log = processed
         
         self.db.commit()
-        logger.info(f"✓ Created {new_matches} new match(es) from {len(tracks_to_match)} changed track(s)")
+        
+        # Final summary
+        duration = time.time() - start
+        match_rate = (new_matches / total * 100) if total > 0 else 0
+        logger.info(
+            f"✓ Created {new_matches} new match(es) from {total} changed track(s) "
+            f"({match_rate:.1f}% match rate) in {duration:.2f}s"
+        )
         return new_matches
     
     def match_files(
@@ -369,9 +392,14 @@ class MatchingEngine:
         
         new_matches = 0
         matched_track_ids = []  # Track which tracks got new matches
+        processed = 0
+        total = len(all_tracks)
+        start = time.time()
+        last_progress_log = 0
         
         # For each track, find best file from our changed file list
         for track in all_tracks:
+            processed += 1
             # Build candidate subset using CandidateSelector
             candidates = self.selector.duration_prefilter(track, files_to_match, dur_tolerance=self.dur_tolerance)
             if not candidates:
@@ -406,9 +434,27 @@ class MatchingEngine:
                 )
                 new_matches += 1
                 matched_track_ids.append(track['id'])  # Track which tracks got matched
+            
+            # Log progress periodically
+            if processed - last_progress_log >= self.progress_interval:
+                elapsed = time.time() - start
+                match_rate = (new_matches / processed * 100) if processed > 0 else 0
+                logger.info(
+                    f"Progress: {processed}/{total} tracks ({processed/total*100:.0f}%) | "
+                    f"{new_matches} matched ({match_rate:.1f}% match rate) | "
+                    f"{processed/elapsed:.1f} tracks/s"
+                )
+                last_progress_log = processed
         
         self.db.commit()
-        logger.info(f"✓ Created {new_matches} new match(es) from {len(files_to_match)} changed file(s)")
+        
+        # Final summary
+        duration = time.time() - start
+        match_rate = (new_matches / len(files_to_match) * 100) if files_to_match else 0
+        logger.info(
+            f"✓ Created {new_matches} new match(es) from {len(files_to_match)} changed file(s) "
+            f"({match_rate:.1f}% match rate) in {duration:.2f}s"
+        )
         return (new_matches, matched_track_ids)
     
     @staticmethod
