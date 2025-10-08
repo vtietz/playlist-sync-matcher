@@ -9,11 +9,8 @@ import time
 import logging
 from typing import Dict, Any, List
 
-from ..match.scoring import ScoringConfig, evaluate_pair, MatchConfidence
-from ..match.candidate_selector import CandidateSelector
 from ..match.matching_engine import MatchingEngine
-from ..db import Database, DatabaseInterface
-from ..utils.logging_helpers import log_progress
+from ..db import Database
 
 logger = logging.getLogger(__name__)
 
@@ -304,93 +301,9 @@ def match_changed_tracks(
     Returns:
         Number of new matches created
     """
-    # Get all library files
-    cur_files = db.conn.execute("SELECT id, path, title, artist, album, year, duration, normalized FROM library_files")
-    all_files = [_normalize_file_dict(dict(row)) for row in cur_files.fetchall()]
-    
-    if not all_files:
-        logger.debug("No library files to match against")
-        return 0
-    
-    # Get tracks to match
-    if track_ids:
-        # Match specific changed tracks
-        if not track_ids:  # Empty list
-            return 0
-        
-        placeholders = ','.join('?' * len(track_ids))
-        cur_tracks = db.conn.execute(
-            f"SELECT id, name, artist, album, year, isrc, duration_ms, normalized FROM tracks WHERE id IN ({placeholders})",
-            track_ids
-        )
-        tracks_to_match = [dict(row) for row in cur_tracks.fetchall()]
-        
-        # Delete existing matches for these tracks (they were updated)
-        db.conn.execute(f"DELETE FROM matches WHERE track_id IN ({placeholders})", track_ids)
-        db.commit()
-    else:
-        # Match all currently unmatched tracks (fallback)
-        cur_tracks = db.conn.execute('''
-            SELECT id, name, artist, album, year, isrc, duration_ms, normalized
-            FROM tracks
-            WHERE id NOT IN (SELECT track_id FROM matches)
-        ''')
-        tracks_to_match = [dict(row) for row in cur_tracks.fetchall()]
-    
-    if not tracks_to_match:
-        logger.debug("No tracks need matching")
-        return 0
-    
-    logger.info(f"Incrementally matching {len(all_files)} file(s) against {len(tracks_to_match)} changed track(s)...")
-    
-    # Use the same scoring engine logic as full matching
-    cfg = ScoringConfig()
-    selector = CandidateSelector()
-    dur_tol = config.get('matching', {}).get('duration_tolerance', 2.0)
-    max_candidates = int(config.get('matching', {}).get('max_candidates_per_track', 500))
-    provider = config.get('provider', 'spotify')
-    
-    new_matches = 0
-    
-    # For each changed track, find best file from library
-    for track in tracks_to_match:
-        # Build candidate subset using CandidateSelector
-        candidates = selector.duration_prefilter(track, all_files, dur_tolerance=dur_tol)
-        if not candidates:
-            candidates = all_files  # Fallback if filter too strict
-        
-        # Pre-score and cap candidates using token similarity
-        candidates = selector.token_prescore(track, candidates, max_candidates=max_candidates)
-        
-        # Find best match among candidates
-        best_file_id = None
-        best_breakdown = None
-        best_score = -1.0
-        
-        for file_dict in candidates:
-            breakdown = evaluate_pair(track, file_dict, cfg)
-            if breakdown.confidence == MatchConfidence.REJECTED:
-                continue
-            if breakdown.raw_score > best_score:
-                best_score = breakdown.raw_score
-                best_file_id = file_dict['id']
-                best_breakdown = breakdown
-            if breakdown.confidence == MatchConfidence.CERTAIN:
-                break
-        
-        if best_breakdown and best_file_id is not None:
-            db.add_match(
-                track['id'],
-                best_file_id,
-                best_breakdown.raw_score / 100.0,
-                f"score:{best_breakdown.confidence}",
-                provider=provider
-            )
-            new_matches += 1
-    
-    db.commit()
-    logger.info(f"✓ Created {new_matches} new match(es) from {len(tracks_to_match)} changed track(s)")
-    return new_matches
+    # Delegate to matching engine
+    engine = MatchingEngine(db, config)
+    return engine.match_tracks(track_ids=track_ids)
 
 
 def match_changed_files(
@@ -412,90 +325,6 @@ def match_changed_files(
     Returns:
         Number of new matches created
     """
-    # Get all tracks to match against
-    cur_tracks = db.conn.execute("SELECT id, name, artist, album, year, isrc, duration_ms, normalized FROM tracks")
-    all_tracks = [dict(row) for row in cur_tracks.fetchall()]
-    
-    if not all_tracks:
-        logger.debug("No tracks in database to match against")
-        return 0
-    
-    # Get files to match
-    if file_ids:
-        # Match specific changed files
-        if not file_ids:  # Empty list
-            return 0
-        
-        placeholders = ','.join('?' * len(file_ids))
-        cur_files = db.conn.execute(
-            f"SELECT id, path, title, artist, album, year, duration, normalized FROM library_files WHERE id IN ({placeholders})",
-            file_ids
-        )
-        files_to_match = [_normalize_file_dict(dict(row)) for row in cur_files.fetchall()]
-        
-        # Delete existing matches for these files (they were updated)
-        db.conn.execute(f"DELETE FROM matches WHERE file_id IN ({placeholders})", file_ids)
-        db.commit()
-    else:
-        # Match all currently unmatched files (fallback)
-        cur_files = db.conn.execute('''
-            SELECT id, path, title, artist, album, year, duration, normalized
-            FROM library_files
-            WHERE id NOT IN (SELECT file_id FROM matches)
-        ''')
-        files_to_match = [_normalize_file_dict(dict(row)) for row in cur_files.fetchall()]
-    
-    if not files_to_match:
-        logger.debug("No files need matching")
-        return 0
-    
-    logger.info(f"Incrementally matching {len(files_to_match)} file(s) against {len(all_tracks)} tracks...")
-    
-    # Use the same scoring engine logic as full matching
-    cfg = ScoringConfig()
-    selector = CandidateSelector()
-    dur_tol = config.get('matching', {}).get('duration_tolerance', 2.0)
-    max_candidates = int(config.get('matching', {}).get('max_candidates_per_track', 500))
-    provider = config.get('provider', 'spotify')
-    
-    new_matches = 0
-    
-    # For each track, find best file from our changed file list
-    for track in all_tracks:
-        # Build candidate subset using CandidateSelector
-        candidates = selector.duration_prefilter(track, files_to_match, dur_tolerance=dur_tol)
-        if not candidates:
-            candidates = files_to_match  # Fallback if filter too strict
-        
-        # Pre-score and cap candidates using token similarity
-        candidates = selector.token_prescore(track, candidates, max_candidates=max_candidates)
-        
-        # Find best match among candidates
-        best_file_id = None
-        best_breakdown = None
-        best_score = -1.0
-        
-        for file_dict in candidates:
-            breakdown = evaluate_pair(track, file_dict, cfg)
-            if breakdown.confidence == MatchConfidence.REJECTED:
-                continue
-            if breakdown.raw_score > best_score:
-                best_score = breakdown.raw_score
-                best_file_id = file_dict['id']
-                best_breakdown = breakdown
-            if breakdown.confidence == MatchConfidence.CERTAIN:
-                break
-        
-        if best_breakdown and best_file_id is not None:
-            db.add_match(
-                track['id'],
-                best_file_id,
-                best_breakdown.raw_score / 100.0,
-                f"score:{best_breakdown.confidence}",
-                provider=provider
-            )
-            new_matches += 1
-    
-    db.commit()
-    logger.info(f"✓ Created {new_matches} new match(es) from {len(files_to_match)} changed file(s)")
-    return new_matches
+    # Delegate to matching engine
+    engine = MatchingEngine(db, config)
+    return engine.match_files(file_ids=file_ids)

@@ -225,6 +225,211 @@ class MatchingEngine:
         
         return ", ".join(parts) if parts else "none"
     
+    def match_tracks(
+        self,
+        track_ids: List[str] | None = None,
+        all_files: List[Dict[str, Any]] | None = None
+    ) -> int:
+        """Incrementally match specific tracks against all library files.
+        
+        This is the inverse of match_files: instead of matching a few changed
+        files against all tracks, we match all files against a few changed tracks.
+        
+        Use case: After 'pull' command adds/updates tracks in database.
+        
+        Args:
+            track_ids: List of specific track IDs to match (if None, matches all unmatched tracks)
+            all_files: Pre-loaded file list (optional, will query if None)
+            
+        Returns:
+            Number of new matches created
+        """
+        # Get all library files if not provided
+        if all_files is None:
+            cur_files = self.db.conn.execute(
+                "SELECT id, path, title, artist, album, year, duration, normalized FROM library_files"
+            )
+            all_files = [self._normalize_file_dict(dict(row)) for row in cur_files.fetchall()]
+        
+        if not all_files:
+            logger.debug("No library files to match against")
+            return 0
+        
+        # Get tracks to match
+        if track_ids:
+            # Match specific changed tracks
+            if not track_ids:  # Empty list
+                return 0
+            
+            placeholders = ','.join('?' * len(track_ids))
+            cur_tracks = self.db.conn.execute(
+                f"SELECT id, name, artist, album, year, isrc, duration_ms, normalized FROM tracks WHERE id IN ({placeholders})",
+                track_ids
+            )
+            tracks_to_match = [dict(row) for row in cur_tracks.fetchall()]
+            
+            # Delete existing matches for these tracks (they were updated)
+            self.db.conn.execute(f"DELETE FROM matches WHERE track_id IN ({placeholders})", track_ids)
+            self.db.commit()
+        else:
+            # Match all currently unmatched tracks (fallback)
+            cur_tracks = self.db.conn.execute('''
+                SELECT id, name, artist, album, year, isrc, duration_ms, normalized
+                FROM tracks
+                WHERE id NOT IN (SELECT track_id FROM matches)
+            ''')
+            tracks_to_match = [dict(row) for row in cur_tracks.fetchall()]
+        
+        if not tracks_to_match:
+            logger.debug("No tracks need matching")
+            return 0
+        
+        logger.info(f"Incrementally matching {len(all_files)} file(s) against {len(tracks_to_match)} changed track(s)...")
+        
+        new_matches = 0
+        
+        # For each changed track, find best file from library
+        for track in tracks_to_match:
+            # Build candidate subset using CandidateSelector
+            candidates = self.selector.duration_prefilter(track, all_files, dur_tolerance=self.dur_tolerance)
+            if not candidates:
+                candidates = all_files  # Fallback if filter too strict
+            
+            # Pre-score and cap candidates using token similarity
+            candidates = self.selector.token_prescore(track, candidates, max_candidates=self.max_candidates)
+            
+            # Find best match among candidates
+            best_file_id = None
+            best_breakdown = None
+            best_score = -1.0
+            
+            for file_dict in candidates:
+                breakdown = evaluate_pair(track, file_dict, self.scoring_config)
+                if breakdown.confidence == MatchConfidence.REJECTED:
+                    continue
+                if breakdown.raw_score > best_score:
+                    best_score = breakdown.raw_score
+                    best_file_id = file_dict['id']
+                    best_breakdown = breakdown
+                if breakdown.confidence == MatchConfidence.CERTAIN:
+                    break
+            
+            if best_breakdown and best_file_id is not None:
+                self.db.add_match(
+                    track['id'],
+                    best_file_id,
+                    best_breakdown.raw_score / 100.0,
+                    f"score:{best_breakdown.confidence}",
+                    provider=self.provider
+                )
+                new_matches += 1
+        
+        self.db.commit()
+        logger.info(f"✓ Created {new_matches} new match(es) from {len(tracks_to_match)} changed track(s)")
+        return new_matches
+    
+    def match_files(
+        self,
+        file_ids: List[int] | None = None,
+        all_tracks: List[Dict[str, Any]] | None = None
+    ) -> int:
+        """Incrementally match specific files against all tracks.
+        
+        This is much more efficient than match_all() for watch mode scenarios
+        where only a few files changed. Instead of re-matching all files against
+        all tracks, we only match the changed files.
+        
+        Args:
+            file_ids: List of specific file IDs to match (if None, matches all unmatched files)
+            all_tracks: Pre-loaded track list (optional, will query if None)
+            
+        Returns:
+            Number of new matches created
+        """
+        # Get all tracks if not provided
+        if all_tracks is None:
+            cur_tracks = self.db.conn.execute(
+                "SELECT id, name, artist, album, year, isrc, duration_ms, normalized FROM tracks"
+            )
+            all_tracks = [dict(row) for row in cur_tracks.fetchall()]
+        
+        if not all_tracks:
+            logger.debug("No tracks in database to match against")
+            return 0
+        
+        # Get files to match
+        if file_ids:
+            # Match specific changed files
+            if not file_ids:  # Empty list
+                return 0
+            
+            placeholders = ','.join('?' * len(file_ids))
+            cur_files = self.db.conn.execute(
+                f"SELECT id, path, title, artist, album, year, duration, normalized FROM library_files WHERE id IN ({placeholders})",
+                file_ids
+            )
+            files_to_match = [self._normalize_file_dict(dict(row)) for row in cur_files.fetchall()]
+            
+            # Delete existing matches for these files (they were updated)
+            self.db.conn.execute(f"DELETE FROM matches WHERE file_id IN ({placeholders})", file_ids)
+            self.db.commit()
+        else:
+            # Match all currently unmatched files (fallback)
+            cur_files = self.db.conn.execute('''
+                SELECT id, path, title, artist, album, year, duration, normalized
+                FROM library_files
+                WHERE id NOT IN (SELECT file_id FROM matches)
+            ''')
+            files_to_match = [self._normalize_file_dict(dict(row)) for row in cur_files.fetchall()]
+        
+        if not files_to_match:
+            logger.debug("No files need matching")
+            return 0
+        
+        logger.info(f"Incrementally matching {len(files_to_match)} file(s) against {len(all_tracks)} tracks...")
+        
+        new_matches = 0
+        
+        # For each track, find best file from our changed file list
+        for track in all_tracks:
+            # Build candidate subset using CandidateSelector
+            candidates = self.selector.duration_prefilter(track, files_to_match, dur_tolerance=self.dur_tolerance)
+            if not candidates:
+                candidates = files_to_match  # Fallback if filter too strict
+            
+            # Pre-score and cap candidates using token similarity
+            candidates = self.selector.token_prescore(track, candidates, max_candidates=self.max_candidates)
+            
+            # Find best match among candidates
+            best_file_id = None
+            best_breakdown = None
+            best_score = -1.0
+            
+            for file_dict in candidates:
+                breakdown = evaluate_pair(track, file_dict, self.scoring_config)
+                if breakdown.confidence == MatchConfidence.REJECTED:
+                    continue
+                if breakdown.raw_score > best_score:
+                    best_score = breakdown.raw_score
+                    best_file_id = file_dict['id']
+                    best_breakdown = breakdown
+                if breakdown.confidence == MatchConfidence.CERTAIN:
+                    break
+            
+            if best_breakdown and best_file_id is not None:
+                self.db.add_match(
+                    track['id'],
+                    best_file_id,
+                    best_breakdown.raw_score / 100.0,
+                    f"score:{best_breakdown.confidence}",
+                    provider=self.provider
+                )
+                new_matches += 1
+        
+        self.db.commit()
+        logger.info(f"✓ Created {new_matches} new match(es) from {len(files_to_match)} changed file(s)")
+        return new_matches
+    
     @staticmethod
     def _normalize_file_dict(raw_row: Dict[str, Any]) -> Dict[str, Any]:
         """Normalize library file row to match scoring engine expectations.
