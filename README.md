@@ -5,8 +5,10 @@ Turn your streaming playlists (e.g. from Spotify) into M3U playlist files that p
 ## What it does
 Instead of just getting a list of song names, you get working playlists that:
 - **Link to your local files** – Each playlist entry points to the real MP3/FLAC file on your drive
-- **Show what's missing** – Clear reports of tracks and albums you don't have locally
-- **Work everywhere** – Standard M3U files that any music player can use
+- **Show what's missing** – Missing tracks marked with ❌ emoji in mirrored mode, plus detailed reports
+- **Preserve your path format** – Network drives (Z:\) vs UNC paths (\\server\share) maintained automatically
+- **Keep playlists in sync** – Smart obsolete detection prompts you to clean up deleted playlists
+- **Work everywhere** – Standard M3U files that any music player can use (VLC, Foobar2000, etc.)
 
 Perfect for syncing to devices, offline listening, or just organizing your collection around your streaming habits.
 
@@ -163,15 +165,19 @@ xdg-open data/export/reports/index.html     # Linux
 
 | Capability | Value |
 |------------|-------|
-| Deterministic playlist exports | Stable M3U8 ordering, collision‑safe filenames |
-| Multiple export modes | strict, mirrored, placeholders |
-| Owner grouping (optional) | Organize playlists into folders by owner |
-| Scoring-based matching | Weighted signals (exact/fuzzy/album/year/duration/ISRC) with confidence tiers |
-| Rich reporting | Missing tracks, album completeness, unmatched diagnostics |
-| Library quality analysis | Surface metadata gaps & low bitrate files |
-| Fast scan mode | Skips unchanged files (mtime+size) to save minutes on large libraries |
-| Provider‑ready architecture | Pluggable registry & namespaced schema |
-| Clean schema v1 | Composite (id, provider) keys for future multi‑provider coexistence |
+| **M3U Export Modes** | strict (matched only), mirrored (all tracks with ❌ indicators), placeholders (dummy files) |
+| **Smart Path Handling** | Preserves Z:\ vs \\server\share network paths, absolute/relative path support |
+| **Playlist Cleanup** | Detects obsolete playlists with interactive deletion, optional full clean before export |
+| **Owner Grouping** | Optional: organize playlists into folders by owner |
+| **Liked Songs Support** | Automatic virtual playlist export for your Spotify ❤️ Liked Songs |
+| **Progress Indicators** | Live progress during export ([1/302] Exporting: Playlist Name) |
+| **Scoring-based Matching** | Weighted signals (exact/fuzzy/album/year/duration/ISRC) with confidence tiers |
+| **Rich Reporting** | Interactive HTML + CSV: missing tracks, album completeness, coverage analysis |
+| **Library Quality Analysis** | Surface metadata gaps & low bitrate files grouped by album |
+| **Fast Scan Mode** | Skips unchanged files (mtime+size) to save minutes on large libraries |
+| **Watch Mode** | Continuous monitoring of library and database with incremental updates |
+| **Provider-Ready Architecture** | Pluggable registry & namespaced schema for future multi-provider support |
+| **Clean Schema v1** | Composite (id, provider) keys for future multi-provider coexistence |
 
 ## Common Commands
 
@@ -453,6 +459,103 @@ run.bat playlist push <PLAYLIST_ID> --apply # Apply changes
 
 See `docs/` for complete playlist command documentation.
 
+### Export Modes & Features 🎵
+
+The tool offers flexible M3U playlist export with smart features for managing your playlists:
+
+#### **Export Modes**
+
+**Strict Mode** (default for reliability)
+- Only includes tracks with local file matches
+- Cleanest playlists for guaranteed playback
+- Missing tracks silently omitted
+
+**Mirrored Mode** (recommended for completeness)
+- Preserves ALL tracks from Spotify playlist
+- Missing tracks marked with ❌ emoji in title (visible in player UI)
+- Placeholder entries: `!MISSING - Artist - Title`
+- Perfect for tracking what you need to download
+
+**Placeholders Mode** (for advanced workflows)
+- Creates dummy `.missing` files for unmatched tracks
+- Maintains playlist order with physical files
+- Useful for scripting batch downloads
+
+#### **Smart Playlist Cleanup** 🆕
+
+Keep your export directory synchronized:
+
+**Obsolete Detection** (enabled by default)
+- Automatically finds playlists that were deleted from Spotify
+- Interactive prompt lists obsolete files with option to delete
+- Example output:
+  ```
+  ⚠ Found 3 obsolete playlist(s):
+    • Old_Deleted_Playlist_abc123.m3u
+    • Temp_Test_List_def456.m3u
+  
+  Delete obsolete playlists? [y/N]:
+  ```
+
+**Clean Before Export** (optional, disabled by default)
+- `PSM__EXPORT__CLEAN_BEFORE_EXPORT=true` deletes ALL .m3u files before export
+- Safest option but removes any manual additions
+- Use for "fresh start" after major library reorganization
+
+**Configuration:**
+```bash
+PSM__EXPORT__DETECT_OBSOLETE=true       # Default: detect and prompt
+PSM__EXPORT__CLEAN_BEFORE_EXPORT=false  # Default: keep existing files
+```
+
+#### **Network Path Preservation** 🆕
+
+Automatically preserves your configured path format:
+
+- **Z:\Artists\Album\Song.mp3** → Stays as drive letter if configured that way
+- **\\\\server\share\Artists\Album\Song.mp3** → Stays as UNC if configured that way
+- **Works by**: Matching database absolute paths against your `PSM__LIBRARY__PATHS` config
+- **Cross-platform**: Pure Python, no Windows-specific commands
+
+**Configuration:**
+```bash
+PSM__LIBRARY__PATHS=["Z:/Artists","Z:/Sampler"]  # Your mount points
+PSM__EXPORT__USE_LIBRARY_ROOTS=true              # Enable path reconstruction (default)
+PSM__EXPORT__PATH_FORMAT=absolute                # absolute or relative (default: absolute)
+```
+
+#### **Live Progress Indicators** 🆕
+
+See export progress in real-time:
+```
+▶ Exporting playlists to M3U
+[1/302] Exporting: Chill Vibes
+[2/302] Exporting: Workout Mix
+[3/302] Exporting: Road Trip
+...
+[302/302] Exporting: Late Night Jazz
+Exporting Liked Songs as virtual playlist (1624 tracks)
+✓ Exported 302 playlists to Z:\Playlists\Spotify
+✓ Export complete
+```
+
+#### **Visual Missing Track Indicators** 🆕
+
+Mirrored mode makes missing tracks obvious in any player:
+
+**In M3U file:**
+```m3u
+#EXTM3U
+#EXTINF:180,Artist - Song Title
+Z:\Artists\Artist\Song.mp3
+#EXTINF:215,❌ Artist - Missing Song
+!MISSING - Artist - Missing Song
+```
+
+**In your media player:**
+- ✅ **Artist - Song Title** (plays normally)
+- ❌ **Artist - Missing Song** (visible as missing, shows download priority)
+
 ## Configuration
 
 All configuration via `.env` file or environment variables using the pattern `PSM__SECTION__KEY`.
@@ -470,6 +573,15 @@ PSM__EXPORT__ORGANIZE_BY_OWNER=true
 - `PSM__MATCHING__DURATION_TOLERANCE` - Seconds (default: 2.0)
 - `PSM__LIBRARY__FAST_SCAN` - Skip unchanged files (default: true)
 - `PSM__LOG_LEVEL` - DEBUG|INFO|WARNING (default: INFO)
+
+**Export options:**
+- `PSM__EXPORT__MODE` - strict|mirrored|placeholders (default: strict)
+- `PSM__EXPORT__ORGANIZE_BY_OWNER` - Group by owner (default: true)
+- `PSM__EXPORT__INCLUDE_LIKED_SONGS` - Export Liked Songs playlist (default: true)
+- `PSM__EXPORT__PATH_FORMAT` - absolute|relative paths (default: absolute)
+- `PSM__EXPORT__USE_LIBRARY_ROOTS` - Preserve Z:\ vs \\server\share (default: true)
+- `PSM__EXPORT__CLEAN_BEFORE_EXPORT` - Delete all .m3u before export (default: false)
+- `PSM__EXPORT__DETECT_OBSOLETE` - Prompt to delete obsolete playlists (default: true)
 
 **Temporary override** (without editing `.env`):
 ```bash

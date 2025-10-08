@@ -41,6 +41,12 @@ Environment variable naming: `PSM__SECTION__KEY` (double underscores as separato
 - `PSM__EXPORT__ORGANIZE_BY_OWNER` - Group playlists by owner (default false).
 - `PSM__EXPORT__DIRECTORY` - Target folder (default data/export/playlists).
 - `PSM__EXPORT__PLACEHOLDER_EXTENSION` - Extension for placeholder files (default .missing).
+- `PSM__EXPORT__INCLUDE_LIKED_SONGS` - Export Liked Songs as virtual playlist (default true).
+- `PSM__EXPORT__PATH_FORMAT` - absolute|relative paths in M3U files (default absolute).
+- `PSM__EXPORT__USE_LIBRARY_ROOTS` - Reconstruct paths using config library roots to preserve format (default true).
+- `PSM__EXPORT__CLEAN_BEFORE_EXPORT` - Delete all .m3u files before export (default false).
+- `PSM__EXPORT__AUTO_OVERWRITE` - Automatically overwrite existing files (default true, reserved for future).
+- `PSM__EXPORT__DETECT_OBSOLETE` - Detect and prompt about obsolete playlists (default true).
 
 ### Reports
 - `PSM__REPORTS__DIRECTORY` - Report output directory (default data/export/reports).
@@ -60,6 +66,10 @@ PSM__SPOTIFY__CLIENT_ID=abc123
 PSM__LIBRARY__PATHS=["C:/Music","D:/Archive"]
 PSM__EXPORT__MODE=mirrored
 PSM__EXPORT__ORGANIZE_BY_OWNER=true
+PSM__EXPORT__INCLUDE_LIKED_SONGS=true
+PSM__EXPORT__PATH_FORMAT=absolute
+PSM__EXPORT__USE_LIBRARY_ROOTS=true
+PSM__EXPORT__DETECT_OBSOLETE=true
 PSM__MATCHING__FUZZY_THRESHOLD=0.82
 PSM__MATCHING__STRATEGIES=["sql_exact","album_match","year_match","duration_filter","fuzzy"]
 ```
