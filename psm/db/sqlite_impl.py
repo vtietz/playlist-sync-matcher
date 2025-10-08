@@ -416,6 +416,10 @@ class Database(DatabaseInterface):
         sql = f"DELETE FROM matches WHERE file_id IN ({placeholders})"
         self._execute_with_lock_handling(sql, file_ids)
     
+    def delete_all_matches(self):
+        """Delete all track-to-file matches (for full re-match scenarios)."""
+        self._execute_with_lock_handling("DELETE FROM matches", [])
+    
     def count_distinct_library_albums(self) -> int:
         """Count unique albums in library files."""
         cursor = self.conn.execute("SELECT COUNT(DISTINCT album) FROM library_files WHERE album IS NOT NULL AND album != ''")

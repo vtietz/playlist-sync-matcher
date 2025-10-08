@@ -65,14 +65,14 @@ psm build --watch --debounce 5       # Use 5-second debounce (default: 2)
 **What it does:**
 1. Monitors your music library for file changes (create, modify, delete)
 2. When changes settle (debounce period), automatically runs:
-   - `scan --quick` (only changed files)
-   - `match` (re-match affected tracks)
+   - `scan` (smart mode: only changed files by default)
+   - `match` (smart mode: only unmatched tracks by default)
    - `export` (regenerate M3U playlists)
    - `report` (update all reports)
 
 **Key differences from `scan --watch`:**
 - **Full pipeline**: Runs all steps (scan → match → export → report)
-- **Incremental scan**: Automatically uses `--quick` mode for efficiency
+- **Incremental by default**: Uses smart modes for efficiency
 - **No Spotify re-pull**: Does NOT re-fetch playlists from Spotify (run `pull` manually when playlists change)
 - **End-to-end**: Your M3U playlists and reports stay in sync with library changes
 
@@ -95,7 +95,7 @@ psm build --watch
 ```
 
 **Performance notes:**
-- Uses `--quick` scan mode (only changed files), so rebuilds are fast
+- Uses smart scan mode (only changed files), so rebuilds are fast
 - Debouncing prevents excessive processing during batch operations
 - Typical rebuild time: 2-10 seconds for small changes, 30-60s for large batches
 
@@ -131,8 +131,11 @@ The longer debounce prevents processing while large downloads are in progress.
 For NFS/SMB mounts, watch mode may be unreliable. Use polling instead:
 
 ```bash
-# Run periodic scans every 5 minutes
-while true; do psm scan --quick; sleep 300; done
+# Run periodic scans every 5 minutes (smart mode is default)
+while true; do psm scan; sleep 300; done
+
+# Or force deep scan periodically
+while true; do psm scan --deep; sleep 3600; done
 ```
 
 ---
@@ -207,17 +210,18 @@ psm scan --since "1728123456.789"
 
 **Use case:** Periodic cron job that scans recent changes.
 
-### Quick Mode
+### Smart Scan (Default)
 
 Automatically detect what changed since last scan:
 
 ```bash
-psm scan --quick
+psm scan               # Smart mode by default
+psm scan --deep        # Force complete rescan
 ```
 
-This reads `last_scan_time` from the database and scans only files modified since then.
+Smart mode reads `last_scan_time` from the database and scans only files modified since then.
 
-**Use case:** Manual re-scan after batch operations.
+**Use case:** Daily usage - fast incremental scans after adding/modifying files.
 
 ### Specific Paths
 
@@ -291,7 +295,7 @@ library:
 
 1. **Network drives (NFS/SMB):**
    - Filesystem events may not propagate properly
-   - **Solution:** Use `--quick` mode with a cron job instead
+   - **Solution:** Use smart scan mode with a cron job instead (e.g., `psm scan` every 5 minutes)
 
 2. **File extension not monitored:**
    - Check `library.extensions` in config
@@ -317,7 +321,7 @@ library:
 
 2. **Recursive watching too deep:**
    - Very deep directory hierarchies (>20 levels)
-   - **Solution:** Reorganize library or use `--quick` polling
+   - **Solution:** Reorganize library or use periodic smart scans
 
 3. **Antivirus interference:**
    - AV scanning new files triggers duplicate events
@@ -366,7 +370,7 @@ Watch mode scales well up to:
 
 Beyond this, consider:
 - Splitting library into multiple instances
-- Using periodic `--quick` scans instead
+- Using periodic smart scans instead (default mode)
 
 ### Network Drives
 
@@ -379,8 +383,8 @@ Beyond this, consider:
 **Alternative for network drives:**
 
 ```bash
-# Cron job: every 5 minutes
-*/5 * * * * cd /path/to/project && ./run.sh scan --quick
+# Cron job: every 5 minutes (smart scan is default)
+*/5 * * * * cd /path/to/project && ./run.sh scan
 ```
 
 ---
@@ -492,7 +496,7 @@ Use `build --watch` to automatically run the full pipeline when files change:
 psm build --watch
 
 # Changes to your music library automatically trigger:
-# → scan --quick → match → export → report
+# → scan (smart mode) → match (smart mode) → export → report
 ```
 
 This is the recommended approach for most users who want "set it and forget it" synchronization.
@@ -501,11 +505,11 @@ This is the recommended approach for most users who want "set it and forget it" 
 
 ## FAQ
 
-**Q: Can I use `--watch` with `--since` or `--quick`?**  
+**Q: Can I use `--watch` with `--since` or `--deep`?**  
 A: No, `--watch` is a different mode and cannot be combined with other scan flags.
 
 **Q: Does watch mode work on cloud-synced folders?**  
-A: Generally no. Cloud sync tools (Dropbox, OneDrive) may not trigger filesystem events reliably. Use `--quick` mode with cron instead.
+A: Generally no. Cloud sync tools (Dropbox, OneDrive) may not trigger filesystem events reliably. Use smart scan mode with cron instead.
 
 **Q: What happens if I modify a file while watch mode is processing?**  
 A: The debounce timer resets, and the file will be processed again after the quiet period.
@@ -519,7 +523,7 @@ A: Yes, renames are treated as delete + create events. The old path is removed a
 **Q: What if my library has 100,000+ files?**  
 A: Watch mode may struggle with very large libraries. Consider:
 - Split into multiple smaller libraries
-- Use periodic `--quick` scans instead
+- Use periodic smart scans instead (default mode)
 - Increase `--debounce` time
 
 ---

@@ -233,8 +233,10 @@ run.bat build --watch --no-export  # Skip playlist export
 **Individual steps** (for selective updates):
 ```bash
 run.bat pull          # Fetch Spotify playlists and tracks
-run.bat scan          # Scan local music library
-run.bat match         # Match tracks (auto-generates reports)
+run.bat scan          # Scan local music library (smart: only new/modified files)
+run.bat scan --deep   # Force complete rescan of all library paths
+run.bat match         # Match tracks (smart: skips already-matched, auto-generates reports)
+run.bat match --full  # Force complete re-match of all tracks
 run.bat export        # Generate M3U playlists
 run.bat analyze       # Analyze library quality (auto-generates quality reports)
 ```
@@ -258,8 +260,8 @@ run.bat version       # Show version info
 Builds a searchable database of your music files:
 
 ```bash
-run.bat scan                              # Full scan of all library paths
-run.bat scan --quick                      # Scan only changed files since last run
+run.bat scan                              # Smart scan: only new/modified files (default)
+run.bat scan --deep                       # Force complete rescan of all library paths
 run.bat scan --since "2 hours ago"        # Scan files modified in last 2 hours
 run.bat scan --paths ./NewAlbum/          # Scan specific directory
 run.bat scan --watch                      # Monitor filesystem and auto-update DB
@@ -267,7 +269,7 @@ run.bat scan --watch                      # Monitor filesystem and auto-update D
 
 **Features**:
 - **Visual Progress**: Shows directories being scanned + live progress counter (every 100 files)
-- **Smart Incremental**: `--quick` mode only scans new/modified files
+- **Smart by Default**: Only scans new/modified files (use `--deep` for complete rescan)
 - **Time-Based Filtering**: `--since` scans files modified after specified time
 - **Watch Mode**: `--watch` monitors library and updates DB automatically
 - **Cleanup**: Automatically removes deleted files from database

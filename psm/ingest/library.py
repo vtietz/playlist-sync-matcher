@@ -358,9 +358,14 @@ def _scan_library_internal(
                 logger.debug(f"{click.style('[io-error]', fg='red')} {p}")
                 continue
             
-            # Time-based filtering for incremental mode
-            if changed_since is not None:
+            # Check if file exists in DB
+            file_in_db = path_str in existing_files
+            
+            # Time-based filtering: ONLY skip files that are ALREADY in DB and not modified
+            if changed_since is not None and file_in_db:
+                # File exists in DB, check if it was modified since cutoff
                 if st.st_mtime < changed_since:
+                    # Not modified since cutoff - skip it
                     result.skipped += 1
                     logger.debug(f"{click.style('[skip-old]', fg='yellow')} {p} (not modified since cutoff)")
                     
@@ -378,8 +383,8 @@ def _scan_library_internal(
                         last_progress_log = result.files_seen
                     continue
             
-            # Skip unchanged fast path
-            if skip_unchanged and path_str in existing_files:
+            # Skip unchanged fast path (only for files already in DB)
+            if skip_unchanged and file_in_db:
                 existing_data = existing_files[path_str]
                 
                 if isinstance(existing_data, dict):

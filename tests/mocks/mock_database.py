@@ -5,7 +5,8 @@ Stores data in simple Python data structures; provides minimal behavior
 needed by service-layer logic. Extend incrementally.
 """
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
-from psm.db import DatabaseInterface, TrackRow, LibraryFileRow, MatchRow, PlaylistRow
+from psm.db import DatabaseInterface
+from psm.db.models import TrackRow, LibraryFileRow, MatchRow, PlaylistRow
 
 class MockRow(dict):
     """Row-like mapping supporting dict-style access."""
@@ -347,6 +348,10 @@ class MockDatabase(DatabaseInterface):
     def delete_matches_by_file_ids(self, file_ids: List[int]):
         """Delete all matches for given file IDs."""
         self.matches = [m for m in self.matches if m['file_id'] not in file_ids]
+    
+    def delete_all_matches(self):
+        """Delete all track-to-file matches (for full re-match scenarios)."""
+        self.matches = []
     
     def count_distinct_library_albums(self) -> int:
         """Count unique albums in library files."""

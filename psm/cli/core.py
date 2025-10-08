@@ -248,25 +248,26 @@ def login(ctx: click.Context, force: bool):
 
 @cli.command()
 @click.option('--since', type=str, help='Only scan files modified since this time (e.g., "2 hours ago", "2025-10-08 10:00")')
-@click.option('--quick', is_flag=True, help='Smart mode: only scan new/modified files (inferred from DB)')
+@click.option('--deep', is_flag=True, help='Force full rescan of all library paths (default: smart incremental)')
 @click.option('--paths', multiple=True, help='Override config: scan only these specific paths')
 @click.option('--watch', is_flag=True, help='Watch library paths and continuously update DB on changes')
 @click.option('--debounce', type=float, default=2.0, help='Seconds to wait after last change before processing (watch mode only)')
 @click.pass_context
-def scan(ctx: click.Context, since: str | None, quick: bool, paths: tuple, watch: bool, debounce: float):
+def scan(ctx: click.Context, since: str | None, deep: bool, paths: tuple, watch: bool, debounce: float):
     """Scan local music library and index track metadata.
     
-    Modes:
-    - Normal: Full scan of all library paths (default)
+    Default mode: Smart incremental (only new/modified files)
+    Use --deep to force complete rescan of all library paths
+    
+    Other modes:
     - --since "TIME": Only files modified after specified time
-    - --quick: Automatically detect and scan only changed files
     - --paths PATH...: Scan only specific directories or files
     - --watch: Monitor filesystem and update DB automatically
     
     Examples:
-      psm scan                              # Full scan
+      psm scan                              # Smart incremental (default)
+      psm scan --deep                       # Force complete rescan
       psm scan --since "2 hours ago"        # Only recently modified
-      psm scan --quick                      # Smart incremental scan
       psm scan --paths ./newalbum/          # Scan specific directory
       psm scan --watch                      # Monitor and auto-update
       psm scan --watch --debounce 5         # Watch with 5s debounce
@@ -277,8 +278,8 @@ def scan(ctx: click.Context, since: str | None, quick: bool, paths: tuple, watch
     
     # Watch mode - continuous monitoring
     if watch:
-        if since or quick or paths:
-            raise click.UsageError("--watch cannot be combined with --since, --quick, or --paths")
+        if since or deep or paths:
+            raise click.UsageError("--watch cannot be combined with --since, --deep, or --paths")
         
         from ..services.watch_service import LibraryWatcher
         from ..utils.output import success, info, warning
@@ -344,27 +345,28 @@ def scan(ctx: click.Context, since: str | None, quick: bool, paths: tuple, watch
     changed_since = None
     specific_paths = None
     
-    if since and quick:
-        raise click.UsageError("Cannot use both --since and --quick together")
-    
-    if since:
+    if since and not deep:
+        # --since flag takes precedence for time-based filtering
         try:
             changed_since = parse_time_string(since)
             from datetime import datetime
             click.echo(f"Scanning files modified since {datetime.fromtimestamp(changed_since).strftime('%Y-%m-%d %H:%M:%S')}")
         except ValueError as e:
             raise click.UsageError(str(e))
-    
-    if quick:
-        # Get last scan time from database
+    elif not deep and not since:
+        # Default: Smart mode - use last scan time
         with get_db(cfg) as db:
             last_scan = db.get_meta('last_scan_time')
         if last_scan:
             changed_since = float(last_scan)
             from datetime import datetime
-            click.echo(f"Quick mode: scanning files modified since last scan ({datetime.fromtimestamp(changed_since).strftime('%Y-%m-%d %H:%M:%S')})")
+            click.echo(f"Smart mode: scanning files modified since last scan ({datetime.fromtimestamp(changed_since).strftime('%Y-%m-%d %H:%M:%S')})")
+            click.echo("  (Use --deep to force complete rescan)")
         else:
-            click.echo("Quick mode: no previous scan found, performing full scan")
+            click.echo("Smart mode: no previous scan found, performing full scan")
+    else:
+        # --deep flag: full rescan
+        click.echo("Deep scan: rescanning all library paths")
     
     if paths:
         from pathlib import Path
@@ -395,7 +397,7 @@ def scan(ctx: click.Context, since: str | None, quick: bool, paths: tuple, watch
         if result.errors:
             logger.debug(f"Errors: {result.errors}")
     else:
-        # Full scan (existing behavior)
+        # Full scan
         with get_db(cfg) as db:
             scan_library(db, cfg)
             # Update last scan time
@@ -409,9 +411,13 @@ def scan(ctx: click.Context, since: str | None, quick: bool, paths: tuple, watch
 @cli.command()
 @click.option('--top-tracks', type=int, default=20, help='Number of top unmatched tracks to show')
 @click.option('--top-albums', type=int, default=10, help='Number of top unmatched albums to show')
+@click.option('--full', is_flag=True, help='Force full re-match of all tracks (default: skip already-matched)')
 @click.pass_context
-def match(ctx: click.Context, top_tracks: int, top_albums: int):
+def match(ctx: click.Context, top_tracks: int, top_albums: int, full: bool):
     """Match streaming tracks to local library files (scoring engine).
+    
+    Default mode: Smart incremental matching (skips already-matched tracks)
+    Use --full to force complete re-match of all tracks
     
     Automatically generates detailed reports:
     - matched_tracks.csv / .html: All matched tracks with confidence scores
@@ -421,12 +427,15 @@ def match(ctx: click.Context, top_tracks: int, top_albums: int):
     cfg = ctx.obj
     
     # Print styled header for user experience
-    click.echo(click.style("=== Matching tracks to library files ===", fg='cyan', bold=True))
+    if full:
+        click.echo(click.style("=== Matching tracks to library files (full re-match) ===", fg='cyan', bold=True))
+    else:
+        click.echo(click.style("=== Matching tracks to library files ===", fg='cyan', bold=True))
     
     # Use short-lived connection; avoid holding DB beyond required scope
     result = None
     with get_db(cfg) as db:
-        result = run_matching(db, config=cfg, verbose=False, top_unmatched_tracks=top_tracks, top_unmatched_albums=top_albums)
+        result = run_matching(db, config=cfg, verbose=False, top_unmatched_tracks=top_tracks, top_unmatched_albums=top_albums, force_full=full)
         
         # Auto-generate match reports
         if result.matched > 0 or result.unmatched > 0:
@@ -608,8 +617,8 @@ def build(ctx: click.Context, no_report: bool, no_export: bool, watch: bool, deb
     
     # Normal build mode (non-watch): Run full pipeline
     ctx.invoke(pull)
-    ctx.invoke(scan, since=None, quick=False, paths=(), watch=False, debounce=2.0)
-    ctx.invoke(match)
+    ctx.invoke(scan, since=None, deep=True, paths=(), watch=False, debounce=2.0)  # Use --deep for initial full scan
+    ctx.invoke(match, full=True)  # Use --full for initial complete match
     if not no_export:
         ctx.invoke(export)
     if not no_report:

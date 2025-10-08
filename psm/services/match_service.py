@@ -35,7 +35,8 @@ def run_matching(
     config: Dict[str, Any],
     verbose: bool = False,
     top_unmatched_tracks: int = 20,
-    top_unmatched_albums: int = 10
+    top_unmatched_albums: int = 10,
+    force_full: bool = False
 ) -> MatchResult:
     """Run matching engine and generate diagnostics.
     
@@ -45,6 +46,7 @@ def run_matching(
         verbose: Enable verbose logging
         top_unmatched_tracks: Number of top unmatched tracks to show (INFO mode)
         top_unmatched_albums: Number of top unmatched albums to show (INFO mode)
+        force_full: If True, re-match all tracks; if False (default), skip already-matched tracks
         
     Returns:
         MatchResult with statistics and unmatched diagnostics
@@ -63,7 +65,17 @@ def run_matching(
     
     # Use matching engine
     engine = MatchingEngine(db, matching_config, provider=provider)
-    matched_count = engine.match_all()
+    
+    if force_full:
+        # Full re-match: delete all existing matches and re-run from scratch
+        logger.info("Forcing full re-match (deleting existing matches)...")
+        db.delete_all_matches()
+        db.commit()
+        matched_count = engine.match_all()
+    else:
+        # Smart incremental: only match tracks that don't have matches yet
+        logger.info("Smart matching (skipping already-matched tracks)...")
+        matched_count = engine.match_tracks(track_ids=None)  # None = match all unmatched
     
     # Gather statistics
     result.library_files = db.count_library_files()

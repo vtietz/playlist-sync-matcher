@@ -142,6 +142,11 @@ class DatabaseInterface(ABC):
     def delete_matches_by_file_ids(self, file_ids: List[int]): ...
     
     @abstractmethod
+    def delete_all_matches(self):
+        """Delete all track-to-file matches (for full re-match scenarios)."""
+        ...
+    
+    @abstractmethod
     def count_distinct_library_albums(self) -> int:
         """Count unique albums in library files.
         

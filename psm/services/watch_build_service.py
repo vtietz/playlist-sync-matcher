@@ -67,7 +67,7 @@ def _handle_library_changes(
     try:
         with watch_config.get_db(watch_config.config) as db:
             # 1. Scan changed files
-            click.echo(click.style("  [1/4] Scanning changed files...", fg='yellow'))
+            click.echo(click.style("[1/4] Scanning changed files...", fg='yellow'))
             scan_result = scan_specific_files(db, watch_config.config, changed_file_paths)
             
             # Track which file IDs were affected
@@ -87,32 +87,32 @@ def _handle_library_changes(
                 if file_row:
                     file_ids_to_match.append(file_row['id'])
             
-            click.echo(click.style(f"    ✓ {scan_result.inserted} new, {scan_result.updated} updated, {scan_result.deleted} deleted", fg='green'))
+            click.echo(click.style(f"  ✓ {scan_result.inserted} new, {scan_result.updated} updated, {scan_result.deleted} deleted", fg='green'))
             
             # 2. Incrementally match only changed files
             matched_track_ids = []
             if file_ids_to_match:
-                click.echo(click.style(f"  [2/4] Matching {len(file_ids_to_match)} changed file(s)...", fg='yellow'))
+                click.echo(click.style(f"[2/4] Matching {len(file_ids_to_match)} changed file(s)...", fg='yellow'))
                 new_matches, matched_track_ids = match_changed_files(db, watch_config.config, file_ids=file_ids_to_match)
-                click.echo(click.style(f"    ✓ {new_matches} new match(es)", fg='green'))
+                click.echo(click.style(f"  ✓ {new_matches} new match(es)", fg='green'))
             else:
-                click.echo(click.style("  [2/4] No files to match (all deleted)", fg='yellow', dim=True))
+                click.echo(click.style("[2/4] No files to match (all deleted)", fg='yellow', dim=True))
             
             # 3. Export (only playlists containing newly matched tracks)
             if not watch_config.skip_export and matched_track_ids:
-                click.echo(click.style("  [3/4] Exporting affected playlists...", fg='yellow'))
+                click.echo(click.style("[3/4] Exporting affected playlists...", fg='yellow'))
                 # Find which playlists contain the newly matched tracks
                 affected_playlist_ids = db.get_playlists_containing_tracks(matched_track_ids)
                 _export_playlists(db, watch_config.config, playlist_ids=affected_playlist_ids)
             else:
-                click.echo(click.style("  [3/4] Export skipped", fg='yellow', dim=True))
+                click.echo(click.style("[3/4] Export skipped", fg='yellow', dim=True))
             
             # 4. Regenerate reports (only if matches changed)
             if not watch_config.skip_report and matched_track_ids:
-                click.echo(click.style("  [4/4] Regenerating reports...", fg='yellow'))
+                click.echo(click.style("[4/4] Regenerating reports...", fg='yellow'))
                 _generate_reports(db, watch_config.config)
             else:
-                click.echo(click.style("  [4/4] Reports skipped", fg='yellow', dim=True))
+                click.echo(click.style("[4/4] Reports skipped", fg='yellow', dim=True))
         
         click.echo(click.style("✓ Incremental rebuild complete", fg='green', bold=True))
     except Exception as e:
@@ -137,7 +137,6 @@ def _handle_database_changes(watch_config: WatchBuildConfig) -> float:
     """
     click.echo("")
     click.echo(click.style("▶ Database changed (tracks/playlists updated)", fg='cyan', bold=True))
-    click.echo("  Detected external database modification (e.g., 'pull' command)")
     
     try:
         with watch_config.get_db(watch_config.config) as db:
@@ -151,35 +150,35 @@ def _handle_database_changes(watch_config: WatchBuildConfig) -> float:
                 if changed_track_ids:
                     from .match_service import match_changed_tracks
                     
-                    click.echo(click.style(f"  [1/3] Incrementally matching {len(changed_track_ids)} changed track(s)...", fg='yellow'))
+                    click.echo(click.style(f"[1/3] Incrementally matching {len(changed_track_ids)} changed track(s)...", fg='yellow'))
                     new_matches = match_changed_tracks(db, watch_config.config, track_ids=changed_track_ids)
-                    click.echo(click.style(f"    ✓ {new_matches} new match(es)", fg='green'))
+                    click.echo(click.style(f"  ✓ {new_matches} new match(es)", fg='green'))
                     
                     # Clear the metadata after processing
                     db.set_meta('last_pull_changed_tracks', None)
                     db.commit()
                 else:
-                    click.echo(click.style("  [1/3] No track changes detected, skipping match", fg='yellow'))
+                    click.echo(click.style("[1/3] No track changes detected, skipping match", fg='yellow'))
             else:
                 # Fallback: Full re-match since we don't know what changed
-                click.echo(click.style("  [1/3] Re-matching all tracks (no change tracking available)...", fg='yellow'))
+                click.echo(click.style("[1/3] Re-matching all tracks (no change tracking available)...", fg='yellow'))
                 click.echo(click.style("=== Matching tracks to library files ===", fg='cyan', bold=True))
                 result = run_matching(db, config=watch_config.config, verbose=False, top_unmatched_tracks=0, top_unmatched_albums=0)
-                click.echo(click.style(f"    ✓ Matched {result.matched} tracks", fg='green'))
+                click.echo(click.style(f"  ✓ Matched {result.matched} tracks", fg='green'))
             
             # Export
             if not watch_config.skip_export:
-                click.echo(click.style("  [2/3] Exporting playlists...", fg='yellow'))
+                click.echo(click.style("[2/3] Exporting playlists...", fg='yellow'))
                 _export_playlists(db, watch_config.config)
             else:
-                click.echo(click.style("  [2/3] Export skipped", fg='yellow', dim=True))
+                click.echo(click.style("[2/3] Export skipped", fg='yellow', dim=True))
             
             # Reports
             if not watch_config.skip_report:
-                click.echo(click.style("  [3/3] Regenerating reports...", fg='yellow'))
+                click.echo(click.style("[3/3] Regenerating reports...", fg='yellow'))
                 _generate_reports(db, watch_config.config)
             else:
-                click.echo(click.style("  [3/3] Reports skipped", fg='yellow', dim=True))
+                click.echo(click.style("[3/3] Reports skipped", fg='yellow', dim=True))
         
         click.echo(click.style("✓ Database sync complete", fg='green', bold=True))
     except Exception as e:
@@ -212,7 +211,7 @@ def _export_playlists(db: Database, config: Dict[str, Any], playlist_ids: List[s
         current_user_id=current_user_id,
         playlist_ids=playlist_ids
     )
-    click.echo(click.style(f"    ✓ Exported {result.playlist_count} playlists", fg='green'))
+    click.echo(click.style(f"  ✓ Exported {result.playlist_count} playlists", fg='green'))
 
 
 def _generate_reports(db: Database, config: Dict[str, Any]) -> None:
@@ -220,7 +219,7 @@ def _generate_reports(db: Database, config: Dict[str, Any]) -> None:
     out_dir = Path(config['reports']['directory'])
     write_match_reports(db, out_dir)
     write_index_page(out_dir, db)
-    click.echo(click.style(f"    ✓ Reports updated in {out_dir}", fg='green'))
+    click.echo(click.style(f"  ✓ Reports updated in {out_dir}", fg='green'))
 
 
 def run_watch_build(watch_config: WatchBuildConfig) -> None:
