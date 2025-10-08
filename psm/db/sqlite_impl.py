@@ -3,8 +3,9 @@ import sqlite3
 import logging
 import sys
 from pathlib import Path
-from typing import Iterable, Sequence, Any, Dict, Tuple, Optional
+from typing import Iterable, Sequence, Any, Dict, Tuple, Optional, List
 from .interface import DatabaseInterface
+from .models import TrackRow, LibraryFileRow, MatchRow, PlaylistRow
 
 logger = logging.getLogger(__name__)
 
@@ -216,7 +217,7 @@ class Database(DatabaseInterface):
         cursor = self.conn.execute("SELECT COUNT(*) FROM matches")
         return cursor.fetchone()[0]
 
-    def get_all_playlists(self, provider: str | None = None) -> list[sqlite3.Row]:
+    def get_all_playlists(self, provider: str | None = None) -> List[PlaylistRow]:
         # Default to 'spotify' when None for backward compat (common in tests)
         provider = provider if provider is not None else 'spotify'
         if provider:
@@ -229,7 +230,7 @@ class Database(DatabaseInterface):
             GROUP BY p.id, p.provider, p.name, p.owner_id, p.owner_name, p.snapshot_id
             ORDER BY p.name
             """
-            return self.conn.execute(sql, (provider,)).fetchall()
+            rows = self.conn.execute(sql, (provider,)).fetchall()
         else:
             sql = """
             SELECT p.id, p.provider, p.name, p.owner_id, p.owner_name, p.snapshot_id,
@@ -239,20 +240,195 @@ class Database(DatabaseInterface):
             GROUP BY p.id, p.provider, p.name, p.owner_id, p.owner_name, p.snapshot_id
             ORDER BY p.name
             """
-            return self.conn.execute(sql).fetchall()
+            rows = self.conn.execute(sql).fetchall()
+        
+        return [PlaylistRow.from_row(row) for row in rows]
 
-    def get_playlist_by_id(self, playlist_id: str, provider: str | None = None) -> Optional[sqlite3.Row]:
+    def get_playlist_by_id(self, playlist_id: str, provider: str | None = None) -> Optional[PlaylistRow]:
         if provider is None:
             raise ValueError("provider parameter is required")
-        sql = "SELECT id, provider, name, owner_id, owner_name, snapshot_id FROM playlists WHERE id=? AND provider=?"
+        sql = "SELECT id, provider, name, owner_id, owner_name, snapshot_id, 0 as track_count FROM playlists WHERE id=? AND provider=?"
         cur = self.conn.execute(sql, (playlist_id, provider))
-        return cur.fetchone()
+        row = cur.fetchone()
+        return PlaylistRow.from_row(row) if row else None
 
     def count_playlist_tracks(self, playlist_id: str, provider: str | None = None) -> int:
         if provider is None:
             raise ValueError("provider parameter is required")
         cursor = self.conn.execute("SELECT COUNT(*) FROM playlist_tracks WHERE playlist_id=? AND provider=?", (playlist_id, provider))
         return cursor.fetchone()[0]
+    
+    # --- Repository methods for matching engine ---
+    
+    def get_all_tracks(self, provider: str | None = None) -> List[TrackRow]:
+        """Get all tracks with full metadata for matching."""
+        if provider:
+            sql = """
+            SELECT id, provider, name, artist, album, year, isrc, duration_ms, normalized, album_id, artist_id
+            FROM tracks
+            WHERE provider=?
+            ORDER BY artist, album, name
+            """
+            rows = self.conn.execute(sql, (provider,)).fetchall()
+        else:
+            sql = """
+            SELECT id, provider, name, artist, album, year, isrc, duration_ms, normalized, album_id, artist_id
+            FROM tracks
+            ORDER BY artist, album, name
+            """
+            rows = self.conn.execute(sql).fetchall()
+        
+        return [TrackRow.from_row(row) for row in rows]
+    
+    def get_all_library_files(self) -> List[LibraryFileRow]:
+        """Get all library files with full metadata for matching."""
+        sql = """
+        SELECT id, path, title, artist, album, year, duration, normalized, size, mtime, partial_hash, bitrate_kbps
+        FROM library_files
+        ORDER BY artist, album, title
+        """
+        rows = self.conn.execute(sql).fetchall()
+        return [LibraryFileRow.from_row(row) for row in rows]
+    
+    def get_tracks_by_ids(self, track_ids: List[str], provider: str | None = None) -> List[TrackRow]:
+        """Get specific tracks by their IDs."""
+        if not track_ids:
+            return []
+        
+        placeholders = ','.join('?' * len(track_ids))
+        if provider:
+            sql = f"""
+            SELECT id, provider, name, artist, album, year, isrc, duration_ms, normalized, album_id, artist_id
+            FROM tracks
+            WHERE id IN ({placeholders}) AND provider=?
+            """
+            rows = self.conn.execute(sql, track_ids + [provider]).fetchall()
+        else:
+            sql = f"""
+            SELECT id, provider, name, artist, album, year, isrc, duration_ms, normalized, album_id, artist_id
+            FROM tracks
+            WHERE id IN ({placeholders})
+            """
+            rows = self.conn.execute(sql, track_ids).fetchall()
+        
+        return [TrackRow.from_row(row) for row in rows]
+    
+    def get_library_files_by_ids(self, file_ids: List[int]) -> List[LibraryFileRow]:
+        """Get specific library files by their IDs."""
+        if not file_ids:
+            return []
+        
+        placeholders = ','.join('?' * len(file_ids))
+        sql = f"""
+        SELECT id, path, title, artist, album, year, duration, normalized, size, mtime, partial_hash, bitrate_kbps
+        FROM library_files
+        WHERE id IN ({placeholders})
+        """
+        rows = self.conn.execute(sql, file_ids).fetchall()
+        return [LibraryFileRow.from_row(row) for row in rows]
+    
+    def get_unmatched_tracks(self, provider: str | None = None) -> List[TrackRow]:
+        """Get all tracks that don't have matches yet."""
+        if provider:
+            sql = """
+            SELECT t.id, t.provider, t.name, t.artist, t.album, t.year, t.isrc, t.duration_ms, t.normalized, t.album_id, t.artist_id
+            FROM tracks t
+            LEFT JOIN matches m ON m.track_id = t.id AND m.provider = t.provider
+            WHERE m.track_id IS NULL AND t.provider=?
+            ORDER BY t.artist, t.album, t.name
+            """
+            rows = self.conn.execute(sql, (provider,)).fetchall()
+        else:
+            sql = """
+            SELECT t.id, t.provider, t.name, t.artist, t.album, t.year, t.isrc, t.duration_ms, t.normalized, t.album_id, t.artist_id
+            FROM tracks t
+            LEFT JOIN matches m ON m.track_id = t.id AND m.provider = t.provider
+            WHERE m.track_id IS NULL
+            ORDER BY t.artist, t.album, t.name
+            """
+            rows = self.conn.execute(sql).fetchall()
+        
+        return [TrackRow.from_row(row) for row in rows]
+    
+    def get_unmatched_library_files(self) -> List[LibraryFileRow]:
+        """Get all library files that don't have matches yet."""
+        sql = """
+        SELECT f.id, f.path, f.title, f.artist, f.album, f.year, f.duration, f.normalized, f.size, f.mtime, f.partial_hash, f.bitrate_kbps
+        FROM library_files f
+        LEFT JOIN matches m ON m.file_id = f.id
+        WHERE m.file_id IS NULL
+        ORDER BY f.artist, f.album, f.title
+        """
+        rows = self.conn.execute(sql).fetchall()
+        return [LibraryFileRow.from_row(row) for row in rows]
+    
+    def delete_matches_by_track_ids(self, track_ids: List[str]):
+        """Delete all matches for given track IDs."""
+        if not track_ids:
+            return
+        
+        placeholders = ','.join('?' * len(track_ids))
+        sql = f"DELETE FROM matches WHERE track_id IN ({placeholders})"
+        self.conn.execute(sql, track_ids)
+        self.conn.commit()
+    
+    def delete_matches_by_file_ids(self, file_ids: List[int]):
+        """Delete all matches for given file IDs."""
+        if not file_ids:
+            return
+        
+        placeholders = ','.join('?' * len(file_ids))
+        sql = f"DELETE FROM matches WHERE file_id IN ({placeholders})"
+        self.conn.execute(sql, file_ids)
+        self.conn.commit()
+    
+    def count_distinct_library_albums(self) -> int:
+        """Count unique albums in library files."""
+        cursor = self.conn.execute("SELECT COUNT(DISTINCT album) FROM library_files WHERE album IS NOT NULL AND album != ''")
+        return cursor.fetchone()[0]
+    
+    def get_match_confidence_counts(self) -> Dict[str, int]:
+        """Get count of matches grouped by confidence level."""
+        sql = "SELECT method, COUNT(*) FROM matches GROUP BY method"
+        rows = self.conn.execute(sql).fetchall()
+        return {row[0]: row[1] for row in rows}
+    
+    def get_playlist_occurrence_counts(self, track_ids: List[str]) -> Dict[str, int]:
+        """Get count of playlists each track appears in."""
+        if not track_ids:
+            return {}
+        
+        placeholders = ','.join('?' * len(track_ids))
+        sql = f"""
+        SELECT track_id, COUNT(DISTINCT playlist_id) as count
+        FROM playlist_tracks
+        WHERE track_id IN ({placeholders})
+        GROUP BY track_id
+        """
+        rows = self.conn.execute(sql, track_ids).fetchall()
+        counts = {row[0]: row[1] for row in rows}
+        
+        # Fill in zero counts for tracks not in any playlist
+        for track_id in track_ids:
+            if track_id not in counts:
+                counts[track_id] = 0
+        
+        return counts
+    
+    def get_liked_track_ids(self, track_ids: List[str], provider: str | None = None) -> List[str]:
+        """Get which of the given track IDs are in liked_tracks."""
+        if not track_ids:
+            return []
+        
+        placeholders = ','.join('?' * len(track_ids))
+        if provider:
+            sql = f"SELECT track_id FROM liked_tracks WHERE track_id IN ({placeholders}) AND provider=?"
+            rows = self.conn.execute(sql, track_ids + [provider]).fetchall()
+        else:
+            sql = f"SELECT track_id FROM liked_tracks WHERE track_id IN ({placeholders})"
+            rows = self.conn.execute(sql, track_ids).fetchall()
+        
+        return [row[0] for row in rows]
 
     def close(self):
         if not self._closed:

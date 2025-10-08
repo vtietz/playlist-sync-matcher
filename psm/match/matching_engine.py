@@ -100,16 +100,12 @@ class MatchingEngine:
         """
         start = time.time()
         
-        # Fetch all tracks and files
-        cur_tracks = self.db.conn.execute(
-            "SELECT id, name, artist, album, year, isrc, duration_ms, normalized FROM tracks"
-        )
-        tracks = [dict(row) for row in cur_tracks.fetchall()]
+        # Fetch all tracks and files using repository methods
+        track_rows = self.db.get_all_tracks(provider='spotify')
+        tracks = [row.to_dict() for row in track_rows]
         
-        cur_files = self.db.conn.execute(
-            "SELECT id, path, title, artist, album, year, duration, normalized FROM library_files"
-        )
-        files = [self._normalize_file_dict(dict(row)) for row in cur_files.fetchall()]
+        file_rows = self.db.get_all_library_files()
+        files = [self._normalize_file_dict(row.to_dict()) for row in file_rows]
         
         if not tracks or not files:
             logger.debug("No tracks or files to match")
@@ -239,16 +235,14 @@ class MatchingEngine:
         if total_matches == 0:
             return "none"
         
-        # Query match methods to extract confidence levels
-        rows = self.db.conn.execute(
-            "SELECT method FROM matches WHERE method LIKE 'score:%'"
-        ).fetchall()
+        # Get match confidence counts using repository method
+        method_counts = self.db.get_match_confidence_counts()
         
-        # Count by confidence tier
-        certain = sum(1 for r in rows if 'CERTAIN' in r[0])
-        high = sum(1 for r in rows if 'HIGH' in r[0])
-        medium = sum(1 for r in rows if 'MEDIUM' in r[0])
-        low = sum(1 for r in rows if 'LOW' in r[0])
+        # Count by confidence tier (methods are like "score:HIGH:...")
+        certain = sum(count for method, count in method_counts.items() if 'CERTAIN' in method)
+        high = sum(count for method, count in method_counts.items() if 'HIGH' in method)
+        medium = sum(count for method, count in method_counts.items() if 'MEDIUM' in method)
+        low = sum(count for method, count in method_counts.items() if 'LOW' in method)
         
         parts = []
         if certain > 0:
@@ -283,10 +277,8 @@ class MatchingEngine:
         """
         # Get all library files if not provided
         if all_files is None:
-            cur_files = self.db.conn.execute(
-                "SELECT id, path, title, artist, album, year, duration, normalized FROM library_files"
-            )
-            all_files = [self._normalize_file_dict(dict(row)) for row in cur_files.fetchall()]
+            file_rows = self.db.get_all_library_files()
+            all_files = [self._normalize_file_dict(row.to_dict()) for row in file_rows]
         
         if not all_files:
             logger.debug("No library files to match against")
@@ -298,24 +290,15 @@ class MatchingEngine:
             if not track_ids:  # Empty list
                 return 0
             
-            placeholders = ','.join('?' * len(track_ids))
-            cur_tracks = self.db.conn.execute(
-                f"SELECT id, name, artist, album, year, isrc, duration_ms, normalized FROM tracks WHERE id IN ({placeholders})",
-                track_ids
-            )
-            tracks_to_match = [dict(row) for row in cur_tracks.fetchall()]
+            track_rows = self.db.get_tracks_by_ids(track_ids, provider='spotify')
+            tracks_to_match = [row.to_dict() for row in track_rows]
             
             # Delete existing matches for these tracks (they were updated)
-            self.db.conn.execute(f"DELETE FROM matches WHERE track_id IN ({placeholders})", track_ids)
-            self.db.commit()
+            self.db.delete_matches_by_track_ids(track_ids)
         else:
             # Match all currently unmatched tracks (fallback)
-            cur_tracks = self.db.conn.execute('''
-                SELECT id, name, artist, album, year, isrc, duration_ms, normalized
-                FROM tracks
-                WHERE id NOT IN (SELECT track_id FROM matches)
-            ''')
-            tracks_to_match = [dict(row) for row in cur_tracks.fetchall()]
+            track_rows = self.db.get_unmatched_tracks(provider='spotify')
+            tracks_to_match = [row.to_dict() for row in track_rows]
         
         if not tracks_to_match:
             logger.debug("No tracks need matching")
@@ -385,10 +368,8 @@ class MatchingEngine:
         """
         # Get all tracks if not provided
         if all_tracks is None:
-            cur_tracks = self.db.conn.execute(
-                "SELECT id, name, artist, album, year, isrc, duration_ms, normalized FROM tracks"
-            )
-            all_tracks = [dict(row) for row in cur_tracks.fetchall()]
+            track_rows = self.db.get_all_tracks(provider='spotify')
+            all_tracks = [row.to_dict() for row in track_rows]
         
         if not all_tracks:
             logger.debug("No tracks in database to match against")
@@ -400,24 +381,15 @@ class MatchingEngine:
             if not file_ids:  # Empty list
                 return 0
             
-            placeholders = ','.join('?' * len(file_ids))
-            cur_files = self.db.conn.execute(
-                f"SELECT id, path, title, artist, album, year, duration, normalized FROM library_files WHERE id IN ({placeholders})",
-                file_ids
-            )
-            files_to_match = [self._normalize_file_dict(dict(row)) for row in cur_files.fetchall()]
+            file_rows = self.db.get_library_files_by_ids(file_ids)
+            files_to_match = [self._normalize_file_dict(row.to_dict()) for row in file_rows]
             
             # Delete existing matches for these files (they were updated)
-            self.db.conn.execute(f"DELETE FROM matches WHERE file_id IN ({placeholders})", file_ids)
-            self.db.commit()
+            self.db.delete_matches_by_file_ids(file_ids)
         else:
             # Match all currently unmatched files (fallback)
-            cur_files = self.db.conn.execute('''
-                SELECT id, path, title, artist, album, year, duration, normalized
-                FROM library_files
-                WHERE id NOT IN (SELECT file_id FROM matches)
-            ''')
-            files_to_match = [self._normalize_file_dict(dict(row)) for row in cur_files.fetchall()]
+            file_rows = self.db.get_unmatched_library_files()
+            files_to_match = [self._normalize_file_dict(row.to_dict()) for row in file_rows]
         
         if not files_to_match:
             logger.debug("No files need matching")

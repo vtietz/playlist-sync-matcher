@@ -61,25 +61,19 @@ def run_matching(
     # Gather statistics
     result.library_files = db.count_library_files()
     
-    # Count unique albums in library
-    cur = db.conn.execute('SELECT COUNT(DISTINCT album) FROM library_files')
-    result.library_albums = cur.fetchone()[0]
+    # Count unique albums in library using repository method
+    result.library_albums = db.count_distinct_library_albums()
     
     result.spotify_tracks = db.count_tracks()
     result.matched = matched_count
     result.unmatched = result.library_files - result.matched
     
-    # Gather unmatched diagnostics
+    # Gather unmatched diagnostics using repository method
     if result.unmatched > 0:
-        unmatched_cur = db.conn.execute('''
-            SELECT artist, album, title
-            FROM library_files
-            WHERE id NOT IN (SELECT file_id FROM matches)
-            ORDER BY artist, album, title
-        ''')
+        unmatched_files = db.get_unmatched_library_files()
         result.unmatched_list = [
-            {'artist': row[0], 'album': row[1], 'title': row[2]}
-            for row in unmatched_cur.fetchall()
+            {'artist': f.artist, 'album': f.album, 'title': f.title}
+            for f in unmatched_files
         ]
     
     result.duration_seconds = time.time() - start
@@ -148,20 +142,16 @@ def _show_unmatched_diagnostics(db: Database, top_tracks: int = 20, top_albums: 
         top_tracks: Number of top unmatched tracks to show
         top_albums: Number of top unmatched albums to show
     """
-    # Get all unmatched track IDs
-    unmatched_rows = db.conn.execute("""
-        SELECT id, name, artist, album
-        FROM tracks
-        WHERE id NOT IN (SELECT track_id FROM matches)
-    """).fetchall()
+    # Get all unmatched tracks using repository method
+    unmatched_tracks = db.get_unmatched_tracks(provider='spotify')
     
-    if not unmatched_rows:
+    if not unmatched_tracks:
         logger.info("")
         logger.info("✓ All tracks matched!")
         return
     
-    unmatched_ids = [row['id'] for row in unmatched_rows]
-    track_by_id = {row['id']: dict(row) for row in unmatched_rows}
+    unmatched_ids = [t.id for t in unmatched_tracks]
+    track_by_id = {t.id: t for t in unmatched_tracks}
     
     logger.info("")
     logger.info("=== Unmatched Diagnostics ===")
@@ -173,37 +163,22 @@ def _show_unmatched_diagnostics(db: Database, top_tracks: int = 20, top_albums: 
     occurrence_counts = {}  # Initialize here so it's available for albums section
     
     if top_tracks > 0:
-        # Get playlist occurrence counts
+        # Get playlist occurrence counts using repository method
         if unmatched_ids:
-            placeholders = ','.join('?' * len(unmatched_ids))
-            count_rows = db.conn.execute(
-                f"SELECT track_id, COUNT(DISTINCT playlist_id) as count FROM playlist_tracks "
-                f"WHERE track_id IN ({placeholders}) GROUP BY track_id",
-                unmatched_ids
-            ).fetchall()
-            occurrence_counts = {row['track_id']: row['count'] for row in count_rows}
-            # Fill in zero counts for tracks not in any playlist
-            for track_id in unmatched_ids:
-                if track_id not in occurrence_counts:
-                    occurrence_counts[track_id] = 0
+            occurrence_counts = db.get_playlist_occurrence_counts(unmatched_ids)
         
-        # Check liked tracks
+        # Check liked tracks using repository method
         liked_ids = set()
         if unmatched_ids:
-            placeholders = ','.join('?' * len(unmatched_ids))
-            liked_rows = db.conn.execute(
-                f"SELECT track_id FROM liked_tracks WHERE track_id IN ({placeholders})",
-                unmatched_ids
-            ).fetchall()
-            liked_ids = {row['track_id'] for row in liked_rows}
+            liked_ids = set(db.get_liked_track_ids(unmatched_ids, provider='spotify'))
         
         # Sort by popularity
         sorted_unmatched = sorted(
             unmatched_ids,
             key=lambda tid: (
                 -occurrence_counts.get(tid, 0),
-                track_by_id.get(tid, {}).get('artist', '').lower(),
-                track_by_id.get(tid, {}).get('name', '').lower()
+                (track_by_id[tid].artist or '').lower() if tid in track_by_id else '',
+                (track_by_id[tid].name or '').lower() if tid in track_by_id else ''
             )
         )
         
@@ -213,14 +188,16 @@ def _show_unmatched_diagnostics(db: Database, top_tracks: int = 20, top_albums: 
         logger.info("[Top Unmatched Tracks] (by playlist popularity):")
         
         for track_id in sorted_unmatched[:display_count]:
-            track = track_by_id.get(track_id, {})
+            track = track_by_id.get(track_id)
+            if not track:
+                continue
             count = occurrence_counts.get(track_id, 0)
             is_liked = track_id in liked_ids
             liked_marker = " ❤️" if is_liked else ""
             
             logger.info(
                 f"  [{count:2d} playlist{'s' if count != 1 else ' '}] "
-                f"{track.get('artist', '')} - {track.get('name', '')}{liked_marker}"
+                f"{track.artist or ''} - {track.name or ''}{liked_marker}"
             )
         
         if len(sorted_unmatched) > display_count:
@@ -233,9 +210,11 @@ def _show_unmatched_diagnostics(db: Database, top_tracks: int = 20, top_albums: 
         album_stats = {}  # album_key -> {'artist': ..., 'album': ..., 'track_count': ..., 'total_occurrences': ...}
         
         for track_id in unmatched_ids:
-            track = track_by_id.get(track_id, {})
-            artist = track.get('artist', '')
-            album = track.get('album', '')
+            track = track_by_id.get(track_id)
+            if not track:
+                continue
+            artist = track.artist or ''
+            album = track.album or ''
             
             if not album or album == '':
                 continue  # Skip tracks without album info

@@ -129,7 +129,9 @@ def ingest_playlists(db, client: 'SpotifyAPIClient', use_year: bool = False, for
             if use_year and year:
                 combo = f"{combo} {year}"
             simplified.append((idx, t_id, item.get('added_at')))
-            db.upsert_track({
+            
+            # Build track data
+            track_data = {
                 'id': t_id,
                 'name': track.get('name'),
                 'album': album_name,
@@ -140,8 +142,33 @@ def ingest_playlists(db, client: 'SpotifyAPIClient', use_year: bool = False, for
                 'duration_ms': track.get('duration_ms'),
                 'normalized': combo,
                 'year': year,
-            }, provider=PROVIDER_NAME)
-            changed_track_ids.add(t_id)  # Track this ID as changed
+            }
+            
+            # Check if track is new or changed
+            existing_track = db.conn.execute(
+                "SELECT name, artist, album, isrc, duration_ms, year FROM tracks WHERE id = ? AND provider = ?",
+                (t_id, PROVIDER_NAME)
+            ).fetchone()
+            
+            is_new_or_changed = False
+            if not existing_track:
+                # Track doesn't exist - it's new
+                is_new_or_changed = True
+            else:
+                # Track exists - check if any metadata changed
+                if (existing_track['name'] != track_data['name'] or
+                    existing_track['artist'] != track_data['artist'] or
+                    existing_track['album'] != track_data['album'] or
+                    existing_track['isrc'] != track_data['isrc'] or
+                    existing_track['duration_ms'] != track_data['duration_ms'] or
+                    existing_track['year'] != track_data['year']):
+                    is_new_or_changed = True
+            
+            db.upsert_track(track_data, provider=PROVIDER_NAME)
+            
+            # Only add to changed_track_ids if track is actually new or modified
+            if is_new_or_changed:
+                changed_track_ids.add(t_id)
         db.upsert_playlist(pid, name, snapshot_id, owner_id, owner_name, provider=PROVIDER_NAME)
         db.replace_playlist_tracks(pid, simplified, provider=PROVIDER_NAME)
         db.commit()
@@ -211,9 +238,10 @@ def ingest_liked(db, client: 'SpotifyAPIClient', use_year: bool = False):
         if not t_id:
             continue
         
-        # Check if track already exists in database
+        # Check if track already exists and get current metadata
         existing_track = db.conn.execute(
-            "SELECT id FROM tracks WHERE id = ?", (t_id,)
+            "SELECT name, artist, album, isrc, duration_ms, year FROM tracks WHERE id = ? AND provider = ?",
+            (t_id, PROVIDER_NAME)
         ).fetchone()
         
         # Extract artist information
@@ -231,7 +259,9 @@ def ingest_liked(db, client: 'SpotifyAPIClient', use_year: bool = False):
         year = extract_year(album_data.get('release_date'))
         if use_year and year:
             combo = f"{combo} {year}"
-        db.upsert_track({
+        
+        # Build track data
+        track_data = {
             'id': t_id,
             'name': track.get('name'),
             'album': album_name,
@@ -242,19 +272,42 @@ def ingest_liked(db, client: 'SpotifyAPIClient', use_year: bool = False):
             'duration_ms': track.get('duration_ms'),
             'normalized': combo,
             'year': year,
-        }, provider=PROVIDER_NAME)
-        db.upsert_liked(t_id, added_at, provider=PROVIDER_NAME)
-        changed_track_ids.add(t_id)  # Track this ID as changed
+        }
         
-        # Determine if new or updated
-        if existing_track:
+        # Check if track is new or changed
+        is_new_or_changed = False
+        if not existing_track:
+            # Track doesn't exist - it's new
+            is_new_or_changed = True
+        else:
+            # Track exists - check if any metadata changed
+            if (existing_track['name'] != track_data['name'] or
+                existing_track['artist'] != track_data['artist'] or
+                existing_track['album'] != track_data['album'] or
+                existing_track['isrc'] != track_data['isrc'] or
+                existing_track['duration_ms'] != track_data['duration_ms'] or
+                existing_track['year'] != track_data['year']):
+                is_new_or_changed = True
+        
+        db.upsert_track(track_data, provider=PROVIDER_NAME)
+        db.upsert_liked(t_id, added_at, provider=PROVIDER_NAME)
+        
+        # Only add to changed_track_ids if track is actually new or modified
+        if is_new_or_changed:
+            changed_track_ids.add(t_id)
+        
+        # Determine if new or updated for logging
+        if not existing_track:
+            new_tracks += 1
+            action = "new"
+            color = "green"
+        elif is_new_or_changed:
             updated_tracks += 1
             action = "updated"
             color = "blue"
         else:
-            new_tracks += 1
-            action = "new"
-            color = "green"
+            # Track exists but unchanged - skip logging
+            continue
         
         track_name = track.get('name', 'Unknown')
         logger.debug(f"{click.style(f'[{action}]', fg=color)} ❤️  {track_name} | {artist_names}")
