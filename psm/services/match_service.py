@@ -10,6 +10,7 @@ import logging
 from typing import Dict, Any, List
 
 from ..match.scoring import ScoringConfig, evaluate_pair, MatchConfidence
+from ..match.candidate_selector import CandidateSelector
 from ..db import Database, DatabaseInterface
 from ..utils.logging_helpers import log_progress
 
@@ -486,8 +487,8 @@ def match_changed_tracks(
     
     # Use the same scoring engine logic as full matching
     cfg = ScoringConfig()
+    selector = CandidateSelector()
     dur_tol = config.get('matching', {}).get('duration_tolerance', 2.0)
-    use_duration_filter = dur_tol is not None
     max_candidates = int(config.get('matching', {}).get('max_candidates_per_track', 500))
     provider = config.get('provider', 'spotify')
     
@@ -495,24 +496,13 @@ def match_changed_tracks(
     
     # For each changed track, find best file from library
     for track in tracks_to_match:
-        # Build candidate subset (duration prefilter)
-        if use_duration_filter and track.get('duration_ms') is not None:
-            candidates = _duration_prefilter_single(track, all_files, dur_tol)
-            if not candidates:
-                candidates = all_files
-        else:
-            candidates = all_files
+        # Build candidate subset using CandidateSelector
+        candidates = selector.duration_prefilter(track, all_files, dur_tolerance=dur_tol)
+        if not candidates:
+            candidates = all_files  # Fallback if filter too strict
         
-        if len(candidates) > max_candidates:
-            # Use Jaccard similarity for fast pre-scoring
-            norm_tokens = set((track.get('normalized') or '').split())
-            scored_subset = []
-            for f in candidates:
-                fn_tokens = set((f.get('normalized') or '').split())
-                similarity = _jaccard_similarity(norm_tokens, fn_tokens)
-                scored_subset.append((similarity, f))
-            scored_subset.sort(key=lambda x: x[0], reverse=True)
-            candidates = [f for _, f in scored_subset[:max_candidates]]
+        # Pre-score and cap candidates using token similarity
+        candidates = selector.token_prescore(track, candidates, max_candidates=max_candidates)
         
         # Find best match among candidates
         best_file_id = None
@@ -605,8 +595,8 @@ def match_changed_files(
     
     # Use the same scoring engine logic as full matching
     cfg = ScoringConfig()
+    selector = CandidateSelector()
     dur_tol = config.get('matching', {}).get('duration_tolerance', 2.0)
-    use_duration_filter = dur_tol is not None
     max_candidates = int(config.get('matching', {}).get('max_candidates_per_track', 500))
     provider = config.get('provider', 'spotify')
     
@@ -614,24 +604,13 @@ def match_changed_files(
     
     # For each track, find best file from our changed file list
     for track in all_tracks:
-        # Build candidate subset (duration prefilter)
-        if use_duration_filter and track.get('duration_ms') is not None:
-            candidates = _duration_prefilter_single(track, files_to_match, dur_tol)
-            if not candidates:
-                candidates = files_to_match
-        else:
-            candidates = files_to_match
+        # Build candidate subset using CandidateSelector
+        candidates = selector.duration_prefilter(track, files_to_match, dur_tolerance=dur_tol)
+        if not candidates:
+            candidates = files_to_match  # Fallback if filter too strict
         
-        if len(candidates) > max_candidates:
-            # Use Jaccard similarity for fast pre-scoring
-            norm_tokens = set((track.get('normalized') or '').split())
-            scored_subset = []
-            for f in candidates:
-                fn_tokens = set((f.get('normalized') or '').split())
-                similarity = _jaccard_similarity(norm_tokens, fn_tokens)
-                scored_subset.append((similarity, f))
-            scored_subset.sort(key=lambda x: x[0], reverse=True)
-            candidates = [f for _, f in scored_subset[:max_candidates]]
+        # Pre-score and cap candidates using token similarity
+        candidates = selector.token_prescore(track, candidates, max_candidates=max_candidates)
         
         # Find best match among candidates
         best_file_id = None

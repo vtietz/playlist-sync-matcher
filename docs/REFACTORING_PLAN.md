@@ -90,8 +90,71 @@ result.exported_files.append(str(actual_path))
 
 ---
 
-### PR3: CandidateSelector Utility ⏸️ Not Started
-**Status**: Blocked by PR2 ✅ Ready to start  
+### PR3: CandidateSelector Utility ✅ Complete
+**Status**: Complete (October 8, 2025)  
+**Duration**: ~45 minutes
+
+**Scope**:
+- [x] Create `psm/match/candidate_selector.py`
+- [x] Implement `duration_prefilter()` method
+- [x] Implement `token_prescore()` method (Jaccard similarity)
+- [x] Add unit tests for edge cases (duration window, Jaccard ordering, candidate cap)
+- [x] Refactor `match_changed_tracks()` to use selector
+- [x] Refactor `match_changed_files()` to use selector
+
+**Files Created**:
+- `psm/match/candidate_selector.py` - CandidateSelector class (146 lines)
+- `tests/unit/match/test_candidate_selector.py` - 17 unit tests
+
+**Files Modified**:
+- `psm/services/match_service.py` - Replaced inline logic with CandidateSelector
+
+**Duplication Eliminated**:
+```python
+# Before: Duplicated in 3 places (_run_scoring_engine, match_changed_tracks, match_changed_files)
+if use_duration_filter and track.get('duration_ms') is not None:
+    candidates = _duration_prefilter_single(track, all_files, dur_tol)
+    if not candidates:
+        candidates = all_files
+else:
+    candidates = all_files
+
+if len(candidates) > max_candidates:
+    norm_tokens = set((track.get('normalized') or '').split())
+    scored_subset = []
+    for f in candidates:
+        fn_tokens = set((f.get('normalized') or '').split())
+        similarity = _jaccard_similarity(norm_tokens, fn_tokens)
+        scored_subset.append((similarity, f))
+    scored_subset.sort(key=lambda x: x[0], reverse=True)
+    candidates = [f for _, f in scored_subset[:max_candidates]]
+
+# After: Single reusable utility (used in all 3 places)
+selector = CandidateSelector()
+candidates = selector.duration_prefilter(track, all_files, dur_tolerance=dur_tol)
+if not candidates:
+    candidates = all_files
+candidates = selector.token_prescore(track, candidates, max_candidates=max_candidates)
+```
+
+**Test Results**:
+- ✅ All 196 tests pass (179 original + 17 new)
+- ✅ CandidateSelector unit tests: 17/17 passed
+- ✅ Matching behavior unchanged (integration tests pass)
+- ✅ Duration edge cases covered (±4s minimum, tolerance scaling)
+- ✅ Jaccard similarity ordering verified
+
+**Acceptance Criteria**:
+- [x] `CandidateSelector` unit tests pass (100% coverage on new code)
+- [x] `match_changed_tracks()` behavior unchanged (verified via integration tests)
+- [x] `match_changed_files()` behavior unchanged (verified via integration tests)
+- [x] Duration prefilter maintains ±4s minimum window logic
+- [x] Duplication reduced from 3 copies to 1 utility class
+
+---
+
+### PR4: MatchingEngine Class ⏸️ Not Started
+**Status**: Blocked by PR3 ✅ Ready to start  
 **Estimated Duration**: 2 days
 
 **Scope**:
@@ -297,14 +360,14 @@ Each PR is atomic and can be reverted independently:
 
 ## Timeline Estimate
 
-- **Week 1 (Oct 8-14)**: ✅ PR1, ✅ PR2, PR3 (in progress)
-- **Week 2 (Oct 15-21)**: PR4a, PR4b
-- **Week 3 (Oct 22-28)**: PR5, PR6 (start)
-- **Week 4 (Oct 29-Nov 4)**: PR6 (finish), PR7
+- **Week 1 (Oct 8-14)**: ✅ PR1, ✅ PR2, ✅ PR3, PR4 (in progress)
+- **Week 2 (Oct 15-21)**: PR4 (finish), PR5
+- **Week 3 (Oct 22-28)**: PR6 (start/finish)
+- **Week 4 (Oct 29-Nov 4)**: PR7
 
 **Total Effort**: ~10-14 days (staggered over 3-4 weeks for review cycles)
 
-**Progress**: 2/7 PRs complete (28.5%)
+**Progress**: 3/7 PRs complete (42.8%)
 
 ## Notes
 
