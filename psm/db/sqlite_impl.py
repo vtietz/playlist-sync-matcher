@@ -258,6 +258,35 @@ class Database(DatabaseInterface):
         cursor = self.conn.execute("SELECT COUNT(*) FROM playlist_tracks WHERE playlist_id=? AND provider=?", (playlist_id, provider))
         return cursor.fetchone()[0]
     
+    def get_playlists_containing_tracks(self, track_ids: List[str], provider: str | None = None) -> List[str]:
+        """Get list of playlist IDs that contain any of the specified tracks.
+        
+        Args:
+            track_ids: List of track IDs to search for
+            provider: Provider filter (default: 'spotify')
+            
+        Returns:
+            List of distinct playlist IDs containing at least one of the tracks
+        """
+        if not track_ids:
+            return []
+        
+        provider = provider if provider is not None else 'spotify'
+        
+        # Use parameterized query with IN clause
+        placeholders = ','.join('?' * len(track_ids))
+        sql = f"""
+        SELECT DISTINCT playlist_id
+        FROM playlist_tracks
+        WHERE track_id IN ({placeholders})
+          AND provider = ?
+        ORDER BY playlist_id
+        """
+        
+        params = list(track_ids) + [provider]
+        rows = self.conn.execute(sql, params).fetchall()
+        return [row[0] for row in rows]
+    
     # --- Repository methods for matching engine ---
     
     def get_all_tracks(self, provider: str | None = None) -> List[TrackRow]:

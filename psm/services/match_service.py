@@ -284,7 +284,7 @@ def match_changed_files(
     db: Database,
     config: Dict[str, Any],
     file_ids: List[int] | None = None
-) -> int:
+) -> tuple[int, List[str]]:
     """Incrementally match only changed/new files against all tracks.
     
     This is much more efficient than run_matching() for watch mode scenarios
@@ -297,7 +297,7 @@ def match_changed_files(
         file_ids: List of specific file IDs to match (if None, matches all unmatched files)
         
     Returns:
-        Number of new matches created
+        Tuple of (match_count, list of matched track IDs)
     """
     # Convert dict config to typed MatchingConfig
     matching_dict = config.get('matching', {})

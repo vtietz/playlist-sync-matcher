@@ -322,7 +322,7 @@ class MatchingEngine:
         self,
         file_ids: List[int] | None = None,
         all_tracks: List[Dict[str, Any]] | None = None
-    ) -> int:
+    ) -> tuple[int, List[str]]:
         """Incrementally match specific files against all tracks.
         
         This is much more efficient than match_all() for watch mode scenarios
@@ -334,7 +334,7 @@ class MatchingEngine:
             all_tracks: Pre-loaded track list (optional, will query if None)
             
         Returns:
-            Number of new matches created
+            Tuple of (match_count, list of matched track IDs)
         """
         # Get all tracks if not provided
         if all_tracks is None:
@@ -343,13 +343,13 @@ class MatchingEngine:
         
         if not all_tracks:
             logger.debug("No tracks in database to match against")
-            return 0
+            return (0, [])
         
         # Get files to match
         if file_ids:
             # Match specific changed files
             if not file_ids:  # Empty list
-                return 0
+                return (0, [])
             
             file_rows = self.db.get_library_files_by_ids(file_ids)
             files_to_match = [self._normalize_file_dict(row.to_dict()) for row in file_rows]
@@ -363,11 +363,12 @@ class MatchingEngine:
         
         if not files_to_match:
             logger.debug("No files need matching")
-            return 0
+            return (0, [])
         
         logger.info(f"Incrementally matching {len(files_to_match)} file(s) against {len(all_tracks)} tracks...")
         
         new_matches = 0
+        matched_track_ids = []  # Track which tracks got new matches
         
         # For each track, find best file from our changed file list
         for track in all_tracks:
@@ -404,10 +405,11 @@ class MatchingEngine:
                     provider=self.provider
                 )
                 new_matches += 1
+                matched_track_ids.append(track['id'])  # Track which tracks got matched
         
         self.db.commit()
         logger.info(f"✓ Created {new_matches} new match(es) from {len(files_to_match)} changed file(s)")
-        return new_matches
+        return (new_matches, matched_track_ids)
     
     @staticmethod
     def _normalize_file_dict(raw_row: Dict[str, Any]) -> Dict[str, Any]:

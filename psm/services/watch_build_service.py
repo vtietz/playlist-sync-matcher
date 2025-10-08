@@ -1,7 +1,16 @@
 """Watch build service: Orchestrate incremental rebuild on changes.
 
 This service handles watch mode for the build command, monitoring both
-library file changes and database changes, then triggering appropriate
+library file changes and dat        click.echo(click.style("✓ Database sync complete", fg='green', bold=True))
+    except Exception as e:
+        click.echo(click.style(f"✗ Database sync failed: {e}", fg='red', bold=True))
+        logger.exception("Database sync error details:")
+    
+    click.echo("")
+    click.echo(click.style("Watching for changes...", fg='cyan'))
+    
+    # Return updated DB mtime to prevent false-positive database change detection
+    return watch_config.db_path.stat().st_mtime if watch_config.db_path.exists() else 0.0hanges, then triggering appropriate
 incremental rebuilds.
 """
 
@@ -10,7 +19,7 @@ import time
 import logging
 import click
 from pathlib import Path
-from typing import Dict, Any, Callable
+from typing import Dict, Any, Callable, List
 
 from ..db import Database
 from ..ingest.library import scan_specific_files
@@ -81,22 +90,25 @@ def _handle_library_changes(
             click.echo(click.style(f"    ✓ {scan_result.inserted} new, {scan_result.updated} updated, {scan_result.deleted} deleted", fg='green'))
             
             # 2. Incrementally match only changed files
+            matched_track_ids = []
             if file_ids_to_match:
                 click.echo(click.style(f"  [2/4] Matching {len(file_ids_to_match)} changed file(s)...", fg='yellow'))
-                new_matches = match_changed_files(db, watch_config.config, file_ids=file_ids_to_match)
+                new_matches, matched_track_ids = match_changed_files(db, watch_config.config, file_ids=file_ids_to_match)
                 click.echo(click.style(f"    ✓ {new_matches} new match(es)", fg='green'))
             else:
                 click.echo(click.style("  [2/4] No files to match (all deleted)", fg='yellow', dim=True))
             
-            # 3. Export (only if matches changed)
-            if not watch_config.skip_export and file_ids_to_match:
-                click.echo(click.style("  [3/4] Exporting playlists...", fg='yellow'))
-                _export_playlists(db, watch_config.config)
+            # 3. Export (only playlists containing newly matched tracks)
+            if not watch_config.skip_export and matched_track_ids:
+                click.echo(click.style("  [3/4] Exporting affected playlists...", fg='yellow'))
+                # Find which playlists contain the newly matched tracks
+                affected_playlist_ids = db.get_playlists_containing_tracks(matched_track_ids)
+                _export_playlists(db, watch_config.config, playlist_ids=affected_playlist_ids)
             else:
                 click.echo(click.style("  [3/4] Export skipped", fg='yellow', dim=True))
             
             # 4. Regenerate reports (only if matches changed)
-            if not watch_config.skip_report and file_ids_to_match:
+            if not watch_config.skip_report and matched_track_ids:
                 click.echo(click.style("  [4/4] Regenerating reports...", fg='yellow'))
                 _generate_reports(db, watch_config.config)
             else:
@@ -114,11 +126,14 @@ def _handle_library_changes(
     return watch_config.db_path.stat().st_mtime if watch_config.db_path.exists() else 0.0
 
 
-def _handle_database_changes(watch_config: WatchBuildConfig) -> None:
+def _handle_database_changes(watch_config: WatchBuildConfig) -> float:
     """Handle database changes (e.g., after external 'pull' command).
     
     Performs incremental matching if we can determine which tracks changed,
     otherwise falls back to full re-match.
+    
+    Returns:
+        Updated database mtime after all operations complete
     """
     click.echo("")
     click.echo(click.style("▶ Database changed (tracks/playlists updated)", fg='cyan', bold=True))
@@ -170,20 +185,32 @@ def _handle_database_changes(watch_config: WatchBuildConfig) -> None:
     except Exception as e:
         click.echo(click.style(f"✗ Database sync failed: {e}", fg='red', bold=True))
         logger.exception("Database sync error details:")
+        # Return current mtime even on error to prevent infinite re-trigger loops
+        return watch_config.db_path.stat().st_mtime if watch_config.db_path.exists() else 0.0
     
     click.echo("")
     click.echo(click.style("Watching for changes...", fg='cyan'))
+    
+    # Return updated database mtime
+    return watch_config.db_path.stat().st_mtime if watch_config.db_path.exists() else 0.0
 
 
-def _export_playlists(db: Database, config: Dict[str, Any]) -> None:
-    """Export playlists helper."""
+def _export_playlists(db: Database, config: Dict[str, Any], playlist_ids: List[str] | None = None) -> None:
+    """Export playlists helper.
+    
+    Args:
+        db: Database instance
+        config: Full configuration dict
+        playlist_ids: Optional list of specific playlist IDs to export (None = export all)
+    """
     organize_by_owner = config['export'].get('organize_by_owner', False)
     current_user_id = db.get_meta('current_user_id') if organize_by_owner else None
     result = export_playlists(
         db=db,
         export_config=config['export'],
         organize_by_owner=organize_by_owner,
-        current_user_id=current_user_id
+        current_user_id=current_user_id,
+        playlist_ids=playlist_ids
     )
     click.echo(click.style(f"    ✓ Exported {result.playlist_count} playlists", fg='green'))
 
@@ -203,7 +230,6 @@ def run_watch_build(watch_config: WatchBuildConfig) -> None:
         watch_config: Watch build configuration
     """
     logger.info("")
-    logger.info("=== Entering watch mode ===")
     logger.info("Monitoring library files AND database for changes.")
     logger.info("• Library changes → incremental scan + match")
     logger.info("• Database changes (e.g. after 'pull') → incremental track match")
@@ -220,8 +246,11 @@ def run_watch_build(watch_config: WatchBuildConfig) -> None:
         # Create library file change handler
         def library_change_handler(changed_file_paths: list):
             nonlocal last_db_mtime  # Allow updating parent scope variable
+            # Update mtime BEFORE operations to prevent race condition with DB monitoring loop
+            # The monitoring loop runs every 2s and might detect changes mid-operation
+            last_db_mtime = time.time() + 3600  # Temporarily set to future to prevent false triggers
             updated_mtime = _handle_library_changes(changed_file_paths, watch_config)
-            last_db_mtime = updated_mtime  # Update to prevent false-positive DB change detection
+            last_db_mtime = updated_mtime  # Update to actual final mtime
         
         # Create and start library file watcher
         watcher = LibraryWatcher(
@@ -248,8 +277,10 @@ def run_watch_build(watch_config: WatchBuildConfig) -> None:
                     
                     if current_db_mtime > last_db_mtime:
                         # Database changed! Someone ran 'pull' or modified tracks
-                        last_db_mtime = current_db_mtime
-                        _handle_database_changes(watch_config)
+                        # Update mtime BEFORE operations to prevent race condition
+                        last_db_mtime = time.time() + 3600  # Temporarily set to future
+                        updated_mtime = _handle_database_changes(watch_config)
+                        last_db_mtime = updated_mtime  # Update to actual final mtime
         
     except KeyboardInterrupt:
         logger.info("")

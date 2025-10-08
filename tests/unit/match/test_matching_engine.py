@@ -373,9 +373,10 @@ def test_match_files_with_specific_ids(temp_db, sample_config):
     
     # Match only file ID 1
     engine = MatchingEngine(temp_db, sample_config)
-    matched = engine.match_files(file_ids=[1])
+    match_count, matched_track_ids = engine.match_files(file_ids=[1])
     
-    assert matched == 1
+    assert match_count == 1
+    assert 'track1' in matched_track_ids
     
     # Verify only file 1 was matched
     matches = temp_db.conn.execute("SELECT file_id FROM matches").fetchall()
@@ -435,9 +436,10 @@ def test_match_files_with_no_ids_matches_unmatched(temp_db, sample_config):
     
     # Match without specifying IDs (should match all unmatched)
     engine = MatchingEngine(temp_db, sample_config)
-    matched = engine.match_files(file_ids=None)
+    match_count, matched_track_ids = engine.match_files(file_ids=None)
     
-    assert matched == 2
+    assert match_count == 2
+    assert set(matched_track_ids) == {'track1', 'track2'}
     
     # Verify both were matched
     matches = temp_db.conn.execute("SELECT file_id FROM matches ORDER BY file_id").fetchall()
@@ -527,9 +529,10 @@ def test_match_files_deletes_existing_matches(temp_db, sample_config):
     
     # Re-match the same file (should delete old match and create new)
     engine = MatchingEngine(temp_db, sample_config)
-    matched = engine.match_files(file_ids=[1])
+    match_count, matched_track_ids = engine.match_files(file_ids=[1])
     
-    assert matched == 1
+    assert match_count == 1
+    assert 'track1' in matched_track_ids
     
     # Verify only one match exists (old one was deleted)
     matches = temp_db.conn.execute("SELECT * FROM matches WHERE file_id=1").fetchall()

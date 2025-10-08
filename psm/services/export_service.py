@@ -121,7 +121,8 @@ def export_playlists(
     export_config: Dict[str, Any],
     organize_by_owner: bool = False,
     current_user_id: str | None = None,
-    library_paths: list[str] | None = None
+    library_paths: list[str] | None = None,
+    playlist_ids: List[str] | None = None
 ) -> ExportResult:
     """Export playlists to M3U files.
     
@@ -133,6 +134,7 @@ def export_playlists(
         organize_by_owner: Organize playlists by owner
         current_user_id: Current user ID (for owner organization)
         library_paths: Library root paths from config (for path reconstruction)
+        playlist_ids: Optional list of specific playlist IDs to export (None = export all)
         
     Returns:
         ExportResult with count and file list
@@ -166,8 +168,15 @@ def export_playlists(
     if organize_by_owner and current_user_id is None:
         current_user_id = db.get_meta('current_user_id')
     
-    # Enumerate playlists
-    cur = db.conn.execute("SELECT id, name, owner_id, owner_name FROM playlists")
+    # Enumerate playlists (optionally filtered by playlist_ids)
+    if playlist_ids:
+        # Export only specific playlists
+        placeholders = ','.join('?' * len(playlist_ids))
+        sql = f"SELECT id, name, owner_id, owner_name FROM playlists WHERE id IN ({placeholders})"
+        cur = db.conn.execute(sql, playlist_ids)
+    else:
+        # Export all playlists
+        cur = db.conn.execute("SELECT id, name, owner_id, owner_name FROM playlists")
     playlists = cur.fetchall()
     
     # Convert to list of dicts for easier sorting
@@ -193,7 +202,10 @@ def export_playlists(
     
     # Log export summary by owner (INFO mode)
     if not logger.isEnabledFor(logging.DEBUG):
-        logger.info(f"Exporting {total_playlists} playlist(s) from {len(playlists_by_owner)} owner(s):")
+        if playlist_ids:
+            logger.info(f"Exporting {total_playlists} affected playlist(s) from {len(playlists_by_owner)} owner(s):")
+        else:
+            logger.info(f"Exporting {total_playlists} playlist(s) from {len(playlists_by_owner)} owner(s):")
         for owner in sorted(playlists_by_owner.keys()):
             count = len(playlists_by_owner[owner])
             logger.info(f"  • {owner}: {count} playlist(s)")
