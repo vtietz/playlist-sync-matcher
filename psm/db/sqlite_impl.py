@@ -40,6 +40,11 @@ class Database(DatabaseInterface):
         self.conn = sqlite3.connect(path, timeout=30)
         self.conn.row_factory = sqlite3.Row
         self._closed = False
+        
+        # Check SQLite version for window function support (required >= 3.25.0)
+        self._sqlite_version = tuple(int(x) for x in sqlite3.sqlite_version.split('.'))
+        self._supports_window_functions = self._sqlite_version >= (3, 25, 0)
+        
         self._init_schema()
 
     def __enter__(self) -> "Database":  # pragma: no cover
@@ -177,7 +182,10 @@ class Database(DatabaseInterface):
         return self.conn.execute(sql)
 
     def set_meta(self, key: str, value: str):
-        self.conn.execute("INSERT INTO meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, value))
+        self._execute_with_lock_handling(
+            "INSERT INTO meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+            (key, value)
+        )
 
     def get_meta(self, key: str) -> Optional[str]:
         cur = self.conn.execute("SELECT value FROM meta WHERE key=?", (key,))
@@ -509,35 +517,61 @@ class Database(DatabaseInterface):
         if provider is None:
             provider = 'spotify'  # Default for backward compat
         
-        # Use window function to rank matches by score (highest first)
-        # Then filter to only the best match (rn=1) in the outer query
-        sql = """
-        WITH ranked_matches AS (
+        if self._supports_window_functions:
+            # Use window function to rank matches by score (highest first)
+            # Then filter to only the best match (rn=1) in the outer query
+            sql = """
+            WITH ranked_matches AS (
+                SELECT 
+                    m.track_id,
+                    m.file_id,
+                    m.score,
+                    ROW_NUMBER() OVER (PARTITION BY m.track_id ORDER BY m.score DESC) AS rn
+                FROM matches m
+                WHERE m.provider = ?
+            )
             SELECT 
-                m.track_id,
-                m.file_id,
-                m.score,
-                ROW_NUMBER() OVER (PARTITION BY m.track_id ORDER BY m.score DESC) AS rn
-            FROM matches m
-            WHERE m.provider = ?
-        )
-        SELECT 
-            pt.position,
-            t.id as track_id,
-            t.name,
-            t.artist,
-            t.album,
-            t.duration_ms,
-            lf.path AS local_path
-        FROM playlist_tracks pt
-        LEFT JOIN tracks t ON t.id = pt.track_id AND t.provider = pt.provider
-        LEFT JOIN ranked_matches rm ON rm.track_id = pt.track_id AND rm.rn = 1
-        LEFT JOIN library_files lf ON lf.id = rm.file_id
-        WHERE pt.playlist_id = ? AND pt.provider = ?
-        ORDER BY pt.position
-        """
+                pt.position,
+                t.id as track_id,
+                t.name,
+                t.artist,
+                t.album,
+                t.duration_ms,
+                lf.path AS local_path
+            FROM playlist_tracks pt
+            LEFT JOIN tracks t ON t.id = pt.track_id AND t.provider = pt.provider
+            LEFT JOIN ranked_matches rm ON rm.track_id = pt.track_id AND rm.rn = 1
+            LEFT JOIN library_files lf ON lf.id = rm.file_id
+            WHERE pt.playlist_id = ? AND pt.provider = ?
+            ORDER BY pt.position
+            """
+            rows = self.conn.execute(sql, (provider, playlist_id, provider)).fetchall()
+        else:
+            # Fallback for SQLite < 3.25: use correlated subquery for best match
+            sql = """
+            SELECT 
+                pt.position,
+                t.id as track_id,
+                t.name,
+                t.artist,
+                t.album,
+                t.duration_ms,
+                lf.path AS local_path
+            FROM playlist_tracks pt
+            LEFT JOIN tracks t ON t.id = pt.track_id AND t.provider = pt.provider
+            LEFT JOIN matches m ON m.track_id = pt.track_id 
+                AND m.provider = ? 
+                AND m.score = (
+                    SELECT MAX(m2.score) 
+                    FROM matches m2 
+                    WHERE m2.track_id = m.track_id AND m2.provider = ?
+                )
+            LEFT JOIN library_files lf ON lf.id = m.file_id
+            WHERE pt.playlist_id = ? AND pt.provider = ?
+            ORDER BY pt.position
+            """
+            rows = self.conn.execute(sql, (provider, provider, playlist_id, provider)).fetchall()
         
-        rows = self.conn.execute(sql, (provider, playlist_id, provider)).fetchall()
         return [dict(row) | {'position': row['position']} for row in rows]
     
     def get_liked_tracks_with_local_paths(self, provider: str | None = None) -> List[Dict[str, Any]]:
@@ -550,35 +584,61 @@ class Database(DatabaseInterface):
         if provider is None:
             provider = 'spotify'  # Default for backward compat
         
-        # Use window function to rank matches by score (highest first)
-        # Then filter to only the best match (rn=1) in the outer query
-        sql = """
-        WITH ranked_matches AS (
+        if self._supports_window_functions:
+            # Use window function to rank matches by score (highest first)
+            # Then filter to only the best match (rn=1) in the outer query
+            sql = """
+            WITH ranked_matches AS (
+                SELECT 
+                    m.track_id,
+                    m.file_id,
+                    m.score,
+                    ROW_NUMBER() OVER (PARTITION BY m.track_id ORDER BY m.score DESC) AS rn
+                FROM matches m
+                WHERE m.provider = ?
+            )
             SELECT 
-                m.track_id,
-                m.file_id,
-                m.score,
-                ROW_NUMBER() OVER (PARTITION BY m.track_id ORDER BY m.score DESC) AS rn
-            FROM matches m
-            WHERE m.provider = ?
-        )
-        SELECT 
-            lt.added_at,
-            t.id as track_id,
-            t.name,
-            t.artist,
-            t.album,
-            t.duration_ms,
-            lf.path AS local_path
-        FROM liked_tracks lt
-        LEFT JOIN tracks t ON t.id = lt.track_id AND t.provider = lt.provider
-        LEFT JOIN ranked_matches rm ON rm.track_id = lt.track_id AND rm.rn = 1
-        LEFT JOIN library_files lf ON lf.id = rm.file_id
-        WHERE lt.provider = ?
-        ORDER BY lt.added_at DESC
-        """
+                lt.added_at,
+                t.id as track_id,
+                t.name,
+                t.artist,
+                t.album,
+                t.duration_ms,
+                lf.path AS local_path
+            FROM liked_tracks lt
+            LEFT JOIN tracks t ON t.id = lt.track_id AND t.provider = lt.provider
+            LEFT JOIN ranked_matches rm ON rm.track_id = lt.track_id AND rm.rn = 1
+            LEFT JOIN library_files lf ON lf.id = rm.file_id
+            WHERE lt.provider = ?
+            ORDER BY lt.added_at DESC
+            """
+            rows = self.conn.execute(sql, (provider, provider)).fetchall()
+        else:
+            # Fallback for SQLite < 3.25: use correlated subquery for best match
+            sql = """
+            SELECT 
+                lt.added_at,
+                t.id as track_id,
+                t.name,
+                t.artist,
+                t.album,
+                t.duration_ms,
+                lf.path AS local_path
+            FROM liked_tracks lt
+            LEFT JOIN tracks t ON t.id = lt.track_id AND t.provider = lt.provider
+            LEFT JOIN matches m ON m.track_id = lt.track_id 
+                AND m.provider = ? 
+                AND m.score = (
+                    SELECT MAX(m2.score) 
+                    FROM matches m2 
+                    WHERE m2.track_id = m.track_id AND m2.provider = ?
+                )
+            LEFT JOIN library_files lf ON lf.id = m.file_id
+            WHERE lt.provider = ?
+            ORDER BY lt.added_at DESC
+            """
+            rows = self.conn.execute(sql, (provider, provider, provider)).fetchall()
         
-        rows = self.conn.execute(sql, (provider, provider)).fetchall()
         return [dict(row) for row in rows]
     
     def get_track_by_id(self, track_id: str, provider: str | None = None) -> Optional[TrackRow]:

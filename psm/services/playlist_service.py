@@ -159,7 +159,7 @@ def match_single_playlist(
     if not pl:
         raise ValueError(f"Playlist {playlist_id} not found in database")
     
-    result.playlist_name = pl['name']
+    result.playlist_name = pl.name
     
     logger.debug(f"[playlist] Matching '{result.playlist_name}' ({playlist_id})")
     
@@ -225,7 +225,7 @@ def export_single_playlist(
     if not pl:
         raise ValueError(f"Playlist {playlist_id} not found in database")
     
-    result.playlist_name = pl['name']
+    result.playlist_name = pl.name
     
     logger.debug(f"[playlist] Exporting '{result.playlist_name}' ({playlist_id})")
     
@@ -239,8 +239,8 @@ def export_single_playlist(
         current_user_id = db.get_meta('current_user_id')
     
     # Determine target directory
-    owner_id = pl['owner_id'] if 'owner_id' in pl.keys() else None
-    owner_name = pl['owner_name'] if 'owner_name' in pl.keys() else None
+    owner_id = pl.owner_id
+    owner_name = pl.owner_name
     
     if organize_by_owner:
         if owner_id and owner_id == current_user_id:
