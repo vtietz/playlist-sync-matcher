@@ -2,6 +2,7 @@
 
 import pytest
 from psm.match.matching_engine import MatchingEngine
+from psm.config_types import MatchingConfig
 from psm.db import Database
 from pathlib import Path
 import tempfile
@@ -659,4 +660,74 @@ def test_match_files_deletes_existing_matches(temp_db, sample_config):
     # Verify only one match exists (old one was deleted)
     matches = temp_db.conn.execute("SELECT * FROM matches WHERE file_id=1").fetchall()
     assert len(matches) == 1
+
+
+def test_matching_engine_with_typed_config(temp_db):
+    """Test MatchingEngine with typed MatchingConfig instead of dict."""
+    # Create typed config
+    typed_config = MatchingConfig(
+        duration_tolerance=3.0,
+        max_candidates_per_track=200,
+        fuzzy_threshold=0.80
+    )
+    
+    # Initialize engine with typed config
+    engine = MatchingEngine(temp_db, typed_config, provider='spotify')
+    
+    # Verify config values were applied
+    assert engine.dur_tolerance == 3.0
+    assert engine.max_candidates == 200
+    assert engine.provider == 'spotify'
+
+
+def test_matching_engine_from_dict_config_helper(temp_db, sample_config):
+    """Test from_dict_config class method for backward compatibility."""
+    # Use class method to create engine from dict
+    engine = MatchingEngine.from_dict_config(temp_db, sample_config)
+    
+    # Verify it initialized correctly
+    assert engine.dur_tolerance == 2.0
+    assert engine.max_candidates == 500
+    assert engine.provider == 'spotify'
+
+
+def test_matching_engine_typed_config_with_matching(temp_db):
+    """Test that typed config actually works for matching."""
+    # Add track and file
+    temp_db.upsert_track({
+        'id': 'track1',
+        'name': 'Test Track',
+        'artist': 'Test Artist',
+        'album': 'Test Album',
+        'year': 2024,
+        'isrc': None,
+        'duration_ms': 180000,
+        'normalized': 'test track test artist'
+    }, provider='spotify')
+    
+    temp_db.add_library_file({
+        'path': '/music/test_track.mp3',
+        'title': 'Test Track',
+        'artist': 'Test Artist',
+        'album': 'Test Album',
+        'year': 2024,
+        'duration': 180,
+        'normalized': 'test track test artist',
+        'isrc': None
+    })
+    temp_db.commit()
+    
+    # Create typed config
+    typed_config = MatchingConfig(duration_tolerance=2.0, max_candidates_per_track=500)
+    
+    # Match using typed config
+    engine = MatchingEngine(temp_db, typed_config, provider='spotify')
+    matched_count = engine.match_all()
+    
+    assert matched_count == 1
+    
+    # Verify match was created
+    matches = temp_db.conn.execute("SELECT * FROM matches").fetchall()
+    assert len(matches) == 1
+
 
