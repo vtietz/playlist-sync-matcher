@@ -5,7 +5,7 @@ from typing import Dict, Any, List, Tuple
 from rapidfuzz import fuzz
 import logging
 
-from ..db import Database
+from ..db import DatabaseInterface
 from ..utils.normalization import normalize_title_artist
 
 logger = logging.getLogger(__name__)
@@ -38,7 +38,7 @@ class DiagnosticResult:
 
 
 def diagnose_track(
-    db: Database,
+    db: DatabaseInterface,
     track_id: str,
     provider: str = 'spotify',
     top_n: int = 5
@@ -54,58 +54,51 @@ def diagnose_track(
     Returns:
         DiagnosticResult with detailed diagnostic information
     """
-    # Get fuzzy threshold from config metadata
+    # Get fuzzy threshold from config metadata (using correct table name)
     fuzzy_threshold = 0.78
-    try:
-        threshold_row = db.conn.execute(
-            "SELECT value FROM metadata WHERE key = 'fuzzy_threshold'"
-        ).fetchone()
-        if threshold_row:
-            try:
-                fuzzy_threshold = float(threshold_row['value'])
-            except (ValueError, TypeError):
-                pass
-    except Exception:
-        # metadata table doesn't exist yet
-        pass
+    threshold_str = db.get_meta('fuzzy_threshold')
+    if threshold_str:
+        try:
+            fuzzy_threshold = float(threshold_str)
+        except (ValueError, TypeError):
+            pass
     
-    # 1. Find track in database
-    track_row = db.conn.execute("""
-        SELECT id, name, artist, album, duration_ms, year, normalized, isrc
-        FROM tracks
-        WHERE id = ? AND provider = ?
-    """, (track_id, provider)).fetchone()
+    # 1. Find track in database using repository method
+    track_row = db.get_track_by_id(track_id, provider)
     
     if not track_row:
         return DiagnosticResult(track_found=False)
     
-    track_info = dict(track_row)
+    track_info = {
+        'id': track_row.id,
+        'name': track_row.name,
+        'artist': track_row.artist,
+        'album': track_row.album,
+        'duration_ms': track_row.duration_ms,
+        'year': track_row.year,
+        'normalized': track_row.normalized,
+        'isrc': track_row.isrc,
+    }
     
-    # 2. Check if already matched
-    match_row = db.conn.execute("""
-        SELECT m.file_id, m.score, m.method,
-               f.path, f.title, f.artist, f.album, f.duration, f.normalized
-        FROM matches m
-        JOIN library_files f ON m.file_id = f.id
-        WHERE m.track_id = ? AND m.provider = ?
-    """, (track_id, provider)).fetchone()
+    # 2. Check if already matched using repository method
+    match_info = db.get_match_for_track(track_id, provider)
     
-    if match_row:
+    if match_info:
         return DiagnosticResult(
             track_found=True,
             track_info=track_info,
             is_matched=True,
-            matched_file=dict(match_row),
-            match_score=match_row['score'],
-            match_method=match_row['method'],
+            matched_file=match_info,
+            match_score=match_info['score'],
+            match_method=match_info['method'],
             fuzzy_threshold=fuzzy_threshold
         )
     
     # 3. Find closest files using fuzzy matching
     track_norm = track_info.get('normalized') or ''
     
-    # Get total file count
-    total_files = db.conn.execute("SELECT COUNT(*) as count FROM library_files").fetchone()['count']
+    # Get total file count and all files for matching
+    total_files = db.count_library_files()
     
     if not track_norm:
         return DiagnosticResult(
@@ -116,23 +109,29 @@ def diagnose_track(
             fuzzy_threshold=fuzzy_threshold
         )
     
-    # Fetch all files and score them
-    all_files = db.conn.execute("""
-        SELECT id, path, title, artist, album, duration, normalized, year
-        FROM library_files
-        WHERE normalized IS NOT NULL AND normalized != ''
-    """).fetchall()
+    # Fetch all files using repository method
+    all_files = db.get_all_library_files()
     
     scored_files: List[Tuple[Dict[str, Any], float]] = []
     
     for file_row in all_files:
-        file_norm = file_row['normalized'] or ''
+        file_norm = file_row.normalized or ''
         if not file_norm:
             continue
         
         # Calculate fuzzy score
         score = fuzz.token_set_ratio(track_norm, file_norm) / 100.0
-        scored_files.append((dict(file_row), score))
+        file_dict = {
+            'id': file_row.id,
+            'path': file_row.path,
+            'title': file_row.title,
+            'artist': file_row.artist,
+            'album': file_row.album,
+            'duration': file_row.duration,
+            'normalized': file_row.normalized,
+            'year': file_row.year,
+        }
+        scored_files.append((file_dict, score))
     
     # Sort by score descending and take top N
     scored_files.sort(key=lambda x: x[1], reverse=True)

@@ -18,7 +18,7 @@ from ..providers import get_provider_instance
 from ..providers.spotify import extract_year
 from ..db import Database, DatabaseInterface
 from ..utils.normalization import normalize_title_artist
-from ..match.engine import match_tracks
+from ..match.matching_engine import MatchingEngine
 from ..export.playlists import export_strict, export_mirrored, export_placeholders, sanitize_filename
 
 logger = logging.getLogger(__name__)
@@ -165,42 +165,33 @@ def match_single_playlist(
     
     # Get matching config
     fuzzy_threshold = config.get('matching', {}).get('fuzzy_threshold', 0.78)
+    duration_tolerance = config.get('matching', {}).get('duration_tolerance', 2.0)
     
-    # Get tracks for this playlist only
-    cur = db.conn.execute(
-        """
-        SELECT t.id, t.name, t.artist, t.album, t.normalized, t.duration_ms, t.year
-        FROM playlist_tracks pt
-        JOIN tracks t ON t.id = pt.track_id
-        WHERE pt.playlist_id = ?
-        ORDER BY t.id
-        """,
-        (playlist_id,)
-    )
-    tracks_list = [dict(row) for row in cur.fetchall()]
+    # Run matching using MatchingEngine for all tracks (it will match only unmatched ones)
+    from ..config_types import MatchingConfig
+    from psm.config import _DEFAULTS
     
-    # Get all library files
-    files_cur = db.conn.execute(
-        "SELECT id as file_id, path, title, artist, album, normalized, duration, year FROM library_files"
-    )
-    files_list = [dict(row) for row in files_cur.fetchall()]
+    matching_config_dict = {
+        'fuzzy_threshold': fuzzy_threshold,
+        'strategies': ['duration_filter', 'isrc_exact', 'exact', 'fuzzy'],
+        'duration_tolerance': duration_tolerance,
+    }
+    matching_cfg = MatchingConfig(**{**_DEFAULTS.get('matching', {}), **matching_config_dict})
     
-    # Run matching
-    matches = match_tracks(tracks_list, files_list, fuzzy_threshold=fuzzy_threshold)
-    
-    # Store matches
-    matched_count = 0
-    for track_id, file_id, score, method in matches:
-        db.add_match(track_id=track_id, file_id=file_id, score=score, method=method, provider='spotify')
-        matched_count += 1
+    engine = MatchingEngine(db, matching_cfg)  # type: ignore
+    new_matches = engine.match_tracks(track_ids=None)  # Returns int: number of new matches
     
     db.commit()
     
-    result.tracks_processed = len(tracks_list)
-    result.tracks_matched = matched_count
+    # Get all tracks and count how many are now matched
+    all_tracks = db.get_all_tracks(provider='spotify')
+    total_matched = sum(1 for t in all_tracks if db.get_match_for_track(t.id, provider='spotify'))
+    
+    result.tracks_processed = len(all_tracks)
+    result.tracks_matched = total_matched
     result.duration_seconds = time.time() - start
     
-    logger.debug(f"[playlist] Matched {matched_count}/{len(tracks_list)} tracks in {result.duration_seconds:.2f}s")
+    logger.debug(f"[playlist] Matched {new_matches} new tracks ({total_matched} total) in {result.duration_seconds:.2f}s")
     
     return result
 
@@ -262,20 +253,9 @@ def export_single_playlist(
     else:
         target_dir = export_dir
     
-    # Fetch tracks with local paths
-    track_rows = db.conn.execute(
-        """
-        SELECT pt.position, t.id as track_id, t.name, t.artist, t.album, t.duration_ms, lf.path AS local_path
-        FROM playlist_tracks pt
-        LEFT JOIN tracks t ON t.id = pt.track_id
-        LEFT JOIN matches m ON m.track_id = pt.track_id
-        LEFT JOIN library_files lf ON lf.id = m.file_id
-        WHERE pt.playlist_id=?
-        ORDER BY pt.position
-        """,
-        (playlist_id,),
-    ).fetchall()
-    
+    # Fetch tracks with local paths using repository method (provider-aware, best match only)
+    provider = 'spotify'  # TODO: Make configurable when adding multi-provider support
+    track_rows = db.get_playlist_tracks_with_local_paths(playlist_id, provider)
     tracks = [dict(r) | {'position': r['position']} for r in track_rows]
     playlist_meta = {'name': pl['name'], 'id': playlist_id}
     

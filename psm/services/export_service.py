@@ -168,28 +168,9 @@ def export_playlists(
     if organize_by_owner and current_user_id is None:
         current_user_id = db.get_meta('current_user_id')
     
-    # Enumerate playlists (optionally filtered by playlist_ids)
-    if playlist_ids:
-        # Export only specific playlists
-        placeholders = ','.join('?' * len(playlist_ids))
-        sql = f"SELECT id, name, owner_id, owner_name FROM playlists WHERE id IN ({placeholders})"
-        cur = db.conn.execute(sql, playlist_ids)
-    else:
-        # Export all playlists
-        cur = db.conn.execute("SELECT id, name, owner_id, owner_name FROM playlists")
-    playlists = cur.fetchall()
-    
-    # Convert to list of dicts for easier sorting
-    playlists = [dict(pl) for pl in playlists]
-    
-    # Sort playlists: 1) by owner_name (alphabetical), 2) by playlist name (alphabetical)
-    # Handle None values for owner fields
-    def sort_key(pl):
-        owner = pl.get('owner_name') or pl.get('owner_id') or ''
-        name = pl.get('name') or ''
-        return (owner.lower(), name.lower())
-    
-    playlists.sort(key=sort_key)
+    # Enumerate playlists using repository method (provider-aware, sorted)
+    provider = 'spotify'  # TODO: Make configurable when adding multi-provider support
+    playlists = db.list_playlists(playlist_ids, provider)
     
     total_playlists = len(playlists)
     
@@ -224,19 +205,8 @@ def export_playlists(
             current_user_id
         )
         
-        # Fetch tracks with local paths
-        track_rows = db.conn.execute(
-            """
-            SELECT pt.position, t.id as track_id, t.name, t.artist, t.album, t.duration_ms, lf.path AS local_path
-            FROM playlist_tracks pt
-            LEFT JOIN tracks t ON t.id = pt.track_id
-            LEFT JOIN matches m ON m.track_id = pt.track_id
-            LEFT JOIN library_files lf ON lf.id = m.file_id
-            WHERE pt.playlist_id=?
-            ORDER BY pt.position
-            """,
-            (pl_id,),
-        ).fetchall()
+        # Fetch tracks with local paths using repository method (provider-aware, best match only)
+        track_rows = db.get_playlist_tracks_with_local_paths(pl_id, provider)
         tracks = [dict(r) | {'position': r['position']} for r in track_rows]
         playlist_meta = {'name': pl['name'], 'id': pl_id}
         
@@ -334,24 +304,9 @@ def _export_liked_tracks(
     else:
         target_dir = export_dir
     
-    # Fetch liked tracks with local paths (ordered by added_at DESC = newest first, matching Spotify)
-    track_rows = db.conn.execute(
-        """
-        SELECT 
-            lt.added_at,
-            t.id as track_id, 
-            t.name, 
-            t.artist, 
-            t.album, 
-            t.duration_ms, 
-            lf.path AS local_path
-        FROM liked_tracks lt
-        LEFT JOIN tracks t ON t.id = lt.track_id
-        LEFT JOIN matches m ON m.track_id = lt.track_id
-        LEFT JOIN library_files lf ON lf.id = m.file_id
-        ORDER BY lt.added_at DESC
-        """
-    ).fetchall()
+    # Fetch liked tracks with local paths using repository method (provider-aware, best match only)
+    provider = 'spotify'  # TODO: Make configurable when adding multi-provider support
+    track_rows = db.get_liked_tracks_with_local_paths(provider)
     
     tracks = [dict(r) for r in track_rows]
     

@@ -184,6 +184,71 @@ class DatabaseInterface(ABC):
         """
         ...
 
+    # --- Export service methods ---
+    @abstractmethod
+    def list_playlists(self, playlist_ids: Optional[List[str]] = None, provider: str | None = None) -> List[Dict[str, Any]]:
+        """List playlists with stable ordering.
+        
+        Args:
+            playlist_ids: Optional filter to specific playlist IDs
+            provider: Provider name filter (required)
+            
+        Returns:
+            List of playlist dicts with id, name, owner_id, owner_name, sorted by owner then name
+        """
+        ...
+    
+    @abstractmethod
+    def get_playlist_tracks_with_local_paths(self, playlist_id: str, provider: str | None = None) -> List[Dict[str, Any]]:
+        """Get playlist tracks with matched local file paths (best match only per track).
+        
+        Args:
+            playlist_id: Playlist ID
+            provider: Provider name filter (required)
+            
+        Returns:
+            List of dicts with position, track_id, name, artist, album, duration_ms, local_path (best match only)
+        """
+        ...
+    
+    @abstractmethod
+    def get_liked_tracks_with_local_paths(self, provider: str | None = None) -> List[Dict[str, Any]]:
+        """Get liked tracks with matched local file paths (best match only per track), newest first.
+        
+        Args:
+            provider: Provider name filter (required)
+            
+        Returns:
+            List of dicts with added_at, track_id, name, artist, album, duration_ms, local_path, ordered by added_at DESC
+        """
+        ...
+    
+    @abstractmethod
+    def get_track_by_id(self, track_id: str, provider: str | None = None) -> Optional[TrackRow]:
+        """Get a single track by ID.
+        
+        Args:
+            track_id: Track ID to retrieve
+            provider: Provider name filter (required)
+            
+        Returns:
+            TrackRow if found, None otherwise
+        """
+        ...
+    
+    @abstractmethod
+    def get_match_for_track(self, track_id: str, provider: str | None = None) -> Optional[Dict[str, Any]]:
+        """Get match details for a track if it exists.
+        
+        Args:
+            track_id: Track ID
+            provider: Provider name filter (required)
+            
+        Returns:
+            Dict with file_id, score, method, and library file details (path, title, artist, album, etc.)
+        """
+        ...
+
     # --- Meta ---
     @abstractmethod
     def set_meta(self, key: str, value: str): ...
