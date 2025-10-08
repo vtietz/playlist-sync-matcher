@@ -11,8 +11,6 @@ import logging
 from pathlib import Path
 from typing import Dict, Any, Callable
 
-import click
-
 from ..db import Database
 from ..ingest.library import scan_specific_files
 from ..services.match_service import match_changed_files, run_matching
@@ -50,7 +48,7 @@ def _handle_library_changes(
 ) -> None:
     """Handle library file changes with incremental scan and match."""
     logger.info("")
-    logger.info(click.style(f"▶ Library changed ({len(changed_file_paths)} files)", fg='yellow', bold=True))
+    logger.info(f"▶ Library changed ({len(changed_file_paths)} files)")
     
     try:
         with watch_config.get_db(watch_config.config) as db:
@@ -94,9 +92,9 @@ def _handle_library_changes(
             else:
                 logger.info("  [4/4] Reports skipped")
         
-        logger.info(click.style("✓ Incremental rebuild complete", fg='green'))
+        logger.info("✓ Incremental rebuild complete")
     except Exception as e:
-        logger.error(click.style(f"✗ Rebuild failed: {e}", fg='red'))
+        logger.error(f"✗ Rebuild failed: {e}")
         logger.exception("Watch mode error details:")
     
     logger.info("")
@@ -110,7 +108,7 @@ def _handle_database_changes(watch_config: WatchBuildConfig) -> None:
     otherwise falls back to full re-match.
     """
     logger.info("")
-    logger.info(click.style("▶ Database changed (tracks/playlists updated)", fg='cyan', bold=True))
+    logger.info("▶ Database changed (tracks/playlists updated)")
     logger.info("  Detected external database modification (e.g., 'pull' command)")
     
     try:
@@ -154,9 +152,9 @@ def _handle_database_changes(watch_config: WatchBuildConfig) -> None:
             else:
                 logger.info("  [3/3] Reports skipped")
         
-        logger.info(click.style("✓ Database sync complete", fg='green'))
+        logger.info("✓ Database sync complete")
     except Exception as e:
-        logger.error(click.style(f"✗ Database sync failed: {e}", fg='red'))
+        logger.error(f"✗ Database sync failed: {e}")
         logger.exception("Database sync error details:")
     
     logger.info("")
@@ -191,7 +189,7 @@ def run_watch_build(watch_config: WatchBuildConfig) -> None:
         watch_config: Watch build configuration
     """
     logger.info("")
-    logger.info(click.style("=== Entering watch mode ===", fg='cyan', bold=True))
+    logger.info("=== Entering watch mode ===")
     logger.info("Monitoring library files AND database for changes.")
     logger.info("• Library changes → incremental scan + match")
     logger.info("• Database changes (e.g. after 'pull') → incremental track match")
@@ -239,10 +237,10 @@ def run_watch_build(watch_config: WatchBuildConfig) -> None:
         
     except KeyboardInterrupt:
         logger.info("")
-        logger.info(click.style("⏹ Stopping watch mode...", fg='yellow'))
+        logger.info("⏹ Stopping watch mode...")
         if watcher:
             watcher.stop()
-        logger.info(click.style("✓ Watch mode stopped", fg='green'))
+        logger.info("✓ Watch mode stopped")
     except Exception as e:
         logger.error(f"Watch mode error: {e}")
         if watcher:

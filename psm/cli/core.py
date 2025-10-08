@@ -436,6 +436,10 @@ def match(ctx: click.Context, top_tracks: int, top_albums: int):
     - unmatched_albums.csv / .html: Unmatched albums grouped by popularity
     """
     cfg = ctx.obj
+    
+    # Print styled header for user experience
+    click.echo(click.style("=== Matching tracks to library files ===", fg='cyan', bold=True))
+    
     # Use short-lived connection; avoid holding DB beyond required scope
     result = None
     with get_db(cfg) as db:
@@ -538,6 +542,10 @@ def match_diagnose(ctx: click.Context, query: str, limit: int):
 def export(ctx: click.Context):
     """Export matched playlists to M3U files."""
     cfg = ctx.obj
+    
+    # Print styled header for user experience
+    click.echo(click.style("=== Exporting playlists to M3U ===", fg='cyan', bold=True))
+    
     organize_by_owner = cfg['export'].get('organize_by_owner', False)
     with get_db(cfg) as db:
         current_user_id = db.get_meta('current_user_id') if organize_by_owner else None
@@ -568,6 +576,9 @@ def build(ctx: click.Context, no_report: bool, no_export: bool, watch: bool, deb
     # Watch mode: skip initial build, only process changes
     if watch:
         from ..services.watch_build_service import run_watch_build, WatchBuildConfig
+        
+        # Print styled header for watch mode
+        click.echo(click.style("=== Entering watch mode ===", fg='cyan', bold=True))
         
         watch_config = WatchBuildConfig(
             config=cfg,

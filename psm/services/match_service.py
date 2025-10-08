@@ -9,8 +9,6 @@ import time
 import logging
 from typing import Dict, Any, List
 
-import click
-
 from ..match.scoring import ScoringConfig, evaluate_pair, MatchConfidence
 from ..db import Database, DatabaseInterface
 from ..utils.logging_helpers import log_progress
@@ -54,8 +52,8 @@ def run_matching(
     result = MatchResult()
     start = time.time()
     
-    # Print operation header
-    print(click.style("=== Matching tracks to library files ===", fg='cyan', bold=True))
+    # Log operation header
+    logger.info("=== Matching tracks to library files ===")
     
     # Always use scoring engine (legacy strategy pipeline removed)
     matched_count = _run_scoring_engine(db, config)
@@ -127,7 +125,7 @@ def _jaccard_similarity(set1: set, set2: set) -> float:
 def _get_confidence_summary(db: Database, total_matches: int) -> str:
     """Get a summary of match confidence distribution.
     
-    Returns a colored string showing counts for each confidence tier.
+    Returns a string showing counts for each confidence tier.
     """
     if total_matches == 0:
         return "none"
@@ -145,13 +143,13 @@ def _get_confidence_summary(db: Database, total_matches: int) -> str:
     
     parts = []
     if certain > 0:
-        parts.append(click.style(f'{certain} certain', fg='green'))
+        parts.append(f'{certain} certain')
     if high > 0:
-        parts.append(click.style(f'{high} high', fg='blue'))
+        parts.append(f'{high} high')
     if medium > 0:
-        parts.append(click.style(f'{medium} medium', fg='yellow'))
+        parts.append(f'{medium} medium')
     if low > 0:
-        parts.append(click.style(f'{low} low', fg='red'))
+        parts.append(f'{low} low')
     
     return ", ".join(parts) if parts else "none"
 
@@ -231,13 +229,13 @@ def _run_scoring_engine(db: Database, config: Dict[str, Any]) -> int:
             match_rate = (matches / processed * 100) if processed > 0 else 0
             unmatched = processed - matches
             logger.info(
-                f"{click.style(f'{processed}/{len(tracks)}', fg='cyan')} tracks "
+                f"{processed}/{len(tracks)} tracks "
                 f"({processed/len(tracks)*100:.0f}%) | "
-                f"{click.style(f'{matches} matched', fg='green')} | "
-                f"{click.style(f'{unmatched} unmatched', fg='yellow')} | "
+                f"{matches} matched | "
+                f"{unmatched} unmatched | "
                 f"{processed/elapsed:.1f} tracks/s"
             )
-            logger.info(f"  Match rate: {click.style(f'{match_rate:.1f}%', fg='cyan')} | Confidence breakdown: {_get_confidence_summary(db, matches)}")
+            logger.info(f"  Match rate: {match_rate:.1f}% | Confidence breakdown: {_get_confidence_summary(db, matches)}")
             last_progress_log = processed
 
     db.commit()
@@ -248,8 +246,8 @@ def _run_scoring_engine(db: Database, config: Dict[str, Any]) -> int:
     confidence_summary = _get_confidence_summary(db, matches)
     
     logger.info(
-        f"{click.style('✓', fg='green')} Matched "
-        f"{click.style(f'{matches}/{len(tracks)}', fg='green')} tracks "
+        f"✓ Matched "
+        f"{matches}/{len(tracks)} tracks "
         f"({match_rate:.1f}%) in {dur:.2f}s"
     )
     if matches > 0:
@@ -303,14 +301,14 @@ def _show_unmatched_diagnostics(db: Database, top_tracks: int = 20, top_albums: 
     
     if not unmatched_rows:
         logger.info("")
-        logger.info(click.style("✓ All tracks matched!", fg='green', bold=True))
+        logger.info("✓ All tracks matched!")
         return
     
     unmatched_ids = [row['id'] for row in unmatched_rows]
     track_by_id = {row['id']: dict(row) for row in unmatched_rows}
     
     logger.info("")
-    logger.info(click.style("=== Unmatched Diagnostics ===", fg='yellow', bold=True))
+    logger.info("=== Unmatched Diagnostics ===")
     logger.info(f"Total unmatched: {len(unmatched_ids)} tracks")
     
     # ---------------------------------------------------------------
@@ -356,7 +354,7 @@ def _show_unmatched_diagnostics(db: Database, top_tracks: int = 20, top_albums: 
         display_count = min(top_tracks, len(sorted_unmatched))
         
         logger.info("")
-        logger.info(f"{click.style('[Top Unmatched Tracks]', fg='red')} (by playlist popularity):")
+        logger.info("[Top Unmatched Tracks] (by playlist popularity):")
         
         for track_id in sorted_unmatched[:display_count]:
             track = track_by_id.get(track_id, {})
@@ -410,7 +408,7 @@ def _show_unmatched_diagnostics(db: Database, top_tracks: int = 20, top_albums: 
             display_album_count = min(top_albums, len(sorted_albums))
             
             logger.info("")
-            logger.info(f"{click.style('[Top Missing Albums]', fg='red')} (by playlist popularity):")
+            logger.info("[Top Missing Albums] (by playlist popularity):")
             
             for _, album_info in sorted_albums[:display_album_count]:
                 artist = album_info['artist']
