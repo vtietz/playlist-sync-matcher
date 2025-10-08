@@ -541,13 +541,22 @@ def export(ctx: click.Context):
 @cli.command(name='build')
 @click.option('--no-report', is_flag=True, help='Skip report generation step')
 @click.option('--no-export', is_flag=True, help='Skip playlist export step')
+@click.option('--watch', is_flag=True, help='Watch library for changes and auto-rebuild')
+@click.option('--debounce', type=float, default=2.0, help='Debounce time in seconds for watch mode')
 @click.pass_context
-def build(ctx: click.Context, no_report: bool, no_export: bool):
+def build(ctx: click.Context, no_report: bool, no_export: bool, watch: bool, debounce: float):
     """Run the full one-way pipeline (pull -> scan -> match -> export -> report).
 
     Builds local artifacts from remote + local state without mutating the
     provider. Use --no-export or --no-report to skip phases for faster iteration.
+    
+    With --watch, monitors library for changes and automatically re-runs the
+    pipeline (scan -> match -> export -> report) when files change. Pull is not
+    re-run in watch mode (run it manually when you want fresh Spotify data).
     """
+    cfg = ctx.obj
+    
+    # Run initial build
     ctx.invoke(pull)
     ctx.invoke(scan)
     ctx.invoke(match)
@@ -556,6 +565,66 @@ def build(ctx: click.Context, no_report: bool, no_export: bool):
     if not no_report:
         ctx.invoke(report)
     click.echo('Build complete')
+    
+    # Enter watch mode if requested
+    if watch:
+        import time
+        from ..services.watch_service import LibraryWatcher
+        
+        logger.info("")
+        logger.info(click.style("=== Entering watch mode ===", fg='cyan', bold=True))
+        logger.info("Monitoring library for changes. Press Ctrl+C to stop.")
+        logger.info(f"Debounce time: {debounce}s")
+        logger.info("")
+        logger.info("Watching for changes...")
+        
+        watcher = None
+        try:
+            def handle_changes(changed_files: list):
+                """Callback when library files change - rebuild pipeline."""
+                logger.info("")
+                logger.info(click.style(f"▶ Library changed ({len(changed_files)} files affected)", fg='yellow', bold=True))
+                logger.info("Running incremental rebuild: scan → match → export → report")
+                
+                try:
+                    # Re-run pipeline with incremental scan
+                    ctx.invoke(scan, quick=True)  # Quick mode = only changed files
+                    ctx.invoke(match)
+                    if not no_export:
+                        ctx.invoke(export)
+                    if not no_report:
+                        ctx.invoke(report)
+                    logger.info(click.style("✓ Rebuild complete", fg='green'))
+                except Exception as e:
+                    logger.error(click.style(f"✗ Rebuild failed: {e}", fg='red'))
+                
+                logger.info("")
+                logger.info("Watching for changes...")
+            
+            # Create and start watcher
+            watcher = LibraryWatcher(
+                config=cfg,
+                on_change_callback=handle_changes,
+                debounce_seconds=debounce
+            )
+            
+            watcher.start()
+            
+            # Keep running until Ctrl+C
+            while True:
+                time.sleep(1)
+                
+        except KeyboardInterrupt:
+            logger.info("")
+            logger.info(click.style("⏹ Stopping watch mode...", fg='yellow'))
+            if watcher:
+                watcher.stop()
+            logger.info(click.style("✓ Watch mode stopped", fg='green'))
+        except Exception as e:
+            logger.error(f"Watch mode error: {e}")
+            if watcher:
+                watcher.stop()
+            raise
 
 __all__ = []
 

@@ -183,6 +183,13 @@ run.bat build         # Runs full pipeline: pull → scan → match → export
 ```
 > The `build` command runs the data sync pipeline, not software compilation.
 
+**Watch Mode** 🆕 (continuously monitor and rebuild):
+```bash
+run.bat build --watch             # Monitor library, auto-rebuild on changes
+run.bat build --watch --debounce 5  # Use 5-second debounce (default: 2)
+```
+> Watch mode monitors your music library and automatically runs incremental rebuilds when files change. Uses quick scan (only changed files) for efficiency. Press Ctrl+C to stop. Does NOT re-pull from Spotify (run `pull` manually when playlists change).
+
 **Individual steps** (for selective updates):
 ```bash
 run.bat pull          # Fetch Spotify playlists and tracks

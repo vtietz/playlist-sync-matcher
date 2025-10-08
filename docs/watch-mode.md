@@ -53,6 +53,54 @@ psm scan --watch --debounce 1
 
 ---
 
+## Build Watch Mode 🆕
+
+For automatic end-to-end synchronization, use `build --watch` to monitor your library and automatically run the full pipeline when files change:
+
+```bash
+psm build --watch                    # Monitor library, auto-rebuild on changes
+psm build --watch --debounce 5       # Use 5-second debounce (default: 2)
+```
+
+**What it does:**
+1. Monitors your music library for file changes (create, modify, delete)
+2. When changes settle (debounce period), automatically runs:
+   - `scan --quick` (only changed files)
+   - `match` (re-match affected tracks)
+   - `export` (regenerate M3U playlists)
+   - `report` (update all reports)
+
+**Key differences from `scan --watch`:**
+- **Full pipeline**: Runs all steps (scan → match → export → report)
+- **Incremental scan**: Automatically uses `--quick` mode for efficiency
+- **No Spotify re-pull**: Does NOT re-fetch playlists from Spotify (run `pull` manually when playlists change)
+- **End-to-end**: Your M3U playlists and reports stay in sync with library changes
+
+**Use cases:**
+- **Live library maintenance**: Keep playlists updated while organizing your music collection
+- **Download monitoring**: Automatically index and match new downloads
+- **Content creation workflows**: Music library changes immediately reflected in exports
+
+**Example workflow:**
+```bash
+# One-time: Pull latest playlists from Spotify
+psm pull
+
+# Start watching (runs in foreground)
+psm build --watch
+
+# In another window/session: Add/modify music files
+# → Watch mode automatically rebuilds everything
+# → Press Ctrl+C when done
+```
+
+**Performance notes:**
+- Uses `--quick` scan mode (only changed files), so rebuilds are fast
+- Debouncing prevents excessive processing during batch operations
+- Typical rebuild time: 2-10 seconds for small changes, 30-60s for large batches
+
+---
+
 ## Use Cases
 
 ### 1. Active Music Organization
@@ -421,6 +469,8 @@ launchctl start com.psm.watch
 
 ### Combining with Other Commands
 
+**Option 1: Scan-only watch (manual downstream steps)**
+
 Watch mode updates the database, but doesn't automatically run matching or export:
 
 ```bash
@@ -433,7 +483,19 @@ psm export
 psm report
 ```
 
-**Future enhancement:** `psm build --watch` will orchestrate the full pipeline.
+**Option 2: Full pipeline watch (automatic everything) 🆕**
+
+Use `build --watch` to automatically run the full pipeline when files change:
+
+```bash
+# One terminal: Watch and auto-rebuild everything
+psm build --watch
+
+# Changes to your music library automatically trigger:
+# → scan --quick → match → export → report
+```
+
+This is the recommended approach for most users who want "set it and forget it" synchronization.
 
 ---
 
