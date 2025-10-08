@@ -68,11 +68,12 @@ def _write_csv(csv_path: Path, unmatched_rows: list) -> None:
     """Write unmatched tracks CSV report."""
     with csv_path.open('w', newline='', encoding='utf-8') as fh:
         w = csv.writer(fh)
-        w.writerow(["track_name", "artist", "album", "duration", "year", "playlists", "liked"])
+        w.writerow(["track_id", "track_name", "artist", "album", "duration", "year", "playlists", "liked"])
         for row in unmatched_rows:
             duration = format_duration(duration_ms=row['duration_ms'])
             
             w.writerow([
+                row['track_id'],
                 row['name'], row['artist'], row['album'],
                 duration, row['year'] or "", row['playlist_count'],
                 format_liked(row['is_liked'])
@@ -85,6 +86,9 @@ def _write_html(html_path: Path, unmatched_rows: list, provider: str) -> None:
     html_rows = []
     
     for row in unmatched_rows:
+        # Track ID (monospaced for easy copying)
+        track_id_display = f'<code style="font-size: 0.85em">{row["track_id"]}</code>'
+        
         # Create provider links for track, artist, and album
         track_url = links.track_url(row['track_id'])
         track_link = f'<a href="{track_url}" target="_blank" title="Open in {provider.title()}">{row["name"] or "Unknown"}</a>'
@@ -113,6 +117,7 @@ def _write_html(html_path: Path, unmatched_rows: list, provider: str) -> None:
         liked_display = format_liked(row['is_liked'])
         
         html_rows.append([
+            track_id_display,
             track_link,
             artist_link,
             album_link,
@@ -124,10 +129,10 @@ def _write_html(html_path: Path, unmatched_rows: list, provider: str) -> None:
     
     html_content = get_html_template(
         title="Unmatched Tracks",
-        columns=["Track", "Artist", "Album", "Duration", "Year", "Playlists", "Liked"],
+        columns=["Track ID", "Track", "Artist", "Album", "Duration", "Year", "Playlists", "Liked"],
         rows=html_rows,
         description=f"Total unmatched tracks: {len(unmatched_rows):,}",
-        default_order=[[5, "desc"]],  # Sort by Playlists DESC
+        default_order=[[6, "desc"]],  # Sort by Playlists DESC (column index shifted by 1)
         csv_filename="unmatched_tracks.csv",
         active_page="unmatched_tracks"
     )

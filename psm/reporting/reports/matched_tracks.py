@@ -99,7 +99,7 @@ def _write_csv(csv_path: Path, matched_rows: list) -> None:
     with csv_path.open('w', newline='', encoding='utf-8') as fh:
         w = csv.writer(fh)
         w.writerow([
-            "track_name", "track_artist", "track_album", "track_duration", "track_year",
+            "track_id", "track_name", "track_artist", "track_album", "track_duration", "track_year",
             "file_path", "file_title", "file_artist", "file_album", "file_duration",
             "score", "confidence", "playlists", "liked"
         ])
@@ -108,6 +108,7 @@ def _write_csv(csv_path: Path, matched_rows: list) -> None:
             track_duration = format_duration(duration_ms=row['track_duration_ms'])
             file_duration = format_duration(duration_sec=row['file_duration_sec'])
             w.writerow([
+                row['track_id'],
                 row['track_name'], row['track_artist'], row['track_album'],
                 track_duration, row['track_year'] or "",
                 row['file_path'], row['file_title'], row['file_artist'],
@@ -124,6 +125,9 @@ def _write_html(html_path: Path, matched_rows: list, provider: str) -> None:
     html_rows = []
     
     for row in matched_rows:
+        # Track ID (monospaced for easy copying)
+        track_id_display = f'<code style="font-size: 0.85em">{row["track_id"]}</code>'
+        
         confidence = _extract_confidence(row['method'])
         confidence_badge_class = get_confidence_badge_class(confidence)
         confidence_badge = format_badge(confidence, confidence_badge_class)
@@ -159,6 +163,7 @@ def _write_html(html_path: Path, matched_rows: list, provider: str) -> None:
         liked_display = format_liked(row['is_liked'])
         
         html_rows.append([
+            track_id_display,
             track_link,
             artist_link,
             album_link,
@@ -178,13 +183,13 @@ def _write_html(html_path: Path, matched_rows: list, provider: str) -> None:
     html_content = get_html_template(
         title="Matched Tracks",
         columns=[
-            "Track", "Artist", "Album", "Duration", "Year",
+            "Track ID", "Track", "Artist", "Album", "Duration", "Year",
             "File", "Local Title", "Local Artist", "Local Album", "Local Duration",
             "Score", "Playlists", "Liked", "Status"
         ],
         rows=html_rows,
         description=f"Total matched tracks: {len(matched_rows):,}",
-        default_order=[[11, "asc"], [10, "desc"]],  # Sort by Status, then Score DESC
+        default_order=[[12, "asc"], [11, "desc"]],  # Sort by Status, then Score DESC (indices shifted by 1)
         csv_filename="matched_tracks.csv",
         active_page="matched_tracks"
     )

@@ -348,6 +348,42 @@ Perfect for tweaking report formats or sharing results without re-processing.
 
 All HTML reports include sortable tables, live search, pagination, clickable Spotify links, and CSV export. Powered by jQuery DataTables.
 
+### Troubleshooting Unmatched Tracks 🔍
+
+When tracks don't match, use the `diagnose` command to understand why:
+
+**Workflow:**
+1. Check `unmatched_tracks` report (CSV or HTML)
+2. Copy the Track ID from the first column
+3. Run diagnose command:
+
+```bash
+run.bat diagnose <track_id>
+```
+
+**What you'll see:**
+- **Track metadata**: Artist, title, album, duration, normalized string
+- **Match status**: Already matched, or why not
+- **Top 5 closest files**: With fuzzy match scores and duration comparison
+- **Recommendations**: Specific fixes (tag corrections, threshold adjustments)
+
+**Example:**
+```bash
+# Diagnose a specific unmatched track
+run.bat diagnose 3n3Ppam7vgaVa1iaRUc9Lp
+
+# Show top 10 closest files instead of 5
+run.bat diagnose --top-n 10 3n3Ppam7vgaVa1iaRUc9Lp
+```
+
+**Common issues revealed:**
+- File tags don't match Spotify metadata (artist/title spelling)
+- Match score just below threshold (→ lower threshold slightly)
+- File not in library (→ download and scan)
+- Duration mismatch too large (→ check if correct version)
+
+See [docs/troubleshooting.md](docs/troubleshooting.md) for more details.
+
 **Reports Location:** `data/export/reports/` (configurable via `PSM__REPORTS__DIRECTORY`)
 
 **Open Reports:**

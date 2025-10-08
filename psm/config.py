@@ -43,7 +43,7 @@ _DEFAULTS: Dict[str, Any] = {
     "matching": {
         "fuzzy_threshold": 0.78,
         "use_year": False,
-        "duration_tolerance": 2.0,
+        "duration_tolerance": 5.0,
         "show_unmatched_tracks": 20,
         "show_unmatched_albums": 20,
         "max_candidates_per_track": 500,  # Performance safeguard: cap candidates per track

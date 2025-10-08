@@ -78,7 +78,7 @@ def _write_csv(csv_path: Path, tracks: list, playlist_info: dict) -> None:
     with csv_path.open('w', newline='', encoding='utf-8') as fh:
         w = csv.writer(fh)
         w.writerow([
-            "#", "track_name", "artist", "album", "duration", "year",
+            "#", "track_id", "track_name", "artist", "album", "duration", "year",
             "status", "local_file"
         ])
         for idx, row in enumerate(tracks, 1):
@@ -88,6 +88,7 @@ def _write_csv(csv_path: Path, tracks: list, playlist_info: dict) -> None:
             
             w.writerow([
                 idx,
+                row['track_id'],
                 row['track_name'],
                 row['artist'] or "",
                 row['album'] or "",
@@ -115,6 +116,9 @@ def _write_html(
     coverage_pct = (matched_count / total_count * 100) if total_count > 0 else 0
     
     for idx, row in enumerate(tracks, 1):
+        # Track ID (monospaced for easy copying)
+        track_id_display = f'<code style="font-size: 0.85em">{row["track_id"]}</code>'
+        
         # Status badge
         if row['is_matched']:
             status_badge = '<span class="badge badge-success">MATCHED</span>'
@@ -152,6 +156,7 @@ def _write_html(
         
         html_rows.append([
             idx,
+            track_id_display,
             track_link,
             artist_link,
             album_link,
@@ -178,7 +183,7 @@ def _write_html(
     
     html_content = get_html_template(
         title=f"Playlist: {playlist_info['name']}",
-        columns=["#", "Track", "Artist", "Album", "Duration", "Year", "Status", "Local File"],
+        columns=["#", "Track ID", "Track", "Artist", "Album", "Duration", "Year", "Status", "Local File"],
         rows=html_rows,
         description=description,
         default_order=[[0, "asc"]],  # Sort by track number

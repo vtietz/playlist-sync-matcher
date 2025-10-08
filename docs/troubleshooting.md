@@ -33,7 +33,44 @@ Register `https://localhost:9876/callback`.
    - Check Spotify metadata vs. what you expected
    - Use search/sort to find problem areas
 
-3. **Run library quality analysis**:
+3. **Diagnose specific tracks** 🆕:
+   ```bash
+   # Find Track ID in unmatched_tracks report (first column)
+   run.bat diagnose <track_id>
+   ```
+   This shows:
+   - **Track metadata** from Spotify (artist, title, album, normalized form)
+   - **Top 5 closest files** in your library with match scores
+   - **Why no match** (below threshold, missing file, tag mismatch)
+   - **Specific recommendations** (tag fixes, threshold adjustments)
+
+   Example output:
+   ```
+   🎵 Track Information
+   ======================================================================
+   Track:    Element Of Crime - Mach das Licht aus, wenn du gehst
+   Album:    Damals hinterm Mond
+   Duration: 3:31 (211000ms)
+   Normalized: element of crime mach das licht aus wenn du gehst
+   
+   ❌ Track is UNMATCHED
+   ======================================================================
+   Fuzzy threshold: 78%
+   
+   📊 Top 5 closest files:
+   
+   1. Score: 94.2% - ⚠️  Just below threshold
+      Path: Z:\Artists\Element Of Crime\Damals hinterm Mond\04 - Mach das Licht aus, wenn Du gehst.mp3
+      File tags: Element of Crime - Mach das Licht aus, wenn Du gehst
+      Duration: 3:31 (diff: 0.0s)
+   
+   💡 Recommendations:
+   • The closest file is very close to the threshold!
+     → Consider lowering fuzzy_threshold from 78% to 92%
+     → Edit config.yml: matching.fuzzy_threshold
+   ```
+
+4. **Run library quality analysis**:
    ```bash
    run.bat analyze  # Generates metadata_quality report
    ```
@@ -41,7 +78,7 @@ Register `https://localhost:9876/callback`.
    - Fix metadata using your preferred tag editor
    - Sort HTML report by album to batch-edit efficiently
 
-4. **Re-scan and re-match after fixing tags**:
+5. **Re-scan and re-match after fixing tags**:
    ```bash
    run.bat scan   # Pick up updated tags
    run.bat match  # Re-match with better metadata

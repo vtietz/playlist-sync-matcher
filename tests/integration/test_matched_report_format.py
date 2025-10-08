@@ -39,26 +39,28 @@ def test_matched_tracks_report_has_file_path(tmp_path):
         reader = csv.reader(f)
         headers = next(reader)
         
-        # Check standardized header order: track_name, track_artist, track_album, track_duration, track_year, file_path, file_title, file_artist, file_album, file_duration, score, confidence
-        assert headers[0] == "track_name"
-        assert headers[1] == "track_artist"
-        assert headers[2] == "track_album"
-        assert headers[3] == "track_duration"
-        assert headers[4] == "track_year"
-        assert headers[5] == "file_path"  # File path is in standardized position
-        assert headers[6] == "file_title"
-        assert headers[7] == "file_artist"
-        assert headers[8] == "file_album"
-        assert headers[9] == "file_duration"
-        assert headers[10] == "score"
-        assert headers[11] == "confidence"
+        # Check standardized header order: track_id, track_name, track_artist, track_album, track_duration, track_year, file_path, file_title, file_artist, file_album, file_duration, score, confidence
+        assert headers[0] == "track_id"
+        assert headers[1] == "track_name"
+        assert headers[2] == "track_artist"
+        assert headers[3] == "track_album"
+        assert headers[4] == "track_duration"
+        assert headers[5] == "track_year"
+        assert headers[6] == "file_path"  # File path is in standardized position
+        assert headers[7] == "file_title"
+        assert headers[8] == "file_artist"
+        assert headers[9] == "file_album"
+        assert headers[10] == "file_duration"
+        assert headers[11] == "score"
+        assert headers[12] == "confidence"
         
         # Check data row - standardized format
         row = next(reader)
-        assert row[0] == "Test Song"  # track_name (now first column)
-        assert row[1] == "Test Artist"  # track_artist
-        assert row[5] == "Z:\\Music\\test.mp3"  # file_path (column 5)
-        assert row[11] == "CERTAIN"  # confidence (last column)
+        assert row[0] == "track1"  # track_id (now first column)
+        assert row[1] == "Test Song"  # track_name (now second column)
+        assert row[2] == "Test Artist"  # track_artist
+        assert row[6] == "Z:\\Music\\test.mp3"  # file_path (column 6)
+        assert row[12] == "CERTAIN"  # confidence (last column)
     
     # Verify HTML was generated
     html_path = reports['matched'][1]
