@@ -211,14 +211,31 @@ run.bat version       # Show version info
 Builds a searchable database of your music files:
 
 ```bash
-run.bat scan [--fast] [--paths PATH1 PATH2 ...]
+run.bat scan                              # Full scan of all library paths
+run.bat scan --quick                      # Scan only changed files since last run
+run.bat scan --since "2 hours ago"        # Scan files modified in last 2 hours
+run.bat scan --paths ./NewAlbum/          # Scan specific directory
+run.bat scan --watch                      # Monitor filesystem and auto-update DB
 ```
 
 **Features**:
 - **Visual Progress**: Shows directories being scanned + live progress counter (every 100 files)
-- **Fast Mode** (`--fast`): Skips files unchanged since last scan (compares mtime)
+- **Smart Incremental**: `--quick` mode only scans new/modified files
+- **Time-Based Filtering**: `--since` scans files modified after specified time
+- **Watch Mode**: `--watch` monitors library and updates DB automatically
 - **Cleanup**: Automatically removes deleted files from database
 - **Debug Mode**: Set `LOG_LEVEL=DEBUG` to see current directory being scanned
+
+**Watch Mode** 🆕:
+```bash
+# Continuously monitor library for changes
+run.bat scan --watch --debounce 2
+
+# Changes are detected and processed automatically
+# Press Ctrl+C to stop
+```
+
+See [docs/watch-mode.md](docs/watch-mode.md) for comprehensive watch mode guide.
 
 **Example Output**:
 ```

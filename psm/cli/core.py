@@ -256,12 +256,162 @@ def login(ctx: click.Context, force: bool):
 
 
 @cli.command()
+@click.option('--since', type=str, help='Only scan files modified since this time (e.g., "2 hours ago", "2025-10-08 10:00")')
+@click.option('--quick', is_flag=True, help='Smart mode: only scan new/modified files (inferred from DB)')
+@click.option('--paths', multiple=True, help='Override config: scan only these specific paths')
+@click.option('--watch', is_flag=True, help='Watch library paths and continuously update DB on changes')
+@click.option('--debounce', type=float, default=2.0, help='Seconds to wait after last change before processing (watch mode only)')
 @click.pass_context
-def scan(ctx: click.Context):
-    """Scan local music library and index track metadata."""
+def scan(ctx: click.Context, since: str | None, quick: bool, paths: tuple, watch: bool, debounce: float):
+    """Scan local music library and index track metadata.
+    
+    Modes:
+    - Normal: Full scan of all library paths (default)
+    - --since "TIME": Only files modified after specified time
+    - --quick: Automatically detect and scan only changed files
+    - --paths PATH...: Scan only specific directories or files
+    - --watch: Monitor filesystem and update DB automatically
+    
+    Examples:
+      psm scan                              # Full scan
+      psm scan --since "2 hours ago"        # Only recently modified
+      psm scan --quick                      # Smart incremental scan
+      psm scan --paths ./newalbum/          # Scan specific directory
+      psm scan --watch                      # Monitor and auto-update
+      psm scan --watch --debounce 5         # Watch with 5s debounce
+    """
+    from ..ingest.library import scan_library_incremental, parse_time_string, scan_specific_files
+    
     cfg = ctx.obj
-    with get_db(cfg) as db:
-        scan_library(db, cfg)
+    
+    # Watch mode - continuous monitoring
+    if watch:
+        if since or quick or paths:
+            raise click.UsageError("--watch cannot be combined with --since, --quick, or --paths")
+        
+        from ..services.watch_service import LibraryWatcher
+        from ..utils.output import success, info, warning
+        
+        def handle_changes(changed_files: list):
+            """Callback for filesystem changes."""
+            click.echo(info(f"Detected {len(changed_files)} changed file(s)"))
+            
+            try:
+                with get_db(cfg) as db:
+                    result = scan_specific_files(db, cfg, changed_files)
+                    import time
+                    db.set_meta('last_scan_time', str(time.time()))
+                    db.set_meta('library_last_modified', str(time.time()))
+                
+                # Print summary
+                changes = []
+                if result.inserted > 0:
+                    changes.append(f"{result.inserted} new")
+                if result.updated > 0:
+                    changes.append(f"{result.updated} updated")
+                if result.deleted > 0:
+                    changes.append(f"{result.deleted} deleted")
+                
+                if changes:
+                    click.echo(success(f"✓ {', '.join(changes)}"))
+                else:
+                    click.echo(info("No changes"))
+                    
+            except Exception as e:
+                click.echo(warning(f"Error processing changes: {e}"), err=True)
+                logger.error(f"Watch mode error: {e}", exc_info=True)
+        
+        click.echo(info(f"Starting watch mode (debounce={debounce}s)..."))
+        click.echo(info("Press Ctrl+C to stop"))
+        click.echo("")
+        
+        watcher = None
+        try:
+            watcher = LibraryWatcher(cfg, handle_changes, debounce_seconds=debounce)
+            watcher.start()
+            
+            # Keep running until interrupted
+            import time
+            while True:
+                time.sleep(1)
+                
+        except KeyboardInterrupt:
+            click.echo("")
+            click.echo(info("Stopping watch mode..."))
+            if watcher:
+                watcher.stop()
+            click.echo(success("Watch mode stopped"))
+            return
+        except Exception as e:
+            click.echo(warning(f"Watch mode error: {e}"), err=True)
+            logger.error(f"Watch mode failed: {e}", exc_info=True)
+            if watcher:
+                watcher.stop()
+            raise
+    
+    # Determine scan mode (non-watch)
+    changed_since = None
+    specific_paths = None
+    
+    if since and quick:
+        raise click.UsageError("Cannot use both --since and --quick together")
+    
+    if since:
+        try:
+            changed_since = parse_time_string(since)
+            from datetime import datetime
+            click.echo(f"Scanning files modified since {datetime.fromtimestamp(changed_since).strftime('%Y-%m-%d %H:%M:%S')}")
+        except ValueError as e:
+            raise click.UsageError(str(e))
+    
+    if quick:
+        # Get last scan time from database
+        with get_db(cfg) as db:
+            last_scan = db.get_meta('last_scan_time')
+        if last_scan:
+            changed_since = float(last_scan)
+            from datetime import datetime
+            click.echo(f"Quick mode: scanning files modified since last scan ({datetime.fromtimestamp(changed_since).strftime('%Y-%m-%d %H:%M:%S')})")
+        else:
+            click.echo("Quick mode: no previous scan found, performing full scan")
+    
+    if paths:
+        from pathlib import Path
+        specific_paths = [Path(p) for p in paths]
+        click.echo(f"Scanning {len(specific_paths)} specific path(s)")
+    
+    # Perform scan
+    if changed_since is not None or specific_paths:
+        # Incremental scan
+        with get_db(cfg) as db:
+            result = scan_library_incremental(db, cfg, changed_since=changed_since, specific_paths=specific_paths)
+            # Update last scan time
+            import time
+            db.set_meta('last_scan_time', str(time.time()))
+            db.set_meta('library_last_modified', str(time.time()))
+        
+        # Print summary
+        from ..utils.logging_helpers import format_summary
+        summary = format_summary(
+            new=result.inserted,
+            updated=result.updated,
+            unchanged=result.skipped,
+            deleted=result.deleted,
+            duration_seconds=result.duration_seconds,
+            item_name="Library"
+        )
+        logger.info(summary)
+        if result.errors:
+            logger.debug(f"Errors: {result.errors}")
+    else:
+        # Full scan (existing behavior)
+        with get_db(cfg) as db:
+            scan_library(db, cfg)
+            # Update last scan time
+            import time
+            db.set_meta('last_scan_time', str(time.time()))
+            db.set_meta('library_last_modified', str(time.time()))
+    
     click.echo('Scan complete')
 
 
