@@ -229,14 +229,13 @@ def _run_scoring_engine(db: Database, config: Dict[str, Any]) -> int:
         if processed - last_progress_log >= progress_interval:
             elapsed = time.time() - start
             match_rate = (matches / processed * 100) if processed > 0 else 0
-            log_progress(
-                processed=processed,
-                total=len(tracks),
-                new=matches,
-                updated=0,
-                skipped=processed - matches,
-                elapsed_seconds=elapsed,
-                item_name="tracks"
+            unmatched = processed - matches
+            logger.info(
+                f"{click.style(f'{processed}/{len(tracks)}', fg='cyan')} tracks "
+                f"({processed/len(tracks)*100:.0f}%) | "
+                f"{click.style(f'{matches} matched', fg='green')} | "
+                f"{click.style(f'{unmatched} unmatched', fg='yellow')} | "
+                f"{processed/elapsed:.1f} tracks/s"
             )
             logger.info(f"  Match rate: {click.style(f'{match_rate:.1f}%', fg='cyan')} | Confidence breakdown: {_get_confidence_summary(db, matches)}")
             last_progress_log = processed
