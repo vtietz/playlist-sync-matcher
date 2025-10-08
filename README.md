@@ -206,9 +206,11 @@ run.bat build --watch --no-export  # Skip playlist export
 > 
 > **Database changes** (e.g., after `run.bat pull` in another terminal):
 > - Detects database modification (new/changed tracks from Spotify)
-> - Full re-match of all library files against updated tracks
-> - Updates all playlists
-> - Regenerates all reports
+> - **Incremental match**: matches all library files against only changed tracks
+> - Updates affected playlists
+> - Regenerates reports
+> 
+> **Performance**: Both library and database changes use incremental matching for fast updates (typically 3-6 seconds vs 45+ seconds for full rebuild).
 > 
 > **Workflow**:
 > ```bash

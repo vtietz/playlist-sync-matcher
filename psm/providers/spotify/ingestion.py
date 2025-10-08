@@ -54,6 +54,9 @@ def ingest_playlists(db, client: 'SpotifyAPIClient', use_year: bool = False, for
         client: SpotifyAPIClient instance
         use_year: Include year in normalization (from config matching.use_year)
         force_refresh: Force refresh all tracks even if playlists unchanged (populates new fields)
+        
+    Returns:
+        set: Set of track IDs that were added or updated
     """
     click.echo(click.style("=== Pulling playlists from Spotify ===", fg='cyan', bold=True))
     if force_refresh:
@@ -62,6 +65,7 @@ def ingest_playlists(db, client: 'SpotifyAPIClient', use_year: bool = False, for
     new_playlists = 0
     updated_playlists = 0
     unchanged_playlists = 0
+    changed_track_ids = set()  # Track IDs that were upserted
     
     # Get and store current user ID for owner comparison
     try:
@@ -137,6 +141,7 @@ def ingest_playlists(db, client: 'SpotifyAPIClient', use_year: bool = False, for
                 'normalized': combo,
                 'year': year,
             }, provider=PROVIDER_NAME)
+            changed_track_ids.add(t_id)  # Track this ID as changed
         db.upsert_playlist(pid, name, snapshot_id, owner_id, owner_name, provider=PROVIDER_NAME)
         db.replace_playlist_tracks(pid, simplified, provider=PROVIDER_NAME)
         db.commit()
@@ -167,6 +172,8 @@ def ingest_playlists(db, client: 'SpotifyAPIClient', use_year: bool = False, for
         item_name="Playlists"
     )
     logger.info(summary)
+    
+    return changed_track_ids
 
 
 def ingest_liked(db, client: 'SpotifyAPIClient', use_year: bool = False):
@@ -179,6 +186,9 @@ def ingest_liked(db, client: 'SpotifyAPIClient', use_year: bool = False):
         db: Database instance
         client: SpotifyAPIClient instance
         use_year: Include year in normalization (from config matching.use_year)
+        
+    Returns:
+        set: Set of track IDs that were added or updated
     """
     click.echo(click.style("=== Pulling liked tracks ===", fg='cyan', bold=True))
     last_added_at = db.get_meta('liked_last_added_at')
@@ -186,6 +196,7 @@ def ingest_liked(db, client: 'SpotifyAPIClient', use_year: bool = False):
     t0 = time.time()
     new_tracks = 0
     updated_tracks = 0
+    changed_track_ids = set()  # Track IDs that were upserted
     
     for item in client.liked_tracks():
         added_at = item.get('added_at')
@@ -233,6 +244,7 @@ def ingest_liked(db, client: 'SpotifyAPIClient', use_year: bool = False):
             'year': year,
         }, provider=PROVIDER_NAME)
         db.upsert_liked(t_id, added_at, provider=PROVIDER_NAME)
+        changed_track_ids.add(t_id)  # Track this ID as changed
         
         # Determine if new or updated
         if existing_track:
@@ -268,6 +280,8 @@ def ingest_liked(db, client: 'SpotifyAPIClient', use_year: bool = False):
     if newest_seen and newest_seen != last_added_at:
         db.set_meta('liked_last_added_at', newest_seen)
     db.commit()
+    
+    return changed_track_ids
 
 
 __all__ = ["extract_year", "ingest_playlists", "ingest_liked"]

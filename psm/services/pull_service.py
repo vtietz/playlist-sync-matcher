@@ -31,6 +31,7 @@ class PullResult:
         self.liked_tracks = 0
         self.total_tracks = 0
         self.duration_seconds = 0.0
+        self.changed_track_ids: set[str] = set()  # Track IDs that were added/updated
 
 
 def pull_data(
@@ -96,8 +97,11 @@ def pull_data(
     client = provider_instance.create_client(tok_dict['access_token'])
     use_year = matching_config.get('use_year', False)
     
-    ingest_playlists(db, client, use_year=use_year, force_refresh=force_refresh)
-    ingest_liked(db, client, use_year=use_year)
+    playlist_track_ids = ingest_playlists(db, client, use_year=use_year, force_refresh=force_refresh)
+    liked_track_ids = ingest_liked(db, client, use_year=use_year)
+    
+    # Combine changed track IDs from both sources
+    result.changed_track_ids = playlist_track_ids | liked_track_ids
     
     # Gather statistics
     result.playlist_count = db.count_playlists()
