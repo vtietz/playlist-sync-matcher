@@ -52,9 +52,6 @@ def run_matching(
     result = MatchResult()
     start = time.time()
     
-    # Log operation header
-    logger.info("=== Matching tracks to library files ===")
-    
     # Convert dict config to typed MatchingConfig
     matching_dict = config.get('matching', {})
     matching_config = MatchingConfig(

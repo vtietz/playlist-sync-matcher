@@ -170,7 +170,33 @@ def export_playlists(
     cur = db.conn.execute("SELECT id, name, owner_id, owner_name FROM playlists")
     playlists = cur.fetchall()
     
+    # Convert to list of dicts for easier sorting
+    playlists = [dict(pl) for pl in playlists]
+    
+    # Sort playlists: 1) by owner_name (alphabetical), 2) by playlist name (alphabetical)
+    # Handle None values for owner fields
+    def sort_key(pl):
+        owner = pl.get('owner_name') or pl.get('owner_id') or ''
+        name = pl.get('name') or ''
+        return (owner.lower(), name.lower())
+    
+    playlists.sort(key=sort_key)
+    
     total_playlists = len(playlists)
+    
+    # Group playlists by owner for logging
+    from collections import defaultdict
+    playlists_by_owner = defaultdict(list)
+    for pl in playlists:
+        owner = pl.get('owner_name') or pl.get('owner_id') or 'Unknown'
+        playlists_by_owner[owner].append(pl)
+    
+    # Log export summary by owner (INFO mode)
+    if not logger.isEnabledFor(logging.DEBUG):
+        logger.info(f"Exporting {total_playlists} playlist(s) from {len(playlists_by_owner)} owner(s):")
+        for owner in sorted(playlists_by_owner.keys()):
+            count = len(playlists_by_owner[owner])
+            logger.info(f"  • {owner}: {count} playlist(s)")
     
     for idx, pl in enumerate(playlists, 1):
         pl_id = pl['id']
@@ -202,8 +228,9 @@ def export_playlists(
         tracks = [dict(r) | {'position': r['position']} for r in track_rows]
         playlist_meta = {'name': pl['name'], 'id': pl_id}
         
-        # Log progress
-        logger.info(f"[{idx}/{total_playlists}] Exporting: {pl['name']}")
+        # Log progress (only in DEBUG mode - INFO mode shows per-owner summary above)
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(f"[{idx}/{total_playlists}] Exporting: {pl['name']}")
         
         # Dispatch to export function based on mode and capture actual path
         if mode == 'strict':
@@ -224,7 +251,8 @@ def export_playlists(
     if include_liked_songs:
         liked_count = db.count_liked_tracks()
         if liked_count > 0:
-            logger.info(f"Exporting Liked Songs as virtual playlist ({liked_count} tracks)")
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug(f"Exporting Liked Songs as virtual playlist ({liked_count} tracks)")
             _export_liked_tracks(
                 db, 
                 export_dir, 

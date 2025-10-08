@@ -46,8 +46,12 @@ class WatchBuildConfig:
 def _handle_library_changes(
     changed_file_paths: list,
     watch_config: WatchBuildConfig
-) -> None:
-    """Handle library file changes with incremental scan and match."""
+) -> float:
+    """Handle library file changes with incremental scan and match.
+    
+    Returns:
+        Updated database mtime after all operations complete
+    """
     logger.info("")
     logger.info(f"▶ Library changed ({len(changed_file_paths)} files)")
     
@@ -60,11 +64,16 @@ def _handle_library_changes(
             # Track which file IDs were affected
             file_ids_to_match = []
             
-            # Get file IDs for paths that were scanned
+            # Get file IDs for paths that were scanned (use resolved paths to match DB storage)
             for path in changed_file_paths:
+                # Normalize path to match database storage format (resolved absolute path)
+                if not isinstance(path, Path):
+                    path = Path(path)
+                resolved_path = str(path.resolve())
+                
                 file_row = db.conn.execute(
                     "SELECT id FROM library_files WHERE path = ?",
-                    (str(path),)
+                    (resolved_path,)
                 ).fetchone()
                 if file_row:
                     file_ids_to_match.append(file_row['id'])
@@ -100,6 +109,9 @@ def _handle_library_changes(
     
     click.echo("")
     click.echo(click.style("Watching for changes...", fg='cyan'))
+    
+    # Return updated DB mtime to prevent false-positive database change detection
+    return watch_config.db_path.stat().st_mtime if watch_config.db_path.exists() else 0.0
 
 
 def _handle_database_changes(watch_config: WatchBuildConfig) -> None:
@@ -207,7 +219,9 @@ def run_watch_build(watch_config: WatchBuildConfig) -> None:
     try:
         # Create library file change handler
         def library_change_handler(changed_file_paths: list):
-            _handle_library_changes(changed_file_paths, watch_config)
+            nonlocal last_db_mtime  # Allow updating parent scope variable
+            updated_mtime = _handle_library_changes(changed_file_paths, watch_config)
+            last_db_mtime = updated_mtime  # Update to prevent false-positive DB change detection
         
         # Create and start library file watcher
         watcher = LibraryWatcher(

@@ -81,7 +81,8 @@ class DebouncedLibraryWatcher(FileSystemEventHandler):
             logger.debug(f"[watch] Ignoring {event.event_type}: {path} (matches ignore pattern)")
             return
         
-        logger.info(f"[watch] {event.event_type}: {path}")
+        # Log event only in DEBUG mode to avoid spam
+        logger.debug(f"[watch] {event.event_type}: {path}")
         
         with self.lock:
             self.pending_paths.add(path)
@@ -114,7 +115,13 @@ class DebouncedLibraryWatcher(FileSystemEventHandler):
             paths_to_process = list(self.pending_paths)
             self.pending_paths.clear()
         
+        # Log summary with file count
         logger.info(f"[watch] Processing {len(paths_to_process)} changed file(s) after debounce...")
+        
+        # In DEBUG mode, show individual files
+        if logger.isEnabledFor(logging.DEBUG):
+            for p in paths_to_process:
+                logger.debug(f"  - {p}")
         
         try:
             self.on_change(paths_to_process)
