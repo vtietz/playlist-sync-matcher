@@ -123,18 +123,18 @@ def export_playlists(
         tracks = [dict(r) | {'position': r['position']} for r in track_rows]
         playlist_meta = {'name': pl['name'], 'id': pl_id}
         
-        # Dispatch to export function based on mode
+        # Dispatch to export function based on mode and capture actual path
         if mode == 'strict':
-            export_strict(playlist_meta, tracks, target_dir)
+            actual_path = export_strict(playlist_meta, tracks, target_dir)
         elif mode == 'mirrored':
-            export_mirrored(playlist_meta, tracks, target_dir)
+            actual_path = export_mirrored(playlist_meta, tracks, target_dir)
         elif mode == 'placeholders':
-            export_placeholders(playlist_meta, tracks, target_dir, placeholder_extension=placeholder_ext)
+            actual_path = export_placeholders(playlist_meta, tracks, target_dir, placeholder_extension=placeholder_ext)
         else:
             logger.warning(f"Unknown export mode '{mode}', defaulting to strict")
-            export_strict(playlist_meta, tracks, target_dir)
+            actual_path = export_strict(playlist_meta, tracks, target_dir)
         
-        result.exported_files.append(str(target_dir / f"{pl['name']}.m3u"))
+        result.exported_files.append(str(actual_path))
     
     result.playlist_count = len(playlists)
     

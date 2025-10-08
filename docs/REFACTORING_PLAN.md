@@ -53,27 +53,45 @@ This refactoring addresses five core architectural issues while maintaining 100%
 
 ---
 
-### PR2: ExportResult Path Correctness ⏸️ Not Started
-**Status**: Blocked by PR1  
-**Estimated Duration**: 1 day
+### PR2: ExportResult Path Correctness ✅ Complete
+**Status**: Complete (October 8, 2025)  
+**Duration**: ~15 minutes
 
 **Scope**:
-- [ ] Capture actual paths returned by export functions
-- [ ] Update `export_playlists()` to record real `.m3u8` paths with IDs
-- [ ] Verify consistency with `_export_liked_tracks()` handling
+- [x] Capture actual paths returned by export functions
+- [x] Update `export_playlists()` to record real `.m3u8` paths with IDs
+- [x] Verify consistency with `_export_liked_tracks()` handling
 
-**Files to Modify**:
-- `psm/services/export_service.py` - Fix `result.exported_files` recording
+**Files Modified**:
+- `psm/services/export_service.py` - Now captures `actual_path` from export functions
+
+**Changes**:
+```python
+# Before (WRONG - constructed path)
+export_strict(playlist_meta, tracks, target_dir)
+result.exported_files.append(str(target_dir / f"{pl['name']}.m3u"))
+
+# After (CORRECT - actual path from function)
+actual_path = export_strict(playlist_meta, tracks, target_dir)
+result.exported_files.append(str(actual_path))
+```
+
+**Test Results**:
+- ✅ All 179 tests pass
+- ✅ `test_export_modes.py` - 3/3 passed
+- ✅ `test_liked_songs_export.py` - 5/5 passed
+- ✅ `test_organize_by_owner.py` - 2/2 passed
 
 **Acceptance Criteria**:
-- [ ] `result.exported_files` contains actual sanitized filenames with playlist IDs
-- [ ] Integration tests in `tests/integration/test_export_modes.py` pass
-- [ ] Integration tests in `tests/integration/test_liked_songs_export.py` pass
+- [x] `result.exported_files` contains actual sanitized filenames with playlist IDs
+- [x] Integration tests in `tests/integration/test_export_modes.py` pass
+- [x] Integration tests in `tests/integration/test_liked_songs_export.py` pass
+- [x] Path format matches: `{sanitized_name}_{playlist_id_8chars}.m3u8`
 
 ---
 
 ### PR3: CandidateSelector Utility ⏸️ Not Started
-**Status**: Blocked by PR2  
+**Status**: Blocked by PR2 ✅ Ready to start  
 **Estimated Duration**: 2 days
 
 **Scope**:
@@ -279,12 +297,14 @@ Each PR is atomic and can be reverted independently:
 
 ## Timeline Estimate
 
-- **Week 1 (Oct 8-14)**: PR1, PR2
-- **Week 2 (Oct 15-21)**: PR3, PR4a, PR4b
+- **Week 1 (Oct 8-14)**: ✅ PR1, ✅ PR2, PR3 (in progress)
+- **Week 2 (Oct 15-21)**: PR4a, PR4b
 - **Week 3 (Oct 22-28)**: PR5, PR6 (start)
 - **Week 4 (Oct 29-Nov 4)**: PR6 (finish), PR7
 
 **Total Effort**: ~10-14 days (staggered over 3-4 weeks for review cycles)
+
+**Progress**: 2/7 PRs complete (28.5%)
 
 ## Notes
 
