@@ -22,22 +22,19 @@ def temp_db():
 
 @pytest.fixture
 def sample_config():
-    """Sample configuration for testing."""
-    return {
-        'provider': 'spotify',
-        'matching': {
-            'duration_tolerance': 2.0,
-            'max_candidates_per_track': 500
-        }
-    }
+    """Sample MatchingConfig for testing."""
+    return MatchingConfig(
+        duration_tolerance=2.0,
+        max_candidates_per_track=500,
+        fuzzy_threshold=0.85
+    )
 
 
 def test_matching_engine_initialization(temp_db, sample_config):
     """Test that MatchingEngine initializes correctly."""
-    engine = MatchingEngine(temp_db, sample_config)
+    engine = MatchingEngine(temp_db, sample_config, provider='spotify')
     
     assert engine.db is temp_db
-    assert engine.config == sample_config
     assert engine.dur_tolerance == 2.0
     assert engine.max_candidates == 500
     assert engine.provider == 'spotify'
@@ -164,162 +161,39 @@ def test_matching_engine_with_multiple_candidates(temp_db, sample_config):
     assert 'adele' in matches[0]['path'].lower()
 
 
-def test_get_confidence_summary_with_no_matches(temp_db, sample_config):
-    """Test confidence summary when there are no matches."""
-    engine = MatchingEngine(temp_db, sample_config)
+@pytest.mark.parametrize("config,provider,expected_tolerance,expected_max_candidates,expected_provider", [
+    # Typed MatchingConfig with custom values
+    (
+        MatchingConfig(duration_tolerance=5.0, max_candidates_per_track=100, fuzzy_threshold=0.90),
+        'custom_provider',
+        5.0,
+        100,
+        'custom_provider'
+    ),
+    # Typed MatchingConfig with defaults
+    (
+        MatchingConfig(),
+        'spotify',
+        2.0,
+        500,
+        'spotify'
+    ),
+    # Typed MatchingConfig with mixed values
+    (
+        MatchingConfig(duration_tolerance=3.0, max_candidates_per_track=200, fuzzy_threshold=0.80),
+        'spotify',
+        3.0,
+        200,
+        'spotify'
+    ),
+])
+def test_matching_engine_config_variations(temp_db, config, provider, expected_tolerance, expected_max_candidates, expected_provider):
+    """Test MatchingEngine with various MatchingConfig instances."""
+    engine = MatchingEngine(temp_db, config, provider=provider)
     
-    summary = engine._get_confidence_summary(0)
-    
-    assert summary == "none"
-
-
-def test_get_confidence_summary_with_matches(temp_db, sample_config):
-    """Test confidence summary with various confidence levels."""
-    # Add some test matches with different confidence levels
-    temp_db.upsert_track({'id': 't1', 'name': 'T1', 'artist': 'A1', 'album': 'AL1', 
-                          'year': 2024, 'isrc': None, 'duration_ms': 180000, 'normalized': 't1 a1'}, provider='spotify')
-    temp_db.upsert_track({'id': 't2', 'name': 'T2', 'artist': 'A2', 'album': 'AL2',
-                          'year': 2024, 'isrc': None, 'duration_ms': 180000, 'normalized': 't2 a2'}, provider='spotify')
-    temp_db.upsert_track({'id': 't3', 'name': 'T3', 'artist': 'A3', 'album': 'AL3',
-                          'year': 2024, 'isrc': None, 'duration_ms': 180000, 'normalized': 't3 a3'}, provider='spotify')
-    
-    temp_db.add_library_file({'path': '/f1.mp3', 'title': 'T1', 'artist': 'A1', 'album': 'AL1',
-                              'year': 2024, 'duration': 180, 'normalized': 't1 a1', 'isrc': None})
-    temp_db.add_library_file({'path': '/f2.mp3', 'title': 'T2', 'artist': 'A2', 'album': 'AL2',
-                              'year': 2024, 'duration': 180, 'normalized': 't2 a2', 'isrc': None})
-    temp_db.add_library_file({'path': '/f3.mp3', 'title': 'T3', 'artist': 'A3', 'album': 'AL3',
-                              'year': 2024, 'duration': 180, 'normalized': 't3 a3', 'isrc': None})
-    
-    # Add matches with different confidence levels
-    temp_db.add_match('t1', 1, 0.95, 'score:CERTAIN', provider='spotify')
-    temp_db.add_match('t2', 2, 0.85, 'score:HIGH', provider='spotify')
-    temp_db.add_match('t3', 3, 0.75, 'score:MEDIUM', provider='spotify')
-    temp_db.commit()
-    
-    engine = MatchingEngine(temp_db, sample_config)
-    summary = engine._get_confidence_summary(3)
-    
-    assert 'certain' in summary
-    assert 'high' in summary
-    assert 'medium' in summary
-
-
-def test_normalize_file_dict():
-    """Test file dict normalization helper."""
-    raw = {
-        'id': 1,
-        'path': '/music/test.mp3',
-        'title': 'Test Song',
-        'artist': 'Test Artist',
-        'album': 'Test Album',
-        'year': 2024,
-        'duration': 180,
-        'normalized': 'test song test artist',
-        'isrc': 'TEST123'
-    }
-    
-    normalized = MatchingEngine._normalize_file_dict(raw)
-    
-    # Should have 'name' field matching 'title'
-    assert normalized['name'] == 'Test Song'
-    assert normalized['title'] == 'Test Song'
-    assert normalized['artist'] == 'Test Artist'
-    assert normalized['id'] == 1
-
-
-def test_normalize_file_dict_missing_title():
-    """Test normalization when title is missing."""
-    raw = {
-        'id': 1,
-        'path': '/music/test.mp3',
-        'artist': 'Test Artist',
-        'album': None,
-        'year': None,
-        'duration': None,
-        'normalized': '',
-        'isrc': None
-    }
-    
-    normalized = MatchingEngine._normalize_file_dict(raw)
-    
-    # Should handle missing fields gracefully
-    assert normalized['name'] == ''
-    assert normalized['title'] == ''
-    assert normalized['artist'] == 'Test Artist'
-    assert normalized['album'] is None
-
-
-def test_matching_engine_progress_logging(temp_db, sample_config, caplog):
-    """Test that progress logging happens at intervals."""
-    import logging
-    caplog.set_level(logging.INFO)
-    
-    # Add 150 tracks to trigger progress logging (progress_interval=100)
-    for i in range(150):
-        temp_db.upsert_track({
-            'id': f'track{i}',
-            'name': f'Track {i}',
-            'artist': 'Test Artist',
-            'album': 'Test Album',
-            'year': 2024,
-            'isrc': None,
-            'duration_ms': 180000,
-            'normalized': f'track {i} test artist'
-        }, provider='spotify')
-    
-    # Add some library files so there's something to match against
-    for i in range(10):
-        temp_db.add_library_file({
-            'path': f'/music/track{i}.mp3',
-            'title': f'Track {i}',
-            'artist': 'Test Artist',
-            'album': 'Test Album',
-            'year': 2024,
-            'duration': 180,
-            'normalized': f'track {i} test artist',
-            'isrc': None
-        })
-    
-    temp_db.commit()
-    
-    engine = MatchingEngine(temp_db, sample_config)
-    engine.match_all()
-    
-    # Check that progress was logged
-    log_messages = [record.message for record in caplog.records]
-    progress_logs = [msg for msg in log_messages if 'tracks/s' in msg]
-    
-    # Should have at least one progress log (at 100 tracks)
-    assert len(progress_logs) >= 1
-
-
-def test_matching_engine_custom_config(temp_db):
-    """Test engine with custom configuration values."""
-    custom_config = {
-        'provider': 'custom_provider',
-        'matching': {
-            'duration_tolerance': 5.0,
-            'max_candidates_per_track': 100
-        }
-    }
-    
-    engine = MatchingEngine(temp_db, custom_config)
-    
-    assert engine.dur_tolerance == 5.0
-    assert engine.max_candidates == 100
-    assert engine.provider == 'custom_provider'
-
-
-def test_matching_engine_default_config(temp_db):
-    """Test engine with missing config sections uses defaults."""
-    minimal_config = {}
-    
-    engine = MatchingEngine(temp_db, minimal_config)
-    
-    # Should use defaults
-    assert engine.dur_tolerance == 2.0
-    assert engine.max_candidates == 500
-    assert engine.provider == 'spotify'
+    assert engine.dur_tolerance == expected_tolerance
+    assert engine.max_candidates == expected_max_candidates
+    assert engine.provider == expected_provider
 
 
 def test_match_tracks_with_specific_ids(temp_db, sample_config):
@@ -660,35 +534,6 @@ def test_match_files_deletes_existing_matches(temp_db, sample_config):
     # Verify only one match exists (old one was deleted)
     matches = temp_db.conn.execute("SELECT * FROM matches WHERE file_id=1").fetchall()
     assert len(matches) == 1
-
-
-def test_matching_engine_with_typed_config(temp_db):
-    """Test MatchingEngine with typed MatchingConfig instead of dict."""
-    # Create typed config
-    typed_config = MatchingConfig(
-        duration_tolerance=3.0,
-        max_candidates_per_track=200,
-        fuzzy_threshold=0.80
-    )
-    
-    # Initialize engine with typed config
-    engine = MatchingEngine(temp_db, typed_config, provider='spotify')
-    
-    # Verify config values were applied
-    assert engine.dur_tolerance == 3.0
-    assert engine.max_candidates == 200
-    assert engine.provider == 'spotify'
-
-
-def test_matching_engine_from_dict_config_helper(temp_db, sample_config):
-    """Test from_dict_config class method for backward compatibility."""
-    # Use class method to create engine from dict
-    engine = MatchingEngine.from_dict_config(temp_db, sample_config)
-    
-    # Verify it initialized correctly
-    assert engine.dur_tolerance == 2.0
-    assert engine.max_candidates == 500
-    assert engine.provider == 'spotify'
 
 
 def test_matching_engine_typed_config_with_matching(temp_db):

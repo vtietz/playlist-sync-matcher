@@ -8,7 +8,7 @@ matching logic that was previously duplicated across multiple functions.
 from __future__ import annotations
 import time
 import logging
-from typing import Dict, Any, List, Union
+from typing import Dict, Any, List
 
 from .scoring import ScoringConfig, evaluate_pair, MatchConfidence
 from .candidate_selector import CandidateSelector
@@ -29,26 +29,22 @@ class MatchingEngine:
     5. Tracks progress and confidence distribution
     
     Example usage:
-        # With typed config
         matching_cfg = MatchingConfig(duration_tolerance=3.0, max_candidates_per_track=300)
         engine = MatchingEngine(db, matching_cfg, provider='spotify')
-        
-        # Or with dict config (backward compatible)
-        engine = MatchingEngine.from_dict_config(db, config_dict)
         matches_count = engine.match_all()
     """
     
     def __init__(
         self,
         db: Database,
-        matching_config: Union[MatchingConfig, Dict[str, Any]],
+        matching_config: MatchingConfig,
         provider: str = 'spotify'
     ):
         """Initialize the matching engine.
         
         Args:
             db: Database instance
-            matching_config: MatchingConfig instance or dict with 'matching' section
+            matching_config: MatchingConfig instance with matching parameters
             provider: Provider name (default: 'spotify')
         """
         self.db = db
@@ -56,37 +52,11 @@ class MatchingEngine:
         self.scoring_config = ScoringConfig()
         self.provider = provider
         
-        # Handle both typed and dict config for backward compatibility
-        if isinstance(matching_config, dict):
-            # Dict config (legacy): extract matching section
-            matching_cfg = matching_config.get('matching', {})
-            self.dur_tolerance = matching_cfg.get('duration_tolerance', 2.0)
-            self.max_candidates = int(matching_cfg.get('max_candidates_per_track', 500))
-            # Store raw dict for services that still need it
-            self.config = matching_config
-            if 'provider' in matching_config:
-                self.provider = matching_config['provider']
-        else:
-            # Typed config (preferred)
-            self.dur_tolerance = matching_config.duration_tolerance
-            self.max_candidates = matching_config.max_candidates_per_track
-            # Create dict representation for backward compatibility
-            self.config = {'matching': matching_config.to_dict(), 'provider': provider}
+        # Extract config values
+        self.dur_tolerance = matching_config.duration_tolerance
+        self.max_candidates = matching_config.max_candidates_per_track
         
         self.progress_interval = 100  # Log progress every N tracks
-    
-    @classmethod
-    def from_dict_config(cls, db: Database, config: Dict[str, Any]) -> 'MatchingEngine':
-        """Create engine from dict-based config (backward compatibility helper).
-        
-        Args:
-            db: Database instance
-            config: Full configuration dict with 'matching' section
-            
-        Returns:
-            MatchingEngine instance
-        """
-        return cls(db, config, provider=config.get('provider', 'spotify'))
     
     def match_all(self) -> int:
         """Match all tracks against all library files.

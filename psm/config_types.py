@@ -76,6 +76,11 @@ class ExportConfig:
     placeholder_extension: str = ".missing"
     organize_by_owner: bool = False
     include_liked_songs: bool = True  # Export Liked Songs as virtual playlist
+    path_format: str = "absolute"  # "absolute" or "relative"
+    use_library_roots: bool = True  # Reconstruct paths using config library roots
+    clean_before_export: bool = False  # Delete all existing .m3u files before export
+    auto_overwrite: bool = True  # Automatically overwrite existing files (false = prompt if newer)
+    detect_obsolete: bool = True  # Detect and report/prompt about obsolete playlists
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for backward compatibility."""

@@ -83,12 +83,12 @@ def test_organize_by_owner_structure():
         
         # Verify folder structure
         # Filenames now include first 8 chars of playlist ID
-        assert (export_dir / 'my_playlists' / 'My Playlist_pl1.m3u8').exists(), "User's playlist should be in my_playlists folder"
+        assert (export_dir / 'my_playlists' / 'My Playlist_pl1.m3u').exists(), "User's playlist should be in my_playlists folder"
         # sanitize_filename replaces spaces with underscores
         friend_folder = list((export_dir).glob('Friend*'))[0] if list((export_dir).glob('Friend*')) else None
         assert friend_folder is not None, "Friend's folder should exist"
-        assert (friend_folder / 'Friend Playlist_pl2.m3u8').exists(), "Friend's playlist should be in their folder"
-        assert (export_dir / 'other' / 'Unknown Playlist_pl3.m3u8').exists(), "Unknown owner playlist should be in 'other' folder"
+        assert (friend_folder / 'Friend Playlist_pl2.m3u').exists(), "Friend's playlist should be in their folder"
+        assert (export_dir / 'other' / 'Unknown Playlist_pl3.m3u').exists(), "Unknown owner playlist should be in 'other' folder"
 
 
 def test_flat_export_without_organization():
@@ -135,6 +135,6 @@ def test_flat_export_without_organization():
         
         # Verify flat structure
         # Filenames now include first 8 chars of playlist ID (pl1, pl2 are short, so they stay as is)
-        assert (export_dir / 'Playlist One_pl1.m3u8').exists(), "Playlist should be in root export dir"
-        assert (export_dir / 'Playlist Two_pl2.m3u8').exists(), "Playlist should be in root export dir"
+        assert (export_dir / 'Playlist One_pl1.m3u').exists(), "Playlist should be in root export dir"
+        assert (export_dir / 'Playlist Two_pl2.m3u').exists(), "Playlist should be in root export dir"
         assert not (export_dir / 'my_playlists').exists(), "No subfolders should be created"

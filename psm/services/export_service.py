@@ -21,6 +21,67 @@ class ExportResult:
     def __init__(self):
         self.playlist_count = 0
         self.exported_files: List[str] = []
+        self.obsolete_files: List[str] = []  # Files that exist but aren't in current playlists
+        self.cleaned_files: List[str] = []  # Files that were deleted during cleanup
+
+
+def _find_existing_m3u_files(export_dir: Path) -> List[Path]:
+    """Find all existing .m3u files in export directory (recursively).
+    
+    Args:
+        export_dir: Export directory to scan
+        
+    Returns:
+        List of .m3u file paths
+    """
+    if not export_dir.exists():
+        return []
+    return list(export_dir.rglob("*.m3u"))
+
+
+def _detect_obsolete_files(
+    existing_files: List[Path],
+    exported_files: List[str]
+) -> List[Path]:
+    """Detect files that exist but weren't just exported.
+    
+    Args:
+        existing_files: All existing .m3u files before export
+        exported_files: Files that were just exported
+        
+    Returns:
+        List of obsolete file paths
+    """
+    exported_set = {Path(f).resolve() for f in exported_files}
+    obsolete = []
+    for f in existing_files:
+        if f.resolve() not in exported_set:
+            obsolete.append(f)
+    return obsolete
+
+
+def _clean_export_directory(export_dir: Path) -> List[str]:
+    """Delete all .m3u files in export directory.
+    
+    Args:
+        export_dir: Export directory to clean
+        
+    Returns:
+        List of deleted file paths
+    """
+    deleted = []
+    if not export_dir.exists():
+        return deleted
+    
+    for m3u_file in export_dir.rglob("*.m3u"):
+        try:
+            m3u_file.unlink()
+            deleted.append(str(m3u_file))
+            logger.debug(f"Deleted: {m3u_file}")
+        except Exception as e:
+            logger.warning(f"Failed to delete {m3u_file}: {e}")
+    
+    return deleted
 
 
 def _resolve_export_dir(
@@ -59,7 +120,8 @@ def export_playlists(
     db: DatabaseInterface,
     export_config: Dict[str, Any],
     organize_by_owner: bool = False,
-    current_user_id: str | None = None
+    current_user_id: str | None = None,
+    library_paths: list[str] | None = None
 ) -> ExportResult:
     """Export playlists to M3U files.
     
@@ -70,20 +132,35 @@ def export_playlists(
         export_config: Export configuration (mode, directory, placeholder_extension, include_liked_songs)
         organize_by_owner: Organize playlists by owner
         current_user_id: Current user ID (for owner organization)
+        library_paths: Library root paths from config (for path reconstruction)
         
     Returns:
         ExportResult with count and file list
     """
     result = ExportResult()
     
-    # Log operation header
-    logger.info("=== Exporting playlists to M3U ===")
-    
     # Extract config
     export_dir = Path(export_config['directory'])
     mode = export_config.get('mode', 'strict')
     placeholder_ext = export_config.get('placeholder_extension', '.missing')
     include_liked_songs = export_config.get('include_liked_songs', True)  # Default: enabled
+    path_format = export_config.get('path_format', 'absolute')
+    use_library_roots = export_config.get('use_library_roots', True)
+    clean_before_export = export_config.get('clean_before_export', False)
+    detect_obsolete = export_config.get('detect_obsolete', True)
+    
+    # Prepare library roots for path reconstruction (if enabled)
+    library_roots_param = library_paths if (use_library_roots and library_paths) else None
+    
+    # Clean export directory before export (if configured)
+    if clean_before_export:
+        logger.info("Cleaning export directory before export...")
+        result.cleaned_files = _clean_export_directory(export_dir)
+        if result.cleaned_files:
+            logger.info(f"Deleted {len(result.cleaned_files)} existing .m3u files")
+    
+    # Capture existing files for obsolete detection (before export, after optional clean)
+    existing_files_before = [] if clean_before_export else _find_existing_m3u_files(export_dir)
     
     # Get current user ID from metadata if not provided
     if organize_by_owner and current_user_id is None:
@@ -93,7 +170,9 @@ def export_playlists(
     cur = db.conn.execute("SELECT id, name, owner_id, owner_name FROM playlists")
     playlists = cur.fetchall()
     
-    for pl in playlists:
+    total_playlists = len(playlists)
+    
+    for idx, pl in enumerate(playlists, 1):
         pl_id = pl['id']
         owner_id = pl['owner_id'] if 'owner_id' in pl.keys() else None
         owner_name = pl['owner_name'] if 'owner_name' in pl.keys() else None
@@ -123,16 +202,19 @@ def export_playlists(
         tracks = [dict(r) | {'position': r['position']} for r in track_rows]
         playlist_meta = {'name': pl['name'], 'id': pl_id}
         
+        # Log progress
+        logger.info(f"[{idx}/{total_playlists}] Exporting: {pl['name']}")
+        
         # Dispatch to export function based on mode and capture actual path
         if mode == 'strict':
-            actual_path = export_strict(playlist_meta, tracks, target_dir)
+            actual_path = export_strict(playlist_meta, tracks, target_dir, path_format, library_roots_param)
         elif mode == 'mirrored':
-            actual_path = export_mirrored(playlist_meta, tracks, target_dir)
+            actual_path = export_mirrored(playlist_meta, tracks, target_dir, path_format, library_roots_param)
         elif mode == 'placeholders':
-            actual_path = export_placeholders(playlist_meta, tracks, target_dir, placeholder_extension=placeholder_ext)
+            actual_path = export_placeholders(playlist_meta, tracks, target_dir, placeholder_ext, path_format, library_roots_param)
         else:
             logger.warning(f"Unknown export mode '{mode}', defaulting to strict")
-            actual_path = export_strict(playlist_meta, tracks, target_dir)
+            actual_path = export_strict(playlist_meta, tracks, target_dir, path_format, library_roots_param)
         
         result.exported_files.append(str(actual_path))
     
@@ -150,8 +232,18 @@ def export_playlists(
                 placeholder_ext, 
                 organize_by_owner, 
                 current_user_id,
+                path_format,
+                library_roots_param,
                 result
             )
+    
+    # Detect obsolete files (if configured and not cleaned)
+    if detect_obsolete and not clean_before_export and existing_files_before:
+        result.obsolete_files = [
+            str(f) for f in _detect_obsolete_files(existing_files_before, result.exported_files)
+        ]
+        if result.obsolete_files:
+            logger.info(f"Found {len(result.obsolete_files)} obsolete playlist(s) in export directory")
     
     logger.info(
         f"✓ Exported "
@@ -168,6 +260,8 @@ def _export_liked_tracks(
     placeholder_ext: str,
     organize_by_owner: bool,
     current_user_id: str | None,
+    path_format: str,
+    library_roots: list[str] | None,
     result: ExportResult
 ) -> None:
     """Export liked tracks as a virtual 'Liked Songs' playlist.
@@ -178,8 +272,10 @@ def _export_liked_tracks(
         mode: Export mode (strict/mirrored/placeholders)
         placeholder_ext: Extension for placeholder files
         organize_by_owner: Whether to organize by owner
-        current_user_id: Current user ID
-        result: ExportResult to update
+        current_user_id: Current user ID (for owner organization)
+        path_format: Path format for M3U files
+        library_roots: Library root paths from config (for path reconstruction)
+        result: Result object to update with export info
     """
     # Determine target directory
     if organize_by_owner:
@@ -230,14 +326,14 @@ def _export_liked_tracks(
     
     # Dispatch to appropriate export mode and get the actual file path
     if mode == 'strict':
-        actual_path = export_strict(playlist_meta, tracks, target_dir)
+        actual_path = export_strict(playlist_meta, tracks, target_dir, path_format, library_roots)
     elif mode == 'mirrored':
-        actual_path = export_mirrored(playlist_meta, tracks, target_dir)
+        actual_path = export_mirrored(playlist_meta, tracks, target_dir, path_format, library_roots)
     elif mode == 'placeholders':
-        actual_path = export_placeholders(playlist_meta, tracks, target_dir, placeholder_extension=placeholder_ext)
+        actual_path = export_placeholders(playlist_meta, tracks, target_dir, placeholder_ext, path_format, library_roots)
     else:
         logger.warning(f"Unknown export mode '{mode}', defaulting to strict")
-        actual_path = export_strict(playlist_meta, tracks, target_dir)
+        actual_path = export_strict(playlist_meta, tracks, target_dir, path_format, library_roots)
     
     # Update result
     result.playlist_count += 1

@@ -52,14 +52,15 @@ def test_liked_songs_exported_by_default(tmp_path):
         # Verify Liked Songs was counted
         assert result.playlist_count == 1, f"Expected 1 playlist (Liked Songs), got {result.playlist_count}"
     
-    # Check that Liked Songs_*.m3u8 was created (with playlist ID prefix)
-    m3u_files = list(export_dir.glob("Liked Songs_*.m3u8"))
+    # Check that Liked Songs_*.m3u was created (with playlist ID prefix)
+    m3u_files = list(export_dir.glob("Liked Songs_*.m3u"))
     assert len(m3u_files) == 1, f"Expected 1 Liked Songs m3u8 file, found {len(m3u_files)}: {m3u_files}"
     liked_songs_m3u = m3u_files[0]
     
     # Verify content (strict mode should only include matched tracks)
     content = liked_songs_m3u.read_text(encoding='utf-8')
-    assert '/music/test.mp3' in content, "Matched track not in Liked Songs playlist"
+    # Path separator may be / or \ depending on platform
+    assert 'test.mp3' in content and 'music' in content, "Matched track not in Liked Songs playlist"
 
 
 def test_liked_songs_can_be_disabled(tmp_path):
@@ -91,8 +92,8 @@ def test_liked_songs_can_be_disabled(tmp_path):
         assert result.playlist_count == 0, "Should not export any playlists when liked songs disabled"
     
     # Check that Liked Songs.m3u was NOT created
-    m3u_files = list(export_dir.glob("Liked Songs_*.m3u8"))
-    assert len(m3u_files) == 0, f"Liked Songs.m3u8 should not be created when disabled, found: {m3u_files}"
+    m3u_files = list(export_dir.glob("Liked Songs_*.m3u"))
+    assert len(m3u_files) == 0, f"Liked Songs.m3u should not be created when disabled, found: {m3u_files}"
 
 
 def test_liked_songs_in_playlist_coverage_report(tmp_path):
@@ -184,15 +185,16 @@ def test_liked_songs_with_organize_by_owner(tmp_path):
         }
         result = export_playlists(db, export_config, organize_by_owner=True)
     
-    # Check that Liked Songs_*.m3u8 is in the user's folder
+    # Check that Liked Songs_*.m3u is in the user's folder
     user_dir = export_dir / "TestUser"
-    m3u_files = list(user_dir.glob("Liked Songs_*.m3u8"))
+    m3u_files = list(user_dir.glob("Liked Songs_*.m3u"))
     assert len(m3u_files) == 1, f"Expected 1 Liked Songs m3u8 in user folder, found {len(m3u_files)}. Export dir: {list(export_dir.rglob('*'))}"
     liked_songs_m3u = m3u_files[0]
     
     # Verify content
     content = liked_songs_m3u.read_text(encoding='utf-8')
-    assert '/music/test.mp3' in content, "Track not in playlist"
+    # Path separator may be / or \ depending on platform
+    assert 'test.mp3' in content and 'music' in content, "Track not in playlist"
 
 
 def test_liked_songs_preserves_newest_first_order(tmp_path):
@@ -243,7 +245,7 @@ def test_liked_songs_preserves_newest_first_order(tmp_path):
         export_playlists(db, export_config)
     
     # Read playlist
-    m3u_files = list(export_dir.glob("Liked Songs_*.m3u8"))
+    m3u_files = list(export_dir.glob("Liked Songs_*.m3u"))
     assert len(m3u_files) == 1, f"Expected 1 Liked Songs m3u8 file"
     liked_songs_m3u = m3u_files[0]
     content = liked_songs_m3u.read_text(encoding='utf-8')

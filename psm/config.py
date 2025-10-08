@@ -52,8 +52,13 @@ _DEFAULTS: Dict[str, Any] = {
         "directory": "data/export/playlists",
         "mode": "strict",
         "placeholder_extension": ".missing",
-        "organize_by_owner": False,
+        "organize_by_owner": True,
         "include_liked_songs": True,  # Export Liked Songs as virtual playlist
+        "path_format": "absolute",  # "absolute" or "relative" paths in M3U
+        "use_library_roots": True,  # Reconstruct paths using config library roots (preserves configured format)
+        "clean_before_export": False,  # Delete all .m3u files before export (safest but loses manual additions)
+        "auto_overwrite": True,  # Automatically overwrite existing files (false = prompt if file is newer)
+        "detect_obsolete": True,  # Detect playlists that exist on disk but not in database
     },
     "reports": {"directory": "data/export/reports"},
     "database": {"path": "data/db/spotify_sync.db", "pragma_journal_mode": "WAL"},

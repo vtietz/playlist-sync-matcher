@@ -16,7 +16,7 @@ def test_export_strict(tmp_path: Path):
     path = export_strict(pl, tracks, tmp_path)
     content = path.read_text(encoding='utf-8').splitlines()
     # Check filename includes ID (sanitize_filename keeps spaces)
-    assert path.name == 'My Playlist_testid12.m3u8'
+    assert path.name == 'My Playlist_testid12.m3u'
     # Only the matched track path appears
     assert 'file1.mp3' in content
     assert '#EXTINF' not in '\n'.join(content)
@@ -29,13 +29,20 @@ def test_export_mirrored(tmp_path: Path):
     path = export_mirrored(pl, tracks, tmp_path)
     lines = path.read_text(encoding='utf-8').splitlines()
     # Check filename includes ID (sanitize_filename keeps spaces)
-    assert path.name == 'Mirror List_mirrorid.m3u8'
-    # EXTINF lines count equals 3 tracks
+    assert path.name == 'Mirror List_mirrorid.m3u'
+    # NOTE comment for missing tracks with emoji indicator
+    note_lines = [l for l in lines if 'NOTE' in l and 'not found' in l]
+    assert len(note_lines) == 1
+    assert '❌' in '\n'.join(lines), "Expected ❌ emoji indicator in header or EXTINF"
+    # EXTINF lines count equals ALL tracks (mirrored mode preserves order)
     extinf = [l for l in lines if l.startswith('#EXTINF')]
-    assert len(extinf) == 3
-    # Missing markers present for two missing tracks
-    missing_markers = [l for l in lines if l.startswith('# MISSING:')]
-    assert len(missing_markers) == 2
+    assert len(extinf) == 3, f"Expected 3 tracks (all tracks), got {len(extinf)}"
+    # Missing tracks should have ❌ emoji in their EXTINF title
+    missing_extinf = [l for l in extinf if '❌' in l]
+    assert len(missing_extinf) == 2, "Expected 2 EXTINF lines with ❌ emoji for missing tracks"
+    # Missing tracks use '!' prefix placeholder
+    missing_placeholders = [l for l in lines if l.startswith('!MISSING')]
+    assert len(missing_placeholders) == 2, "Expected 2 missing track placeholders"
 
 
 def test_export_placeholders(tmp_path: Path):
@@ -44,7 +51,7 @@ def test_export_placeholders(tmp_path: Path):
     path = export_placeholders(pl, tracks, tmp_path, placeholder_extension='.missing')
     lines = path.read_text(encoding='utf-8').splitlines()
     # Check filename includes ID (first 8 chars of 'placehold12345' = 'placehol')
-    assert path.name == 'Placeholders_placehol.m3u8'
+    assert path.name == 'Placeholders_placehol.m3u'
     # Check placeholder directory name includes ID
     placeholder_dir = tmp_path / 'Placeholders_placehol_placeholders'
     assert placeholder_dir.exists()

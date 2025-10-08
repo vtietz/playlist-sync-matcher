@@ -551,13 +551,17 @@ MIT License
 
 Development, release process, and provider extension details live in the `docs/` directory:
 
-- `docs/architecture.md`
-- `docs/matching.md`
-- `docs/configuration.md`
-- `docs/library_analysis.md`
-- `docs/troubleshooting.md`
-- `docs/development.md`
-- `docs/providers.md`
+**User Guides:**
+- `docs/architecture.md` - System design and components
+- `docs/matching.md` - Match algorithm and strategies
+- `docs/configuration.md` - All configuration options
+- `docs/library_analysis.md` - Report generation details
+- `docs/troubleshooting.md` - Common issues and solutions
+- `docs/watch-mode.md` - Watch mode guide
+
+**Development:**
+- `docs/development.md` - Development setup and workflow
+- `docs/providers.md` - Adding new streaming providers
 
 ---
 

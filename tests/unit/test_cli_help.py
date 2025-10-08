@@ -58,7 +58,6 @@ def test_all_main_commands_have_help():
         'pull',
         'redirect-uri',
         'report',
-        'report-albums',
         'scan',
         'token-info'
     ]

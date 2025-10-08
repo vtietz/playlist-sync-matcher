@@ -11,6 +11,7 @@ from typing import Dict, Any, List
 
 from ..match.matching_engine import MatchingEngine
 from ..db import Database
+from ..config_types import MatchingConfig
 
 logger = logging.getLogger(__name__)
 
@@ -54,8 +55,17 @@ def run_matching(
     # Log operation header
     logger.info("=== Matching tracks to library files ===")
     
+    # Convert dict config to typed MatchingConfig
+    matching_dict = config.get('matching', {})
+    matching_config = MatchingConfig(
+        duration_tolerance=matching_dict.get('duration_tolerance', 2.0),
+        max_candidates_per_track=int(matching_dict.get('max_candidates_per_track', 500)),
+        fuzzy_threshold=matching_dict.get('fuzzy_threshold', 0.85)
+    )
+    provider = config.get('provider', 'spotify')
+    
     # Use matching engine
-    engine = MatchingEngine(db, config)
+    engine = MatchingEngine(db, matching_config, provider=provider)
     matched_count = engine.match_all()
     
     # Gather statistics
@@ -82,27 +92,6 @@ def run_matching(
     _show_unmatched_diagnostics(db, top_unmatched_tracks, top_unmatched_albums)
     
     return result
-
-
-def _normalize_file_dict(raw_row: Dict[str, Any]) -> Dict[str, Any]:
-    """Normalize library file row to match scoring engine expectations.
-    
-    The scoring engine expects 'name' field while library stores 'title'.
-    This adapter function harmonizes the field names and ensures all
-    required keys exist with appropriate defaults.
-    """
-    return {
-        'id': raw_row['id'],
-        'path': raw_row.get('path', ''),
-        'title': raw_row.get('title') or raw_row.get('name') or '',
-        'name': raw_row.get('title') or raw_row.get('name') or '',  # Scoring expects 'name'
-        'artist': raw_row.get('artist') or '',
-        'album': raw_row.get('album'),
-        'year': raw_row.get('year'),
-        'duration': raw_row.get('duration'),
-        'normalized': raw_row.get('normalized') or '',
-        'isrc': raw_row.get('isrc'),
-    }
 
 
 def _duration_prefilter_single(track: Dict[str, Any], files: List[Dict[str, Any]], dur_tol: float) -> List[Dict[str, Any]]:
@@ -280,8 +269,17 @@ def match_changed_tracks(
     Returns:
         Number of new matches created
     """
+    # Convert dict config to typed MatchingConfig
+    matching_dict = config.get('matching', {})
+    matching_config = MatchingConfig(
+        duration_tolerance=matching_dict.get('duration_tolerance', 2.0),
+        max_candidates_per_track=int(matching_dict.get('max_candidates_per_track', 500)),
+        fuzzy_threshold=matching_dict.get('fuzzy_threshold', 0.85)
+    )
+    provider = config.get('provider', 'spotify')
+    
     # Delegate to matching engine
-    engine = MatchingEngine(db, config)
+    engine = MatchingEngine(db, matching_config, provider=provider)
     return engine.match_tracks(track_ids=track_ids)
 
 
@@ -304,6 +302,15 @@ def match_changed_files(
     Returns:
         Number of new matches created
     """
+    # Convert dict config to typed MatchingConfig
+    matching_dict = config.get('matching', {})
+    matching_config = MatchingConfig(
+        duration_tolerance=matching_dict.get('duration_tolerance', 2.0),
+        max_candidates_per_track=int(matching_dict.get('max_candidates_per_track', 500)),
+        fuzzy_threshold=matching_dict.get('fuzzy_threshold', 0.85)
+    )
+    provider = config.get('provider', 'spotify')
+    
     # Delegate to matching engine
-    engine = MatchingEngine(db, config)
+    engine = MatchingEngine(db, matching_config, provider=provider)
     return engine.match_files(file_ids=file_ids)
