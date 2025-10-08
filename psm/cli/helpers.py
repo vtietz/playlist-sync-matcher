@@ -71,6 +71,7 @@ def cli(ctx: click.Context, config_file: str | None):
     \b
     Maintenance:
       psm scan --full             # Refresh library index
+      psm scan --watch            # Continuously import changed files
       psm match-diagnose TRACK    # Debug matching issues
     
     \b

@@ -283,11 +283,30 @@ When matching tracks, you get:
 - Clickable playlist names link to Spotify
 - Drill-down links to detailed per-playlist track reports
 - Owner information and playlist URLs
+- **Includes "Liked Songs" (❤️) as a virtual playlist** - tracks you've liked in Spotify
 
 **Console Output:**
 - Top 20 unmatched tracks by popularity (configurable)
 - Top 10 unmatched albums by occurrence frequency (configurable)
 - Quick summary of match quality and coverage
+
+### Liked Songs Support 🆕
+
+Your Spotify "Liked Songs" (Lieblingssongs/❤️) are automatically included:
+
+**✅ Automatic Pull**: `run.bat pull` fetches liked tracks alongside playlists  
+**✅ Matching**: Liked tracks are matched just like playlist tracks  
+**✅ Export**: A virtual "Liked Songs" playlist is created automatically (M3U file)  
+**✅ Reports**: Liked Songs appear in all coverage and track reports  
+**✅ Incremental**: Only new liked tracks are fetched on subsequent pulls
+
+**Control via Config**:
+```bash
+# Disable Liked Songs export (still pulled and matched, just not exported)
+PSM__EXPORT__INCLUDE_LIKED_SONGS=false
+```
+
+**Sorting**: Liked Songs M3U preserves Spotify's newest-first order (most recently liked at the top).
 
 #### Analysis Reports (`run.bat analyze`)
 

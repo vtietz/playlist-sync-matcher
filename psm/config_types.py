@@ -75,6 +75,7 @@ class ExportConfig:
     mode: str = "mirrored"
     placeholder_extension: str = ".missing"
     organize_by_owner: bool = False
+    include_liked_songs: bool = True  # Export Liked Songs as virtual playlist
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for backward compatibility."""

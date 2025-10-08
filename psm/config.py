@@ -53,6 +53,7 @@ _DEFAULTS: Dict[str, Any] = {
         "mode": "strict",
         "placeholder_extension": ".missing",
         "organize_by_owner": False,
+        "include_liked_songs": True,  # Export Liked Songs as virtual playlist
     },
     "reports": {"directory": "data/export/reports"},
     "database": {"path": "data/db/spotify_sync.db", "pragma_journal_mode": "WAL"},

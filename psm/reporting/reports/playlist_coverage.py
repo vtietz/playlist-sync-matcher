@@ -25,21 +25,45 @@ def write_playlist_coverage_report(
     """
     out_dir.mkdir(parents=True, exist_ok=True)
     
-    # Fetch playlist coverage data
+    # Get owner name for liked songs (fallback to 'Me' if not available)
+    try:
+        owner_name = db.get_meta('current_user_name') or 'Me'
+    except Exception:
+        owner_name = 'Me'
+    
+    # Fetch playlist coverage data including virtual "Liked Songs" playlist
     playlist_coverage_rows = db.conn.execute("""
+        -- Regular playlists
         SELECT 
             p.id as playlist_id,
             p.name as playlist_name,
             p.owner_name,
             COUNT(DISTINCT pt.track_id) as total_tracks,
             COUNT(DISTINCT m.track_id) as matched_tracks,
-            ROUND(CAST(COUNT(DISTINCT m.track_id) AS FLOAT) / COUNT(DISTINCT pt.track_id) * 100, 2) as coverage_percent
+            ROUND(CAST(COUNT(DISTINCT m.track_id) AS FLOAT) / COUNT(DISTINCT pt.track_id) * 100, 2) as coverage_percent,
+            0 as is_liked_songs
         FROM playlists p
         JOIN playlist_tracks pt ON p.id = pt.playlist_id
         LEFT JOIN matches m ON pt.track_id = m.track_id
         GROUP BY p.id, p.name, p.owner_name
+        
+        UNION ALL
+        
+        -- Virtual "Liked Songs" playlist (only if liked_tracks exist)
+        SELECT 
+            '_liked_songs_virtual' as playlist_id,
+            'Liked Songs' as playlist_name,
+            ? as owner_name,
+            COUNT(DISTINCT lt.track_id) as total_tracks,
+            COUNT(DISTINCT m.track_id) as matched_tracks,
+            ROUND(CAST(COUNT(DISTINCT m.track_id) AS FLOAT) / COUNT(DISTINCT lt.track_id) * 100, 2) as coverage_percent,
+            1 as is_liked_songs
+        FROM liked_tracks lt
+        LEFT JOIN matches m ON lt.track_id = m.track_id
+        HAVING total_tracks > 0
+        
         ORDER BY coverage_percent ASC, total_tracks DESC
-    """).fetchall()
+    """, (owner_name,)).fetchall()
     
     # Write CSV
     csv_path = out_dir / "playlist_coverage.csv"

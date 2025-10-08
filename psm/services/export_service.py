@@ -65,9 +65,11 @@ def export_playlists(
 ) -> ExportResult:
     """Export playlists to M3U files.
     
+    Automatically includes Liked Songs as a virtual playlist unless disabled in config.
+    
     Args:
         db: Database instance
-        export_config: Export configuration (mode, directory, placeholder_extension)
+        export_config: Export configuration (mode, directory, placeholder_extension, include_liked_songs)
         organize_by_owner: Organize playlists by owner
         current_user_id: Current user ID (for owner organization)
         
@@ -83,6 +85,7 @@ def export_playlists(
     export_dir = Path(export_config['directory'])
     mode = export_config.get('mode', 'strict')
     placeholder_ext = export_config.get('placeholder_extension', '.missing')
+    include_liked_songs = export_config.get('include_liked_songs', True)  # Default: enabled
     
     # Get current user ID from metadata if not provided
     if organize_by_owner and current_user_id is None:
@@ -136,9 +139,108 @@ def export_playlists(
         result.exported_files.append(str(target_dir / f"{pl['name']}.m3u"))
     
     result.playlist_count = len(playlists)
+    
+    # Export Liked Songs as virtual playlist (unless disabled in config)
+    if include_liked_songs:
+        liked_count = db.count_liked_tracks()
+        if liked_count > 0:
+            logger.info(f"Exporting Liked Songs as virtual playlist ({liked_count} tracks)")
+            _export_liked_tracks(
+                db, 
+                export_dir, 
+                mode, 
+                placeholder_ext, 
+                organize_by_owner, 
+                current_user_id,
+                result
+            )
+    
     logger.info(
         f"{click.style('✓', fg='green')} Exported "
-        f"{click.style(f'{len(playlists)} playlists', fg='green')} "
+        f"{click.style(f'{result.playlist_count} playlists', fg='green')} "
         f"to {export_dir}"
     )
     return result
+
+
+def _export_liked_tracks(
+    db: DatabaseInterface,
+    export_dir: Path,
+    mode: str,
+    placeholder_ext: str,
+    organize_by_owner: bool,
+    current_user_id: str | None,
+    result: ExportResult
+) -> None:
+    """Export liked tracks as a virtual 'Liked Songs' playlist.
+    
+    Args:
+        db: Database instance
+        export_dir: Base export directory
+        mode: Export mode (strict/mirrored/placeholders)
+        placeholder_ext: Extension for placeholder files
+        organize_by_owner: Whether to organize by owner
+        current_user_id: Current user ID
+        result: ExportResult to update
+    """
+    # Determine target directory
+    if organize_by_owner:
+        # Use current user's folder if available, otherwise root
+        owner_name = db.get_meta('current_user_name')
+        if owner_name:
+            target_dir = _resolve_export_dir(
+                export_dir,
+                True,
+                current_user_id,
+                owner_name,
+                current_user_id
+            )
+        else:
+            target_dir = export_dir
+    else:
+        target_dir = export_dir
+    
+    # Fetch liked tracks with local paths (ordered by added_at DESC = newest first, matching Spotify)
+    track_rows = db.conn.execute(
+        """
+        SELECT 
+            lt.added_at,
+            t.id as track_id, 
+            t.name, 
+            t.artist, 
+            t.album, 
+            t.duration_ms, 
+            lf.path AS local_path
+        FROM liked_tracks lt
+        LEFT JOIN tracks t ON t.id = lt.track_id
+        LEFT JOIN matches m ON m.track_id = lt.track_id
+        LEFT JOIN library_files lf ON lf.id = m.file_id
+        ORDER BY lt.added_at DESC
+        """
+    ).fetchall()
+    
+    tracks = [dict(r) for r in track_rows]
+    
+    # Add position attribute (0-indexed, preserving newest-first order)
+    for i, track in enumerate(tracks):
+        track['position'] = i
+    
+    playlist_meta = {
+        'name': 'Liked Songs', 
+        'id': '_liked_songs_virtual'
+    }
+    
+    # Dispatch to appropriate export mode and get the actual file path
+    if mode == 'strict':
+        actual_path = export_strict(playlist_meta, tracks, target_dir)
+    elif mode == 'mirrored':
+        actual_path = export_mirrored(playlist_meta, tracks, target_dir)
+    elif mode == 'placeholders':
+        actual_path = export_placeholders(playlist_meta, tracks, target_dir, placeholder_extension=placeholder_ext)
+    else:
+        logger.warning(f"Unknown export mode '{mode}', defaulting to strict")
+        actual_path = export_strict(playlist_meta, tracks, target_dir)
+    
+    # Update result
+    result.playlist_count += 1
+    result.exported_files.append(str(actual_path))
