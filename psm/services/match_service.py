@@ -425,3 +425,122 @@ def _show_unmatched_diagnostics(db: Database, top_tracks: int = 20, top_albums: 
             
             if len(sorted_albums) > display_album_count:
                 logger.info(f"  ... and {len(sorted_albums) - display_album_count} more albums")
+
+
+def match_changed_files(
+    db: Database,
+    config: Dict[str, Any],
+    file_ids: List[int] | None = None
+) -> int:
+    """Incrementally match only changed/new files against all tracks.
+    
+    This is much more efficient than run_matching() for watch mode scenarios
+    where only a few files changed. Instead of re-matching all files against
+    all tracks, we only match the changed files.
+    
+    Args:
+        db: Database instance
+        config: Full configuration dict
+        file_ids: List of specific file IDs to match (if None, matches all unmatched files)
+        
+    Returns:
+        Number of new matches created
+    """
+    # Get all tracks to match against
+    cur_tracks = db.conn.execute("SELECT id, name, artist, album, year, isrc, duration_ms, normalized FROM tracks")
+    all_tracks = [dict(row) for row in cur_tracks.fetchall()]
+    
+    if not all_tracks:
+        logger.debug("No tracks in database to match against")
+        return 0
+    
+    # Get files to match
+    if file_ids:
+        # Match specific changed files
+        if not file_ids:  # Empty list
+            return 0
+        
+        placeholders = ','.join('?' * len(file_ids))
+        cur_files = db.conn.execute(
+            f"SELECT id, path, title, artist, album, year, duration, normalized FROM library_files WHERE id IN ({placeholders})",
+            file_ids
+        )
+        files_to_match = [_normalize_file_dict(dict(row)) for row in cur_files.fetchall()]
+        
+        # Delete existing matches for these files (they were updated)
+        db.conn.execute(f"DELETE FROM matches WHERE file_id IN ({placeholders})", file_ids)
+        db.commit()
+    else:
+        # Match all currently unmatched files (fallback)
+        cur_files = db.conn.execute('''
+            SELECT id, path, title, artist, album, year, duration, normalized
+            FROM library_files
+            WHERE id NOT IN (SELECT file_id FROM matches)
+        ''')
+        files_to_match = [_normalize_file_dict(dict(row)) for row in cur_files.fetchall()]
+    
+    if not files_to_match:
+        logger.debug("No files need matching")
+        return 0
+    
+    logger.info(f"Incrementally matching {len(files_to_match)} file(s) against {len(all_tracks)} tracks...")
+    
+    # Use the same scoring engine logic as full matching
+    cfg = ScoringConfig()
+    dur_tol = config.get('matching', {}).get('duration_tolerance', 2.0)
+    use_duration_filter = dur_tol is not None
+    max_candidates = int(config.get('matching', {}).get('max_candidates_per_track', 500))
+    provider = config.get('provider', 'spotify')
+    
+    new_matches = 0
+    
+    # For each track, find best file from our changed file list
+    for track in all_tracks:
+        # Build candidate subset (duration prefilter)
+        if use_duration_filter and track.get('duration_ms') is not None:
+            candidates = _duration_prefilter_single(track, files_to_match, dur_tol)
+            if not candidates:
+                candidates = files_to_match
+        else:
+            candidates = files_to_match
+        
+        if len(candidates) > max_candidates:
+            # Use Jaccard similarity for fast pre-scoring
+            norm_tokens = set((track.get('normalized') or '').split())
+            scored_subset = []
+            for f in candidates:
+                fn_tokens = set((f.get('normalized') or '').split())
+                similarity = _jaccard_similarity(norm_tokens, fn_tokens)
+                scored_subset.append((similarity, f))
+            scored_subset.sort(key=lambda x: x[0], reverse=True)
+            candidates = [f for _, f in scored_subset[:max_candidates]]
+        
+        # Find best match among candidates
+        best_file_id = None
+        best_breakdown = None
+        best_score = -1.0
+        
+        for file_dict in candidates:
+            breakdown = evaluate_pair(track, file_dict, cfg)
+            if breakdown.confidence == MatchConfidence.REJECTED:
+                continue
+            if breakdown.raw_score > best_score:
+                best_score = breakdown.raw_score
+                best_file_id = file_dict['id']
+                best_breakdown = breakdown
+            if breakdown.confidence == MatchConfidence.CERTAIN:
+                break
+        
+        if best_breakdown and best_file_id is not None:
+            db.add_match(
+                track['id'],
+                best_file_id,
+                best_breakdown.raw_score / 100.0,
+                f"score:{best_breakdown.confidence}",
+                provider=provider
+            )
+            new_matches += 1
+    
+    db.commit()
+    logger.info(f"✓ Created {new_matches} new match(es) from {len(files_to_match)} changed file(s)")
+    return new_matches

@@ -63,6 +63,9 @@ def parse_time_string(time_str: str) -> float:
     Returns:
         Unix timestamp (seconds since epoch)
     """
+    if not time_str:
+        raise ValueError("time_str cannot be empty or None")
+    
     time_str = time_str.strip().lower()
     
     # Try Unix timestamp

@@ -550,69 +550,174 @@ def build(ctx: click.Context, no_report: bool, no_export: bool, watch: bool, deb
     Builds local artifacts from remote + local state without mutating the
     provider. Use --no-export or --no-report to skip phases for faster iteration.
     
-    With --watch, monitors library for changes and automatically re-runs the
-    pipeline (scan -> match -> export -> report) when files change. Pull is not
-    re-run in watch mode (run it manually when you want fresh Spotify data).
+    With --watch, ONLY monitors library for changes and incrementally processes them.
+    Does NOT run initial full build - run 'psm build' first without --watch to do
+    initial setup. In watch mode: only changed files are scanned, matched, exported,
+    and reported. This is much more efficient than re-running the entire pipeline.
     """
     cfg = ctx.obj
     
-    # Run initial build
-    ctx.invoke(pull)
-    ctx.invoke(scan)
-    ctx.invoke(match)
-    if not no_export:
-        ctx.invoke(export)
-    if not no_report:
-        ctx.invoke(report)
-    click.echo('Build complete')
-    
-    # Enter watch mode if requested
+    # Watch mode: skip initial build, only process changes
     if watch:
         import time
+        import os
         from ..services.watch_service import LibraryWatcher
+        from ..ingest.library import scan_specific_files
+        from ..services.match_service import match_changed_files, run_matching
         
         logger.info("")
         logger.info(click.style("=== Entering watch mode ===", fg='cyan', bold=True))
-        logger.info("Monitoring library for changes. Press Ctrl+C to stop.")
+        logger.info("Monitoring library files AND database for changes.")
+        logger.info("• Library changes → incremental scan + match")
+        logger.info("• Database changes (e.g. after 'pull') → full re-match")
         logger.info(f"Debounce time: {debounce}s")
+        logger.info("Press Ctrl+C to stop.")
         logger.info("")
         logger.info("Watching for changes...")
         
+        # Track database modification time
+        db_path = Path(cfg['database']['path'])
+        last_db_mtime = db_path.stat().st_mtime if db_path.exists() else 0
+        
         watcher = None
         try:
-            def handle_changes(changed_files: list):
-                """Callback when library files change - rebuild pipeline."""
+            def handle_library_changes(changed_file_paths: list):
+                """Callback when library files change - incremental rebuild."""
                 logger.info("")
-                logger.info(click.style(f"▶ Library changed ({len(changed_files)} files affected)", fg='yellow', bold=True))
-                logger.info("Running incremental rebuild: scan → match → export → report")
+                logger.info(click.style(f"▶ Library changed ({len(changed_file_paths)} files)", fg='yellow', bold=True))
                 
                 try:
-                    # Re-run pipeline with incremental scan
-                    ctx.invoke(scan, quick=True)  # Quick mode = only changed files
-                    ctx.invoke(match)
-                    if not no_export:
-                        ctx.invoke(export)
-                    if not no_report:
-                        ctx.invoke(report)
-                    logger.info(click.style("✓ Rebuild complete", fg='green'))
+                    with get_db(cfg) as db:
+                        # 1. Scan changed files
+                        logger.info("  [1/4] Scanning changed files...")
+                        scan_result = scan_specific_files(db, cfg, changed_file_paths)
+                        
+                        # Track which file IDs were affected
+                        file_ids_to_match = []
+                        
+                        # Get file IDs for paths that were scanned
+                        for path in changed_file_paths:
+                            file_row = db.conn.execute(
+                                "SELECT id FROM library_files WHERE path = ?",
+                                (str(path),)
+                            ).fetchone()
+                            if file_row:
+                                file_ids_to_match.append(file_row['id'])
+                        
+                        logger.info(f"    ✓ {scan_result.inserted} new, {scan_result.updated} updated, {scan_result.deleted} deleted")
+                        
+                        # 2. Incrementally match only changed files
+                        if file_ids_to_match:
+                            logger.info(f"  [2/4] Matching {len(file_ids_to_match)} changed file(s)...")
+                            new_matches = match_changed_files(db, cfg, file_ids=file_ids_to_match)
+                            logger.info(f"    ✓ {new_matches} new match(es)")
+                        else:
+                            logger.info("  [2/4] No files to match (all deleted)")
+                        
+                        # 3. Export (only if matches changed)
+                        if not no_export and file_ids_to_match:
+                            logger.info("  [3/4] Exporting playlists...")
+                            organize_by_owner = cfg['export'].get('organize_by_owner', False)
+                            current_user_id = db.get_meta('current_user_id') if organize_by_owner else None
+                            result = export_playlists(
+                                db=db,
+                                export_config=cfg['export'],
+                                organize_by_owner=organize_by_owner,
+                                current_user_id=current_user_id
+                            )
+                            logger.info(f"    ✓ Exported {result.playlist_count} playlists")
+                        else:
+                            logger.info("  [3/4] Export skipped")
+                        
+                        # 4. Regenerate reports (only if matches changed)
+                        if not no_report and file_ids_to_match:
+                            logger.info("  [4/4] Regenerating reports...")
+                            out_dir = Path(cfg['reports']['directory'])
+                            write_match_reports(db, out_dir)
+                            write_index_page(out_dir, db)
+                            logger.info(f"    ✓ Reports updated in {out_dir}")
+                        else:
+                            logger.info("  [4/4] Reports skipped")
+                    
+                    logger.info(click.style("✓ Incremental rebuild complete", fg='green'))
                 except Exception as e:
                     logger.error(click.style(f"✗ Rebuild failed: {e}", fg='red'))
+                    logger.exception("Watch mode error details:")
                 
                 logger.info("")
                 logger.info("Watching for changes...")
             
-            # Create and start watcher
+            # Create and start library file watcher
             watcher = LibraryWatcher(
                 config=cfg,
-                on_change_callback=handle_changes,
+                on_change_callback=handle_library_changes,
                 debounce_seconds=debounce
             )
             
             watcher.start()
             
-            # Keep running until Ctrl+C
+            # Monitor loop: check for both library changes and database changes
+            db_check_interval = 2  # Check database every 2 seconds
+            last_check = time.time()
+            
             while True:
                 time.sleep(1)
+                
+                # Periodically check if database was modified (e.g., by 'pull' command)
+                current_time = time.time()
+                if current_time - last_check >= db_check_interval:
+                    last_check = current_time
+                    
+                    if db_path.exists():
+                        current_db_mtime = db_path.stat().st_mtime
+                        
+                        if current_db_mtime > last_db_mtime:
+                            # Database changed! Someone ran 'pull' or modified tracks
+                            last_db_mtime = current_db_mtime
+                            
+                            logger.info("")
+                            logger.info(click.style("▶ Database changed (tracks/playlists updated)", fg='cyan', bold=True))
+                            logger.info("  Detected external database modification (e.g., 'pull' command)")
+                            
+                            try:
+                                with get_db(cfg) as db:
+                                    # Full re-match since tracks may have changed
+                                    logger.info("  [1/3] Re-matching all tracks...")
+                                    result = run_matching(db, config=cfg, verbose=False, top_unmatched_tracks=0, top_unmatched_albums=0)
+                                    logger.info(f"    ✓ Matched {result.matched} tracks")
+                                    
+                                    # Export
+                                    if not no_export:
+                                        logger.info("  [2/3] Exporting playlists...")
+                                        organize_by_owner = cfg['export'].get('organize_by_owner', False)
+                                        current_user_id = db.get_meta('current_user_id') if organize_by_owner else None
+                                        export_result = export_playlists(
+                                            db=db,
+                                            export_config=cfg['export'],
+                                            organize_by_owner=organize_by_owner,
+                                            current_user_id=current_user_id
+                                        )
+                                        logger.info(f"    ✓ Exported {export_result.playlist_count} playlists")
+                                    else:
+                                        logger.info("  [2/3] Export skipped")
+                                    
+                                    # Reports
+                                    if not no_report:
+                                        logger.info("  [3/3] Regenerating reports...")
+                                        out_dir = Path(cfg['reports']['directory'])
+                                        write_match_reports(db, out_dir)
+                                        write_index_page(out_dir, db)
+                                        logger.info(f"    ✓ Reports updated in {out_dir}")
+                                    else:
+                                        logger.info("  [3/3] Reports skipped")
+                                
+                                logger.info(click.style("✓ Database sync complete", fg='green'))
+                            except Exception as e:
+                                logger.error(click.style(f"✗ Database sync failed: {e}", fg='red'))
+                                logger.exception("Database sync error details:")
+                            
+                            logger.info("")
+                            logger.info("Watching for changes...")
                 
         except KeyboardInterrupt:
             logger.info("")
@@ -625,6 +730,19 @@ def build(ctx: click.Context, no_report: bool, no_export: bool, watch: bool, deb
             if watcher:
                 watcher.stop()
             raise
+        
+        # Exit after watch mode (don't run normal build)
+        return
+    
+    # Normal build mode (non-watch): Run full pipeline
+    ctx.invoke(pull)
+    ctx.invoke(scan, since=None, quick=False, paths=(), watch=False, debounce=2.0)
+    ctx.invoke(match)
+    if not no_export:
+        ctx.invoke(export)
+    if not no_report:
+        ctx.invoke(report)
+    click.echo('Build complete')
 
 __all__ = []
 

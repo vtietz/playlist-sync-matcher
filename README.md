@@ -185,10 +185,42 @@ run.bat build         # Runs full pipeline: pull → scan → match → export
 
 **Watch Mode** 🆕 (continuously monitor and rebuild):
 ```bash
-run.bat build --watch             # Monitor library, auto-rebuild on changes
+run.bat build --watch             # Monitor library + database for changes
 run.bat build --watch --debounce 5  # Use 5-second debounce (default: 2)
+run.bat build --watch --no-report  # Skip report regeneration
+run.bat build --watch --no-export  # Skip playlist export
 ```
-> Watch mode monitors your music library and automatically runs incremental rebuilds when files change. Uses quick scan (only changed files) for efficiency. Press Ctrl+C to stop. Does NOT re-pull from Spotify (run `pull` manually when playlists change).
+> **Watch mode** monitors both your **music library files** AND **database** for changes.
+> 
+> **Important**: Does **NOT** run initial full build - run `run.bat build` first without `--watch`.
+> Then start watch mode for continuous monitoring.
+>
+> **How it works**:
+> 
+> **Library file changes** (incremental):
+> - Detects file changes in library paths (add, modify, delete)
+> - Scans only changed files (not entire library)
+> - Matches only changed files against all tracks
+> - Updates affected playlists in M3U export
+> - Regenerates reports
+> 
+> **Database changes** (e.g., after `run.bat pull` in another terminal):
+> - Detects database modification (new/changed tracks from Spotify)
+> - Full re-match of all library files against updated tracks
+> - Updates all playlists
+> - Regenerates all reports
+> 
+> **Workflow**:
+> ```bash
+> # Terminal 1: Start watch mode
+> run.bat build --watch
+> 
+> # Terminal 2: Pull new Spotify data when needed
+> run.bat pull
+> # Watch mode will automatically detect and re-match!
+> ```
+> 
+> Press Ctrl+C to stop.
 
 **Individual steps** (for selective updates):
 ```bash
