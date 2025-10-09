@@ -486,49 +486,6 @@ def analyze(ctx: click.Context, min_bitrate: int | None, max_issues: int, top_of
             logger.info("✓ No quality issues found - library metadata is excellent!")
 
 
-@cli.command(name='match-diagnose')
-@click.argument('query')
-@click.option('--limit', type=int, default=10, help='Limit number of candidate files shown')
-@click.pass_context
-def match_diagnose(ctx: click.Context, query: str, limit: int):
-    """Diagnose matching issues for a specific track."""
-    from rapidfuzz import fuzz
-    cfg = ctx.obj
-    track_row = None
-    rows = []
-    with get_db(cfg) as db:
-        cur = db.conn.execute("SELECT id,name,artist,album,normalized,year FROM tracks WHERE id=?", (query,))
-        track_row = cur.fetchone()
-        if not track_row:
-            like = f"%{query}%"
-            cur = db.conn.execute("SELECT id,name,artist,album,normalized,year FROM tracks WHERE name LIKE ? ORDER BY name LIMIT 1", (like,))
-            track_row = cur.fetchone()
-        if track_row:
-            rows = db.conn.execute("SELECT id,path,title,artist,album,normalized,year FROM library_files").fetchall()
-            match_row = db.conn.execute("SELECT file_id, score, method FROM matches WHERE track_id=?", (track_row['id'],)).fetchone()
-        else:
-            match_row = None
-    if not track_row:
-        click.echo(f"No track found matching '{query}'")
-        return
-    t_norm = track_row['normalized'] or ''
-    click.echo(f"Track: {track_row['id']} | {track_row['artist']} - {track_row['name']} | album={track_row['album']} year={track_row['year']}\nNormalized: '{t_norm}'")
-    scored = []
-    for r in rows:
-        f_norm = r['normalized'] or ''
-        exact = 1.0 if f_norm == t_norm and t_norm else 0.0
-        fuzzy_val = fuzz.token_set_ratio(t_norm, f_norm)/100.0 if t_norm else 0.0
-        scored.append((exact, fuzzy_val, r))
-    scored.sort(key=lambda x: (x[0], x[1]), reverse=True)
-    click.echo(f"Top candidates (limit={limit}):")
-    for exact, fuzzy_val, r in scored[:limit]:
-        click.echo(f"  file_id={r['id']} score_exact={exact:.3f} score_fuzzy={fuzzy_val:.3f} | title='{r['title']}' artist='{r['artist']}' album='{r['album']}' year={r['year']} path={r['path']} norm='{r['normalized']}'")
-    if match_row:
-        click.echo(f"Existing match: file_id={match_row['file_id']} score={match_row['score']:.3f} method={match_row['method']}")
-    else:
-        click.echo("Existing match: (none)")
-
-
 @cli.command()
 @click.pass_context
 def export(ctx: click.Context):

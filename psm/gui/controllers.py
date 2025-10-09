@@ -76,6 +76,8 @@ class MainController(QObject):
         self.window.on_report_clicked.connect(self._on_report)
         self.window.on_open_reports_clicked.connect(self._on_open_reports)
         self.window.on_build_clicked.connect(self._on_build)
+        self.window.on_analyze_clicked.connect(self._on_analyze)
+        self.window.on_diagnose_clicked.connect(self._on_diagnose)
         
         # Per-playlist actions
         self.window.on_pull_one_clicked.connect(self._on_pull_one)
@@ -369,12 +371,13 @@ class MainController(QObject):
     
     # Action handlers
     
-    def _execute_command(self, args: list, success_message: str):
+    def _execute_command(self, args: list, success_message: str, refresh_after: bool = True):
         """Execute a CLI command using CommandService.
         
         Args:
             args: Command arguments
             success_message: Message to show on success
+            refresh_after: Whether to refresh data after successful execution (default: True)
         """
         # Clear log and reset progress before execution
         self.window.clear_logs()
@@ -385,7 +388,7 @@ class MainController(QObject):
             args=args,
             on_log=self.window.append_log,
             on_progress=self.window.set_progress,
-            on_success=self.refresh_all_async,  # Async refresh after successful operation
+            on_success=self.refresh_all_async if refresh_after else None,  # Conditional refresh
             success_message=success_message
         )
     
@@ -408,6 +411,18 @@ class MainController(QObject):
     def _on_report(self):
         """Handle generate reports."""
         self._execute_command(['report'], "✓ Reports generated")
+    
+    def _on_analyze(self):
+        """Handle analyze library quality (read-only - no refresh needed)."""
+        self._execute_command(['analyze'], "✓ Library quality analysis completed", refresh_after=False)
+    
+    def _on_diagnose(self, track_id: str):
+        """Handle diagnose specific track (read-only - no refresh needed).
+        
+        Args:
+            track_id: ID of the track to diagnose
+        """
+        self._execute_command(['diagnose', track_id], f"✓ Diagnosis completed for track {track_id}", refresh_after=False)
     
     def _on_open_reports(self):
         """Handle open reports directory in OS file browser."""

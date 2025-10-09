@@ -44,6 +44,8 @@ class MainWindow(QMainWindow):
     on_report_clicked = Signal()
     on_open_reports_clicked = Signal()
     on_build_clicked = Signal()
+    on_analyze_clicked = Signal()
+    on_diagnose_clicked = Signal(str)  # track_id
     on_pull_one_clicked = Signal()
     on_match_one_clicked = Signal()
     on_export_one_clicked = Signal()
@@ -121,23 +123,33 @@ class MainWindow(QMainWindow):
         toolbar.setMovable(False)
         self.addToolBar(toolbar)
         
-        # General library actions (stay in toolbar)
+        # General library/system actions
         self.btn_scan = QPushButton("Scan Library")
         self.btn_build = QPushButton("Build")
+        self.btn_analyze = QPushButton("Analyze Quality")
         self.btn_report = QPushButton("Generate Reports")
         self.btn_open_reports = QPushButton("Open Reports")
+        
+        # Watch mode toggle
+        self.btn_watch = QPushButton("Start Watch Mode")
+        self.btn_watch.setCheckable(True)
         
         # Add to toolbar
         toolbar.addWidget(self.btn_scan)
         toolbar.addWidget(self.btn_build)
+        toolbar.addWidget(self.btn_analyze)
         toolbar.addWidget(self.btn_report)
         toolbar.addWidget(self.btn_open_reports)
+        toolbar.addSeparator()
+        toolbar.addWidget(self.btn_watch)
         
         # Connect signals
         self.btn_scan.clicked.connect(self.on_scan_clicked.emit)
         self.btn_build.clicked.connect(self.on_build_clicked.emit)
+        self.btn_analyze.clicked.connect(self.on_analyze_clicked.emit)
         self.btn_report.clicked.connect(self.on_report_clicked.emit)
         self.btn_open_reports.clicked.connect(self.on_open_reports_clicked.emit)
+        self.btn_watch.toggled.connect(self._on_watch_button_toggled)
     
     def _create_playlists_widget(self) -> QWidget:
         """Create the playlists master table widget with filter bar."""
@@ -212,10 +224,6 @@ class MainWindow(QMainWindow):
         self.btn_match_one = QPushButton("Match Selected")
         self.btn_export_one = QPushButton("Export Selected")
         
-        # Watch mode toggle
-        self.btn_watch = QPushButton("Start Watch Mode")
-        self.btn_watch.setCheckable(True)
-        
         # Add buttons to layout
         buttons_layout.addWidget(self.btn_pull)
         buttons_layout.addWidget(self.btn_match)
@@ -224,8 +232,6 @@ class MainWindow(QMainWindow):
         buttons_layout.addWidget(self.btn_pull_one)
         buttons_layout.addWidget(self.btn_match_one)
         buttons_layout.addWidget(self.btn_export_one)
-        buttons_layout.addStretch()
-        buttons_layout.addWidget(self.btn_watch)
         
         layout.addLayout(buttons_layout)
         
@@ -240,8 +246,6 @@ class MainWindow(QMainWindow):
         self.btn_pull_one.clicked.connect(self.on_pull_one_clicked.emit)
         self.btn_match_one.clicked.connect(self.on_match_one_clicked.emit)
         self.btn_export_one.clicked.connect(self.on_export_one_clicked.emit)
-        
-        self.btn_watch.toggled.connect(self._on_watch_button_toggled)
         
         return widget
     
@@ -261,7 +265,47 @@ class MainWindow(QMainWindow):
         # Note: Filter options are now populated on-demand from visible data
         layout.addWidget(self.unified_tracks_view)
         
+        # Connect track selection to enable/disable track actions
+        selection_model = self.unified_tracks_view.tracks_table.selectionModel()
+        if selection_model:
+            selection_model.selectionChanged.connect(self._on_track_selection_changed)
+        
+        # Add track action buttons below the table
+        buttons_layout = QHBoxLayout()
+        buttons_layout.setSpacing(5)
+        
+        # Track-specific action
+        self.btn_diagnose = QPushButton("Diagnose Selected Track")
+        self.btn_diagnose.setEnabled(False)  # Disabled until a track is selected
+        
+        buttons_layout.addWidget(self.btn_diagnose)
+        buttons_layout.addStretch()
+        
+        layout.addLayout(buttons_layout)
+        
+        # Connect signals
+        self.btn_diagnose.clicked.connect(self._on_diagnose_clicked)
+        
         return widget
+    
+    def _on_diagnose_clicked(self):
+        """Handle diagnose button click - emit signal with selected track ID."""
+        # Get selected track from unified tracks view
+        selected_indexes = self.unified_tracks_view.tracks_table.selectionModel().selectedRows()
+        if not selected_indexes:
+            return
+        
+        # Map proxy index to source index
+        proxy_index = selected_indexes[0]
+        source_index = self.unified_tracks_view.proxy_model.mapToSource(proxy_index)
+        source_row = source_index.row()
+        
+        # Get track data from source model
+        track_data = self.unified_tracks_model.get_row_data(source_row)
+        if track_data:
+            track_id = track_data.get('id')
+            if track_id:
+                self.on_diagnose_clicked.emit(track_id)
     
     def _create_playlist_detail_widget(self) -> QWidget:
         """Create the playlist detail widget."""
@@ -480,6 +524,14 @@ class MainWindow(QMainWindow):
         self.btn_match_one.setEnabled(enabled)
         self.btn_export_one.setEnabled(enabled)
     
+    def enable_track_actions(self, enabled: bool):
+        """Enable/disable per-track action buttons.
+        
+        Args:
+            enabled: True to enable, False to disable
+        """
+        self.btn_diagnose.setEnabled(enabled)
+    
     def set_watch_mode(self, enabled: bool):
         """Set watch mode state.
         
@@ -552,6 +604,17 @@ class MainWindow(QMainWindow):
         # Emit signal for other components
         if self._selected_playlist_id:
             self.on_playlist_selected.emit(self._selected_playlist_id)
+    
+    def _on_track_selection_changed(self, selected, deselected):
+        """Handle track selection change.
+        
+        Args:
+            selected: QItemSelection of selected items
+            deselected: QItemSelection of deselected items
+        """
+        # Enable/disable track actions based on selection
+        has_selection = self.unified_tracks_view.tracks_table.selectionModel().hasSelection()
+        self.enable_track_actions(has_selection)
     
     def _apply_playlist_filters(self):
         """Apply current playlist filter settings to the proxy model."""

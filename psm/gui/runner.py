@@ -3,6 +3,7 @@
 Spawns CLI commands as subprocesses and streams logs/progress back to GUI.
 """
 from __future__ import annotations
+import os
 import subprocess
 import sys
 import logging
@@ -44,6 +45,10 @@ class CliRunner(QThread):
             
             logger.info(f"Running command: {' '.join(cmd)}")
             
+            # Set environment to force UTF-8 encoding for subprocess
+            env = os.environ.copy()
+            env['PYTHONIOENCODING'] = 'utf-8'  # Force UTF-8 encoding for Python subprocess
+            
             # Start subprocess with line-buffered output and UTF-8 encoding
             self.process = subprocess.Popen(
                 cmd,
@@ -54,6 +59,7 @@ class CliRunner(QThread):
                 universal_newlines=True,
                 encoding='utf-8',  # Force UTF-8 to handle Unicode characters
                 errors='replace',  # Replace unencodable characters instead of crashing
+                env=env,  # Pass modified environment
             )
             
             # Stream output line by line
