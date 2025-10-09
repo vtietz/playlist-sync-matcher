@@ -7,6 +7,15 @@ from typing import Any, List, Dict, Optional
 from PySide6.QtCore import Qt, QAbstractTableModel, QModelIndex
 import logging
 
+from .utils.formatters import (
+    format_boolean_check,
+    extract_confidence,
+    get_quality_status_text,
+    format_score_percentage,
+    get_confidence_tooltip,
+    get_quality_tooltip,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -292,7 +301,8 @@ class UnifiedTracksModel(BaseTableModel):
     
     Column order optimized for readability:
     - Track, Artist, Album, Year (core metadata first)
-    - Matched, Local File (match status)
+    - Matched, Confidence, Quality (match status and quality indicators)
+    - Local File (match info)
     - Playlists (comma-separated list of playlists containing this track)
     
     Performance optimization:
@@ -307,6 +317,8 @@ class UnifiedTracksModel(BaseTableModel):
             ('album', 'Album'),
             ('year', 'Year'),
             ('matched', 'Matched'),
+            ('confidence', 'Confidence'),
+            ('quality', 'Quality'),
             ('local_path', 'Local File'),
             ('playlists', 'Playlists'),
         ]
@@ -366,7 +378,7 @@ class UnifiedTracksModel(BaseTableModel):
         super().set_data(rows)
     
     def data(self, index, role=Qt.DisplayRole):
-        """Get cell data with special formatting for matched column."""
+        """Get cell data with special formatting for matched, confidence, and quality columns."""
         if not index.isValid():
             return None
         
@@ -376,22 +388,73 @@ class UnifiedTracksModel(BaseTableModel):
         if 0 <= row < len(self.data_rows) and 0 <= col < len(self.columns):
             col_name = self.columns[col][0]
             value = self.data_rows[row].get(col_name)
+            row_data = self.data_rows[row]
             
-            # Special handling for matched column (bool -> Yes/No for display)
-            if col_name == 'matched' and role == Qt.DisplayRole:
-                if isinstance(value, bool):
-                    return "Yes" if value else "No"
-                # Legacy string format (backward compatibility)
-                return str(value) if value is not None else ""
+            if role == Qt.DisplayRole:
+                # Format matched column with check/cross
+                if col_name == 'matched':
+                    if isinstance(value, bool):
+                        return format_boolean_check(value)
+                    return ""
+                
+                # Format confidence column
+                elif col_name == 'confidence':
+                    # Only show confidence if track is matched
+                    if row_data.get('matched'):
+                        method = row_data.get('method')
+                        if method:
+                            return extract_confidence(method)
+                    return ""
+                
+                # Format quality column (only for matched tracks)
+                elif col_name == 'quality':
+                    if row_data.get('matched'):
+                        missing_count = row_data.get('missing_metadata_count', 0)
+                        bitrate_kbps = row_data.get('bitrate_kbps')
+                        return get_quality_status_text(missing_count, bitrate_kbps)
+                    return ""
             
-            # UserRole returns raw boolean for filtering
-            if col_name == 'matched' and role == Qt.UserRole:
-                if isinstance(value, bool):
-                    return value
-                # Legacy string format - convert to bool
-                if isinstance(value, str):
-                    return value.lower() == "yes"
-                return False
+            # UserRole returns raw values for filtering/sorting
+            elif role == Qt.UserRole:
+                # For confidence, return the extracted value for sorting
+                if col_name == 'confidence':
+                    if row_data.get('matched'):
+                        method = row_data.get('method')
+                        if method:
+                            return extract_confidence(method)
+                    return ""
+                
+                # For quality, return the text for sorting
+                elif col_name == 'quality':
+                    if row_data.get('matched'):
+                        missing_count = row_data.get('missing_metadata_count', 0)
+                        bitrate_kbps = row_data.get('bitrate_kbps')
+                        return get_quality_status_text(missing_count, bitrate_kbps)
+                    return ""
+            
+            # ToolTipRole provides helpful hints
+            elif role == Qt.ToolTipRole:
+                # Confidence tooltip
+                if col_name == 'confidence' and row_data.get('matched'):
+                    method = row_data.get('method')
+                    if method:
+                        return get_confidence_tooltip(method)
+                
+                # Quality tooltip
+                elif col_name == 'quality' and row_data.get('matched'):
+                    missing_count = row_data.get('missing_metadata_count', 0)
+                    bitrate_kbps = row_data.get('bitrate_kbps')
+                    # Try to determine which fields are missing
+                    missing_fields = []
+                    if not row_data.get('title'):
+                        missing_fields.append('title')
+                    if not row_data.get('artist'):
+                        missing_fields.append('artist')
+                    if not row_data.get('album'):
+                        missing_fields.append('album')
+                    if not row_data.get('year'):
+                        missing_fields.append('year')
+                    return get_quality_tooltip(missing_count, bitrate_kbps, missing_fields)
         
-        # Use parent implementation for all other cases
+        # Fall back to base implementation for all other columns
         return super().data(index, role)

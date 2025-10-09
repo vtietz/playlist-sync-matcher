@@ -147,6 +147,127 @@ def diagnose_track(
     )
 
 
+def _get_confidence_info(method_str: str) -> Dict[str, str]:
+    """Get confidence level and description from method string.
+    
+    Args:
+        method_str: Method string from database (e.g., 'MatchConfidence.CERTAIN', 'score:HIGH:89.50')
+        
+    Returns:
+        Dict with 'level' and 'description' keys
+    """
+    # Extract confidence level
+    confidence = "UNKNOWN"
+    if "MatchConfidence." in method_str:
+        confidence = method_str.split(".")[-1]
+    elif ':' in method_str:
+        parts = method_str.split(':')
+        if len(parts) >= 2:
+            confidence = parts[1]
+    
+    # Map to descriptions
+    descriptions = {
+        "CERTAIN": "Exact match using unique identifiers (ISRC, Spotify ID)",
+        "HIGH": "Strong match with high similarity score (>85%)",
+        "MODERATE": "Reasonable match with moderate similarity (70-85%)",
+        "LOW": "Weak match with low similarity (<70%)",
+        "UNKNOWN": "Matching method not recorded"
+    }
+    
+    return {
+        'level': confidence,
+        'description': descriptions.get(confidence, "Confidence level unknown")
+    }
+
+
+def _get_quality_info(file_info: Dict[str, Any]) -> Dict[str, Any]:
+    """Get quality assessment for a matched file.
+    
+    Args:
+        file_info: Dictionary with file metadata
+        
+    Returns:
+        Dict with 'level', 'summary', and 'details' (list of strings)
+    """
+    # Count missing metadata
+    missing_fields = []
+    if not file_info.get('title'):
+        missing_fields.append('title')
+    if not file_info.get('artist'):
+        missing_fields.append('artist')
+    if not file_info.get('album'):
+        missing_fields.append('album')
+    if not file_info.get('year'):
+        missing_fields.append('year')
+    
+    missing_count = len(missing_fields)
+    bitrate_kbps = file_info.get('bitrate_kbps')
+    
+    # Determine quality level (same logic as formatters.py)
+    if missing_count >= 3:
+        metadata_quality = "POOR"
+    elif missing_count == 2:
+        metadata_quality = "PARTIAL"
+    elif missing_count == 1:
+        metadata_quality = "GOOD"
+    else:
+        metadata_quality = "EXCELLENT"
+    
+    # Factor in bitrate
+    if bitrate_kbps is not None:
+        if bitrate_kbps < 128:
+            bitrate_quality = "POOR"
+        elif bitrate_kbps < 192:
+            bitrate_quality = "PARTIAL"
+        elif bitrate_kbps < 320:
+            bitrate_quality = "GOOD"
+        else:
+            bitrate_quality = "EXCELLENT"
+        
+        # Return the worse of the two qualities
+        quality_order = {"POOR": 0, "PARTIAL": 1, "GOOD": 2, "EXCELLENT": 3}
+        if quality_order[bitrate_quality] < quality_order[metadata_quality]:
+            overall_quality = bitrate_quality
+        else:
+            overall_quality = metadata_quality
+    else:
+        overall_quality = metadata_quality
+    
+    # Build summary and details
+    details = []
+    
+    if missing_count == 0:
+        details.append("✓ All metadata fields present")
+    else:
+        details.append(f"⚠ Missing {missing_count} field(s): {', '.join(missing_fields)}")
+    
+    if bitrate_kbps is not None:
+        if bitrate_kbps >= 320:
+            details.append(f"✓ High quality audio ({bitrate_kbps} kbps)")
+        elif bitrate_kbps >= 192:
+            details.append(f"⚠ Good audio quality ({bitrate_kbps} kbps)")
+        elif bitrate_kbps >= 128:
+            details.append(f"⚠ Moderate audio quality ({bitrate_kbps} kbps)")
+        else:
+            details.append(f"✗ Low audio quality ({bitrate_kbps} kbps)")
+    else:
+        details.append("ℹ Bitrate unknown")
+    
+    # Create summary
+    summaries = {
+        "EXCELLENT": "Complete metadata and high-quality audio",
+        "GOOD": "Good metadata but lower bitrate or minor gaps",
+        "PARTIAL": "Some metadata missing or low audio quality",
+        "POOR": "Significant metadata gaps or very low audio quality"
+    }
+    
+    return {
+        'level': overall_quality,
+        'summary': summaries.get(overall_quality, "Quality unknown"),
+        'details': details
+    }
+
+
 def format_diagnostic_output(result: DiagnosticResult) -> str:
     """Format diagnostic result as human-readable output.
     
@@ -196,11 +317,30 @@ def format_diagnostic_output(result: DiagnosticResult) -> str:
         matched = result.matched_file
         lines.append(f"Matched to:  {matched['path']}")
         lines.append(f"Score:       {result.match_score:.2%} ({result.match_method})")
-        lines.append(f"File tags:   {matched.get('artist', 'N/A')} - {matched.get('title', 'N/A')}")
+        
+        # Add confidence information
+        confidence_info = _get_confidence_info(result.match_method)
+        lines.append(f"Confidence:  {confidence_info['level']} - {confidence_info['description']}")
+        
+        # Add quality information
+        quality_info = _get_quality_info(matched)
+        lines.append(f"Quality:     {quality_info['level']} - {quality_info['summary']}")
+        if quality_info['details']:
+            for detail in quality_info['details']:
+                lines.append(f"             {detail}")
+        
+        lines.append("")
+        lines.append("File metadata:")
+        lines.append(f"  Artist:     {matched.get('artist', 'N/A')}")
+        lines.append(f"  Title:      {matched.get('title', 'N/A')}")
+        lines.append(f"  Album:      {matched.get('album', 'N/A')}")
+        lines.append(f"  Year:       {matched.get('year', 'N/A')}")
         if matched.get('duration'):
             file_duration_str = f"{int(matched['duration'] // 60)}:{int(matched['duration'] % 60):02d}"
-            lines.append(f"Duration:    {file_duration_str} ({matched['duration']}s)")
-        lines.append(f"Normalized:  {matched.get('normalized', 'N/A')}")
+            lines.append(f"  Duration:   {file_duration_str} ({matched['duration']}s)")
+        if matched.get('bitrate_kbps'):
+            lines.append(f"  Bitrate:    {matched['bitrate_kbps']} kbps")
+        lines.append(f"  Normalized: {matched.get('normalized', 'N/A')}")
         return "\n".join(lines)
     
     # Unmatched - show diagnostics

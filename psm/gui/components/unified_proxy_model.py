@@ -40,6 +40,8 @@ class UnifiedTracksProxyModel(QSortFilterProxyModel):
         self._artist_filter: Optional[str] = None
         self._album_filter: Optional[str] = None
         self._year_filter: Optional[int] = None
+        self._confidence_filter: Optional[str] = None
+        self._quality_filter: Optional[str] = None
         self._search_text: str = ""
         
         # Cached column indices (populated on first filter)
@@ -123,6 +125,24 @@ class UnifiedTracksProxyModel(QSortFilterProxyModel):
             year: Year to filter by, or None for all years
         """
         self._year_filter = year
+        self.invalidateFilter()
+    
+    def set_confidence_filter(self, confidence: Optional[str]):
+        """Set confidence filter.
+        
+        Args:
+            confidence: Confidence level to filter by (CERTAIN/HIGH/MODERATE/LOW), or None for all
+        """
+        self._confidence_filter = confidence
+        self.invalidateFilter()
+    
+    def set_quality_filter(self, quality: Optional[str]):
+        """Set quality filter.
+        
+        Args:
+            quality: Quality level to filter by (EXCELLENT/GOOD/PARTIAL/POOR), or None for all
+        """
+        self._quality_filter = quality
         self.invalidateFilter()
     
     def set_search_text_debounced(self, text: str, delay_ms: int = 300):
@@ -224,6 +244,26 @@ class UnifiedTracksProxyModel(QSortFilterProxyModel):
                     if year_value == "" or year_value is None:
                         return False
                     if year_value != self._year_filter:
+                        return False
+            
+            # Early exit: Filter by confidence (use UserRole for exact match)
+            if self._confidence_filter:
+                confidence_col = cols.get('Confidence')
+                if confidence_col is not None:
+                    index = source_model.index(source_row, confidence_col, source_parent)
+                    # Use UserRole to get confidence level
+                    confidence = source_model.data(index, Qt.UserRole) or ''
+                    if confidence != self._confidence_filter:
+                        return False
+            
+            # Early exit: Filter by quality (use UserRole for exact match)
+            if self._quality_filter:
+                quality_col = cols.get('Quality')
+                if quality_col is not None:
+                    index = source_model.index(source_row, quality_col, source_parent)
+                    # Use UserRole to get quality level
+                    quality = source_model.data(index, Qt.UserRole) or ''
+                    if quality != self._quality_filter:
                         return False
             
             # Early exit: Filter by search text (use UserRole for lowercase comparison)

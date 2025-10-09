@@ -679,7 +679,8 @@ class Database(DatabaseInterface):
             f.album, 
             f.duration, 
             f.normalized,
-            f.year
+            f.year,
+            f.bitrate_kbps
         FROM matches m
         JOIN library_files f ON m.file_id = f.id
         WHERE m.track_id = ? AND m.provider = ?

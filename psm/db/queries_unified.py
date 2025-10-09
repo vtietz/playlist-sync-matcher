@@ -57,14 +57,23 @@ def list_unified_tracks_min(
         CASE WHEN m.track_id IS NOT NULL THEN 1 ELSE 0 END as matched,
         COALESCE(lf.path, '') as local_path,
         t.artist_id,
-        t.album_id
+        t.album_id,
+        m.score,
+        m.method,
+        lf.title,
+        lf.artist as file_artist,
+        lf.album as file_album,
+        lf.year as file_year,
+        lf.bitrate_kbps
     FROM tracks t
     LEFT JOIN (
         -- Get best match per track (highest score)
         SELECT 
             m1.track_id,
             m1.provider,
-            m1.file_id
+            m1.file_id,
+            m1.score,
+            m1.method
         FROM matches m1
         INNER JOIN (
             SELECT track_id, provider, MAX(score) as max_score
@@ -84,6 +93,17 @@ def list_unified_tracks_min(
     
     results = []
     for row in cursor.fetchall():
+        # Calculate missing metadata count for quality status
+        missing_count = 0
+        if not row[11]:  # title
+            missing_count += 1
+        if not row[12]:  # file_artist
+            missing_count += 1
+        if not row[13]:  # file_album
+            missing_count += 1
+        if not row[14]:  # file_year
+            missing_count += 1
+        
         results.append({
             'id': row[0],
             'name': row[1] or '',
@@ -94,6 +114,10 @@ def list_unified_tracks_min(
             'local_path': row[6],
             'artist_id': row[7],  # Artist Spotify ID
             'album_id': row[8],   # Album Spotify ID
+            'score': row[9],  # Match score (0.0-1.0)
+            'method': row[10],  # Match method string
+            'missing_metadata_count': missing_count,  # For quality calculation
+            'bitrate_kbps': row[15],  # For quality calculation
         })
     
     return results

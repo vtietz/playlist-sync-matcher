@@ -107,9 +107,9 @@ class UnifiedTracksView(QWidget):
         self.tracks_table.setItemDelegateForColumn(1, link_delegate)  # Artist
         self.tracks_table.setItemDelegateForColumn(2, link_delegate)  # Album
         
-        # Apply folder delegate to Local File column (column 5)
+        # Apply folder delegate to Local File column (column 7, was 5 before adding Confidence/Quality)
         folder_delegate = FolderDelegate(parent=self.tracks_table)
-        self.tracks_table.setItemDelegateForColumn(5, folder_delegate)  # Local File
+        self.tracks_table.setItemDelegateForColumn(7, folder_delegate)  # Local File
         
         # Enable mouse tracking for hover effects
         self.tracks_table.setMouseTracking(True)
@@ -168,12 +168,16 @@ class UnifiedTracksView(QWidget):
         artist_filter = self.filter_bar.get_artist_filter()
         album_filter = self.filter_bar.get_album_filter()
         year_filter = self.filter_bar.get_year_filter()
+        confidence_filter = self.filter_bar.get_confidence_filter()
+        quality_filter = self.filter_bar.get_quality_filter()
         
         # Apply to proxy model
         self.proxy_model.set_status_filter(status_filter)
         self.proxy_model.set_artist_filter(artist_filter)
         self.proxy_model.set_album_filter(album_filter)
         self.proxy_model.set_year_filter(year_filter)
+        self.proxy_model.set_confidence_filter(confidence_filter)
+        self.proxy_model.set_quality_filter(quality_filter)
         self.proxy_model.set_search_text_debounced(search_text, delay_ms=300)
     
     def _on_selection_changed(self, selected, deselected):
@@ -302,10 +306,10 @@ class UnifiedTracksView(QWidget):
         
         Column strategy:
         - Text fields (Track, Artist, Album, Local File, Playlists): More space
-        - Short fields (Year, Matched): Less space
+        - Short fields (Year, Matched, Confidence, Quality): Less space
         """
         # Column indices from UnifiedTracksModel:
-        # 0: Track, 1: Artist, 2: Album, 3: Year, 4: Matched, 5: Local File, 6: Playlists
+        # 0: Track, 1: Artist, 2: Album, 3: Year, 4: Matched, 5: Confidence, 6: Quality, 7: Local File, 8: Playlists
         header = self.tracks_table.horizontalHeader()
         
         # Set initial widths (in pixels)
@@ -314,9 +318,11 @@ class UnifiedTracksView(QWidget):
         header.resizeSection(1, 180)  # Artist - medium
         header.resizeSection(2, 200)  # Album - medium-large
         header.resizeSection(3, 60)   # Year - small
-        header.resizeSection(4, 80)   # Matched - small
-        header.resizeSection(5, 300)  # Local File - large
-        # Column 6 (Playlists) stretches to fill remaining space
+        header.resizeSection(4, 70)   # Matched - small (✓/✗)
+        header.resizeSection(5, 95)   # Confidence - small-medium (CERTAIN/HIGH/etc)
+        header.resizeSection(6, 95)   # Quality - small-medium (EXCELLENT/GOOD/etc)
+        header.resizeSection(7, 350)  # Local File - large (file paths)
+        # Column 8 (Playlists) stretches to fill remaining space
     
     def resize_columns_to_contents(self):
         """Resize table columns to fit contents (with performance gating).
@@ -332,13 +338,17 @@ class UnifiedTracksView(QWidget):
         # Only resize if we have data, otherwise keep initial widths
         if self.proxy_model.rowCount() > 0:
             self.tracks_table.resizeColumnsToContents()
-            # Re-apply minimum widths for small columns
+            # Re-apply maximum widths for small columns to prevent them getting too wide
             header = self.tracks_table.horizontalHeader()
-            # Ensure Year and Matched columns don't get too wide
+            # Ensure Year, Matched, Confidence, and Quality columns don't get too wide
             if header.sectionSize(3) > 80:
-                header.resizeSection(3, 80)  # Year max 80px
-            if header.sectionSize(4) > 100:
-                header.resizeSection(4, 100)  # Matched max 100px
+                header.resizeSection(3, 80)   # Year max 80px
+            if header.sectionSize(4) > 70:
+                header.resizeSection(4, 70)   # Matched max 70px (✓/✗)
+            if header.sectionSize(5) > 110:
+                header.resizeSection(5, 110)  # Confidence max 110px
+            if header.sectionSize(6) > 110:
+                header.resizeSection(6, 110)  # Quality max 110px
     
     def show_loading(self):
         """Show loading overlay on the tracks table."""

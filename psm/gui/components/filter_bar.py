@@ -89,6 +89,16 @@ class FilterBar(QWidget):
             original_year_showPopup()
         self.year_combo.showPopup = year_showPopup
         
+        # Confidence filter (for matched tracks)
+        self.confidence_combo = QComboBox()
+        self.confidence_combo.addItems(["All Confidence", "CERTAIN", "HIGH", "MODERATE", "LOW"])
+        self.confidence_combo.currentIndexChanged.connect(self._on_filter_changed)
+        
+        # Quality filter (for matched tracks)
+        self.quality_combo = QComboBox()
+        self.quality_combo.addItems(["All Quality", "EXCELLENT", "GOOD", "PARTIAL", "POOR"])
+        self.quality_combo.currentIndexChanged.connect(self._on_filter_changed)
+        
         # Row 2: Search field (with debouncing)
         self.search_field = DebouncedSearchField(debounce_ms=500)
         self.search_field.setPlaceholderText("Search tracks, albums, artists...")
@@ -114,6 +124,12 @@ class FilterBar(QWidget):
         
         row1_layout.addWidget(QLabel("Year:"))
         row1_layout.addWidget(self.year_combo)
+        
+        row1_layout.addWidget(QLabel("Confidence:"))
+        row1_layout.addWidget(self.confidence_combo)
+        
+        row1_layout.addWidget(QLabel("Quality:"))
+        row1_layout.addWidget(self.quality_combo)
         
         row1_layout.addStretch()
         
@@ -184,6 +200,24 @@ class FilterBar(QWidget):
         except (ValueError, TypeError):
             return None
     
+    def get_confidence_filter(self) -> Optional[str]:
+        """Get selected confidence filter.
+        
+        Returns:
+            Confidence level or None if "All Confidence" selected
+        """
+        text = self.confidence_combo.currentText()
+        return None if text == "All Confidence" else text
+    
+    def get_quality_filter(self) -> Optional[str]:
+        """Get selected quality filter.
+        
+        Returns:
+            Quality level or None if "All Quality" selected
+        """
+        text = self.quality_combo.currentText()
+        return None if text == "All Quality" else text
+    
     def populate_filter_options(
         self,
         artists: List[str],
@@ -235,4 +269,6 @@ class FilterBar(QWidget):
         self.artist_combo.setCurrentIndex(0)
         self.album_combo.setCurrentIndex(0)
         self.year_combo.setCurrentIndex(0)
+        self.confidence_combo.setCurrentIndex(0)
+        self.quality_combo.setCurrentIndex(0)
         self.search_field.clear()
