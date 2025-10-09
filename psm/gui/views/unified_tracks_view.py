@@ -16,6 +16,8 @@ from PySide6.QtGui import QFont
 import logging
 
 from ..components import FilterBar, UnifiedTracksProxyModel
+from ..components.link_delegate import LinkDelegate
+from ..components.folder_delegate import FolderDelegate
 from ..models import BaseTableModel
 from PySide6.QtWidgets import QTableView, QHeaderView
 
@@ -97,6 +99,20 @@ class UnifiedTracksView(QWidget):
         # Set intelligent initial column widths
         # Columns: Playlist, Owner, Track, Artist, Album, Year, Matched, Local File
         self._set_initial_column_widths()
+        
+        # Apply link delegate to linkable columns (Track, Artist, Album)
+        link_delegate = LinkDelegate(provider="spotify", parent=self.tracks_table)
+        # Column 0 = Track, 1 = Artist, 2 = Album
+        self.tracks_table.setItemDelegateForColumn(0, link_delegate)  # Track
+        self.tracks_table.setItemDelegateForColumn(1, link_delegate)  # Artist
+        self.tracks_table.setItemDelegateForColumn(2, link_delegate)  # Album
+        
+        # Apply folder delegate to Local File column (column 5)
+        folder_delegate = FolderDelegate(parent=self.tracks_table)
+        self.tracks_table.setItemDelegateForColumn(5, folder_delegate)  # Local File
+        
+        # Enable mouse tracking for hover effects
+        self.tracks_table.setMouseTracking(True)
         
         # Create loading overlay
         self._loading_overlay = QLabel("Loading...", self.tracks_table.viewport())

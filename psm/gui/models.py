@@ -80,6 +80,57 @@ class BaseTableModel(QAbstractTableModel):
                 if isinstance(value, str):
                     return value.lower()
                 return value
+            
+            elif role == Qt.UserRole + 1:
+                # Return link item type for delegate
+                return self._get_link_type(col_name)
+            
+            elif role == Qt.UserRole + 2:
+                # Return link item ID for delegate
+                return self._get_link_id(col_name, row)
+        
+        return None
+    
+    def _get_link_type(self, col_name: str) -> Optional[str]:
+        """Get link type for column.
+        
+        Args:
+            col_name: Column name
+            
+        Returns:
+            Link type ("track", "album", "artist", "playlist") or None
+        """
+        # Map column names to link types
+        link_map = {
+            'name': 'track',
+            'artist': 'artist',
+            'album': 'album',
+        }
+        return link_map.get(col_name)
+    
+    def _get_link_id(self, col_name: str, row: int) -> Optional[str]:
+        """Get link ID for column and row.
+        
+        Args:
+            col_name: Column name
+            row: Row index
+            
+        Returns:
+            Spotify ID or None
+        """
+        if 0 <= row < len(self.data_rows):
+            row_data = self.data_rows[row]
+            
+            # Map column names to ID fields
+            id_map = {
+                'name': 'id',         # Track ID
+                'artist': 'artist_id',
+                'album': 'album_id',
+            }
+            
+            id_field = id_map.get(col_name)
+            if id_field:
+                return row_data.get(id_field)
         
         return None
     
@@ -119,7 +170,7 @@ class PlaylistsModel(BaseTableModel):
         super().__init__(columns, parent)
     
     def data(self, index, role=Qt.DisplayRole):
-        """Override to format Coverage column as '86% (19/22)'."""
+        """Override to format Coverage column as '86% (19/22)' and provide link data."""
         if not index.isValid():
             return None
         
@@ -136,6 +187,14 @@ class PlaylistsModel(BaseTableModel):
                 matched = row_data.get('matched_count', 0)
                 total = row_data.get('track_count', 0)
                 return f"{coverage_pct}% ({matched}/{total})"
+            
+            # Link data for Name column (playlist)
+            if col_name == 'name' and role == Qt.UserRole + 1:
+                return 'playlist'
+            
+            if col_name == 'name' and role == Qt.UserRole + 2:
+                row_data = self.data_rows[row]
+                return row_data.get('id')  # Playlist ID
             
             # Use base class for everything else
             return super().data(index, role)

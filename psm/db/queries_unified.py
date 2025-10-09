@@ -55,7 +55,9 @@ def list_unified_tracks_min(
         t.album,
         t.year,
         CASE WHEN m.track_id IS NOT NULL THEN 1 ELSE 0 END as matched,
-        COALESCE(lf.path, '') as local_path
+        COALESCE(lf.path, '') as local_path,
+        t.artist_id,
+        t.album_id
     FROM tracks t
     LEFT JOIN (
         -- Get best match per track (highest score)
@@ -90,6 +92,8 @@ def list_unified_tracks_min(
             'year': row[4],  # May be None
             'matched': bool(row[5]),  # 1/0 -> True/False
             'local_path': row[6],
+            'artist_id': row[7],  # Artist Spotify ID
+            'album_id': row[8],   # Album Spotify ID
         })
     
     return results

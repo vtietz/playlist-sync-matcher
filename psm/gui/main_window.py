@@ -17,6 +17,8 @@ from PySide6.QtGui import QFont
 import logging
 
 from .components import SortFilterTable, LogPanel
+from .components.link_delegate import LinkDelegate
+from .components.folder_delegate import FolderDelegate
 from .views import UnifiedTracksView
 from .models import (
     PlaylistsModel, PlaylistDetailModel, UnmatchedTracksModel,
@@ -197,6 +199,13 @@ class MainWindow(QMainWindow):
         # Name should get most space, Owner medium, Coverage small
         self.playlists_table.set_column_widths([250, 120, 120])
         
+        # Apply link delegate to Name column (column 0 = playlist link)
+        link_delegate = LinkDelegate(provider="spotify", parent=self.playlists_table.table_view)
+        self.playlists_table.table_view.setItemDelegateForColumn(0, link_delegate)
+        
+        # Enable mouse tracking for hover effects
+        self.playlists_table.table_view.setMouseTracking(True)
+        
         # Connect selection signal
         self.playlists_table.selection_model().selectionChanged.connect(
             self._on_playlist_selection_changed
@@ -232,6 +241,20 @@ class MainWindow(QMainWindow):
             source_model=self.playlist_detail_model,
             stretch_columns=True
         )
+        
+        # Apply link delegate to linkable columns in playlist detail
+        # Columns: 0=#, 1=Track, 2=Artist, 3=Album, 4=Local File
+        link_delegate = LinkDelegate(provider="spotify", parent=self.detail_table.table_view)
+        self.detail_table.table_view.setItemDelegateForColumn(1, link_delegate)  # Track
+        self.detail_table.table_view.setItemDelegateForColumn(2, link_delegate)  # Artist
+        self.detail_table.table_view.setItemDelegateForColumn(3, link_delegate)  # Album
+        
+        # Apply folder delegate to Local File column
+        folder_delegate = FolderDelegate(parent=self.detail_table.table_view)
+        self.detail_table.table_view.setItemDelegateForColumn(4, folder_delegate)  # Local File
+        
+        # Enable mouse tracking for hover effects
+        self.detail_table.table_view.setMouseTracking(True)
         
         layout.addWidget(self.detail_table)
         

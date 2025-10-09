@@ -209,6 +209,22 @@ class MainController(QObject):
             self.window.unified_tracks_view.hide_loading()
             self.window.append_log("Data loaded successfully")
             
+            # Reapply active playlist filter if a playlist is selected
+            # This ensures the filter uses fresh track_ids after DB changes (e.g., "Pull Selected")
+            selected_playlist_id = self.window.get_selected_playlist_id()
+            if selected_playlist_id:
+                # Fetch current playlist data to get name
+                playlist = self.facade.get_playlist_by_id(selected_playlist_id)
+                if playlist:
+                    # Recompute filter with fresh track_ids from DB
+                    logger.debug(f"Reapplying playlist filter for '{playlist.name}' after data refresh")
+                    self.set_playlist_filter(playlist.name)
+                else:
+                    # Playlist was deleted - clear filter and selection
+                    logger.info(f"Playlist {selected_playlist_id} no longer exists - clearing selection")
+                    self.window.unified_tracks_view.clear_filters()
+                    self.window._selected_playlist_id = None
+            
             # Trigger lazy playlist loading for visible rows
             QTimer.singleShot(100, self.window.unified_tracks_view.trigger_lazy_playlist_load)
             
