@@ -21,11 +21,11 @@ from .components.link_delegate import LinkDelegate
 from .components.folder_delegate import FolderDelegate
 from .components.playlist_filter_bar import PlaylistFilterBar
 from .components.playlist_proxy_model import PlaylistProxyModel
-from .views import UnifiedTracksView
+from .views import UnifiedTracksView, AlbumsView, ArtistsView
 from .models import (
     PlaylistsModel, PlaylistDetailModel, UnmatchedTracksModel,
     MatchedTracksModel, PlaylistCoverageModel, UnmatchedAlbumsModel,
-    LikedTracksModel, UnifiedTracksModel
+    LikedTracksModel, UnifiedTracksModel, AlbumsModel, ArtistsModel
 )
 
 logger = logging.getLogger(__name__)
@@ -78,6 +78,8 @@ class MainWindow(QMainWindow):
         self.unmatched_albums_model = UnmatchedAlbumsModel(self)
         self.liked_tracks_model = LikedTracksModel(self)
         self.unified_tracks_model = UnifiedTracksModel(self)
+        self.albums_model = AlbumsModel(self)
+        self.artists_model = ArtistsModel(self)
         
         # Build UI
         self._create_ui()
@@ -170,15 +172,30 @@ class MainWindow(QMainWindow):
         self.btn_watch.toggled.connect(self._on_watch_button_toggled)
     
     def _create_playlists_widget(self) -> QWidget:
-        """Create the playlists master table widget with filter bar."""
+        """Create the left panel with tabs for Playlists, Albums, and Artists."""
+        # Create tab widget
+        tab_widget = QTabWidget()
+        tab_widget.setObjectName("leftTabs")
+        
+        # Tab 1: Playlists
+        playlists_tab = self._create_playlists_tab()
+        tab_widget.addTab(playlists_tab, "Playlists")
+        
+        # Tab 2: Albums
+        albums_tab = self._create_albums_tab()
+        tab_widget.addTab(albums_tab, "Albums")
+        
+        # Tab 3: Artists
+        artists_tab = self._create_artists_tab()
+        tab_widget.addTab(artists_tab, "Artists")
+        
+        return tab_widget
+    
+    def _create_playlists_tab(self) -> QWidget:
+        """Create the playlists tab content."""
         widget = QWidget()
         layout = QVBoxLayout(widget)
-        layout.setContentsMargins(0, 0, 0, 0)  # Remove margins
-        
-        # Add label for cleaner look
-        label = QLabel("Playlists")
-        label.setFont(QFont("Segoe UI", 10, QFont.Bold))
-        layout.addWidget(label)
+        layout.setContentsMargins(5, 5, 5, 5)  # Add small margins
         
         # Add filter bar
         self.playlist_filter_bar = PlaylistFilterBar()
@@ -202,6 +219,10 @@ class MainWindow(QMainWindow):
         # Enable text eliding for long playlist names
         self.playlists_table_view.setTextElideMode(Qt.ElideRight)
         self.playlists_table_view.setWordWrap(False)
+        
+        # Set compact row height to match tracks table
+        self.playlists_table_view.verticalHeader().setDefaultSectionSize(22)
+        self.playlists_table_view.verticalHeader().setMinimumSectionSize(22)
         
         # Configure column resizing
         header = self.playlists_table_view.horizontalHeader()
@@ -267,16 +288,35 @@ class MainWindow(QMainWindow):
         
         return widget
     
+    def _create_albums_tab(self) -> QWidget:
+        """Create the albums tab content."""
+        # Create albums view with model
+        self.albums_view = AlbumsView(self.albums_model)
+        return self.albums_view
+    
+    def _create_artists_tab(self) -> QWidget:
+        """Create the artists tab content."""
+        # Create artists view with model
+        self.artists_view = ArtistsView(self.artists_model)
+        return self.artists_view
+    
     def _create_right_panel(self) -> QWidget:
-        """Create the right panel with unified tracks view."""
+        """Create the right panel with tabs for Tracks."""
+        # Create tab widget
+        tab_widget = QTabWidget()
+        tab_widget.setObjectName("rightTabs")
+        
+        # Tab 1: Tracks
+        tracks_tab = self._create_tracks_tab()
+        tab_widget.addTab(tracks_tab, "Tracks")
+        
+        return tab_widget
+    
+    def _create_tracks_tab(self) -> QWidget:
+        """Create the tracks tab content."""
         widget = QWidget()
         layout = QVBoxLayout(widget)
-        layout.setContentsMargins(0, 0, 0, 0)
-        
-        # Add header label
-        label = QLabel("Tracks")
-        label.setFont(QFont("Segoe UI", 10, QFont.Bold))
-        layout.addWidget(label)
+        layout.setContentsMargins(5, 5, 5, 5)  # Add small margins
         
         # Single unified tracks view (replaces all tabs)
         self.unified_tracks_view = UnifiedTracksView(self.unified_tracks_model)
@@ -411,6 +451,26 @@ class MainWindow(QMainWindow):
         self.playlists_table_view.sortByColumn(0, Qt.AscendingOrder)
         
         # No auto-selection - user can click to select/deselect
+    
+    def update_albums(self, albums: List[Dict[str, Any]]):
+        """Update albums table.
+        
+        Args:
+            albums: List of album dicts with aggregated statistics
+        """
+        self.albums_model.set_data(albums)
+        # Default sort by playlist count (column 3) descending, then track count (column 2) descending
+        self.albums_view.table.sortByColumn(3, Qt.DescendingOrder)
+    
+    def update_artists(self, artists: List[Dict[str, Any]]):
+        """Update artists table.
+        
+        Args:
+            artists: List of artist dicts with aggregated statistics
+        """
+        self.artists_model.set_data(artists)
+        # Default sort by playlist count (column 3) descending, then track count (column 1) descending
+        self.artists_view.table.sortByColumn(3, Qt.DescendingOrder)
     
     def update_playlist_detail(self, tracks: List[Dict[str, Any]]):
         """Update playlist detail table.

@@ -138,6 +138,8 @@ class MainController(QObject):
         load_funcs = {
             'playlists': lambda: self.facade_factory().list_playlists(),
             'tracks': lambda: self.facade_factory().list_all_tracks_unified_fast(),  # Fast path!
+            'albums_data': lambda: self.facade_factory().list_albums(),  # Aggregated albums
+            'artists_data': lambda: self.facade_factory().list_artists(),  # Aggregated artists
             'artists': lambda: self.facade_factory().get_unique_artists(),
             'albums': lambda: self.facade_factory().get_unique_albums(),
             'years': lambda: self.facade_factory().get_unique_years(),
@@ -179,6 +181,14 @@ class MainController(QObject):
             if 'playlists' in results:
                 self.window.update_playlists(results['playlists'])
             
+            # Update albums
+            if 'albums_data' in results:
+                self.window.update_albums(results['albums_data'])
+            
+            # Update artists
+            if 'artists_data' in results:
+                self.window.update_artists(results['artists_data'])
+            
             # Update tracks
             if 'tracks' in results:
                 self.window.update_unified_tracks(
@@ -193,6 +203,9 @@ class MainController(QObject):
                     results['albums'],
                     results['years']
                 )
+                # Also populate albums view filter
+                if hasattr(self.window, 'albums_view'):
+                    self.window.albums_view.populate_filter_options()
             
             # Update counts
             if 'counts' in results:

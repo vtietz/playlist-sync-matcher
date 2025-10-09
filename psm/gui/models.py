@@ -458,3 +458,31 @@ class UnifiedTracksModel(BaseTableModel):
         
         # Fall back to base implementation for all other columns
         return super().data(index, role)
+
+
+class AlbumsModel(BaseTableModel):
+    """Model for albums aggregated view with coverage statistics."""
+    
+    def __init__(self, parent=None):
+        columns = [
+            ('album', 'Album'),
+            ('artist', 'Artist'),
+            ('track_count', 'Tracks'),
+            ('playlist_count', 'Playlists'),
+            ('coverage', 'Coverage'),  # Format: "75% (75/100)"
+        ]
+        super().__init__(columns, parent)
+
+
+class ArtistsModel(BaseTableModel):
+    """Model for artists aggregated view with coverage statistics."""
+    
+    def __init__(self, parent=None):
+        columns = [
+            ('artist', 'Artist'),
+            ('track_count', 'Tracks'),
+            ('album_count', 'Albums'),
+            ('playlist_count', 'Playlists'),
+            ('coverage', 'Coverage'),  # Format: "75% (75/100)"
+        ]
+        super().__init__(columns, parent)

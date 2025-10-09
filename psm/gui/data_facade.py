@@ -388,3 +388,84 @@ class DataFacade:
         """
         # Use SQL DISTINCT for performance
         return self.db.get_distinct_years(provider=self._provider)
+    
+    def list_albums(self) -> List[Dict[str, Any]]:
+        """Get all albums with aggregated statistics.
+        
+        Returns:
+            List of dicts with album, artist, track_count, playlist_count, coverage.
+            Coverage format: "75% (75/100)" (percentage of matched tracks).
+        """
+        rows = self.db.conn.execute("""
+            SELECT 
+                t.album,
+                t.artist,
+                COUNT(DISTINCT t.id) as track_count,
+                COUNT(DISTINCT pt.playlist_id) as playlist_count,
+                COUNT(DISTINCT CASE WHEN m.track_id IS NOT NULL THEN t.id END) as matched_count
+            FROM tracks t
+            LEFT JOIN playlist_tracks pt ON t.id = pt.track_id AND t.provider = pt.provider
+            LEFT JOIN matches m ON t.id = m.track_id AND t.provider = m.provider
+            WHERE t.provider = ?
+              AND t.album IS NOT NULL
+              AND t.artist IS NOT NULL
+            GROUP BY t.album, t.artist
+            ORDER BY playlist_count DESC, track_count DESC, t.artist, t.album
+        """, (self._provider,)).fetchall()
+        
+        results = []
+        for row in rows:
+            track_count = row['track_count']
+            matched_count = row['matched_count']
+            percentage = int((matched_count / track_count * 100)) if track_count > 0 else 0
+            coverage = f"{percentage}% ({matched_count}/{track_count})"
+            
+            results.append({
+                'album': row['album'],
+                'artist': row['artist'],
+                'track_count': track_count,
+                'playlist_count': row['playlist_count'],
+                'coverage': coverage,
+            })
+        
+        return results
+    
+    def list_artists(self) -> List[Dict[str, Any]]:
+        """Get all artists with aggregated statistics.
+        
+        Returns:
+            List of dicts with artist, track_count, album_count, playlist_count, coverage.
+            Coverage format: "75% (75/100)" (percentage of matched tracks).
+        """
+        rows = self.db.conn.execute("""
+            SELECT 
+                t.artist,
+                COUNT(DISTINCT t.id) as track_count,
+                COUNT(DISTINCT t.album) as album_count,
+                COUNT(DISTINCT pt.playlist_id) as playlist_count,
+                COUNT(DISTINCT CASE WHEN m.track_id IS NOT NULL THEN t.id END) as matched_count
+            FROM tracks t
+            LEFT JOIN playlist_tracks pt ON t.id = pt.track_id AND t.provider = pt.provider
+            LEFT JOIN matches m ON t.id = m.track_id AND t.provider = m.provider
+            WHERE t.provider = ?
+              AND t.artist IS NOT NULL
+            GROUP BY t.artist
+            ORDER BY playlist_count DESC, track_count DESC, t.artist
+        """, (self._provider,)).fetchall()
+        
+        results = []
+        for row in rows:
+            track_count = row['track_count']
+            matched_count = row['matched_count']
+            percentage = int((matched_count / track_count * 100)) if track_count > 0 else 0
+            coverage = f"{percentage}% ({matched_count}/{track_count})"
+            
+            results.append({
+                'artist': row['artist'],
+                'track_count': track_count,
+                'album_count': row['album_count'],
+                'playlist_count': row['playlist_count'],
+                'coverage': coverage,
+            })
+        
+        return results
