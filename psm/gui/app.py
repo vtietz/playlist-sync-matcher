@@ -83,14 +83,21 @@ def main() -> int:
         # Create data facade
         facade = DataFacade(db, provider=provider)
         
+        # Create facade factory for thread-safe background loads
+        # Each background thread gets a fresh DB connection to avoid SQLite threading issues
+        def facade_factory():
+            """Create a new facade with fresh DB connection for background threads."""
+            thread_db = get_db(config_dict)
+            return DataFacade(thread_db, provider=provider)
+        
         # Create CLI executor
         executor = CliExecutor()
         
         # Create main window
         window = MainWindow()
         
-        # Create controller (wires everything together)
-        controller = MainController(window, facade, executor)
+        # Create controller (wires everything together and loads data)
+        controller = MainController(window, facade, executor, facade_factory)
         
         # Show window
         window.show()

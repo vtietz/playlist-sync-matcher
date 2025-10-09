@@ -26,12 +26,14 @@ class DataFacade:
         self._provider = provider
     
     def list_playlists(self) -> List[Dict[str, Any]]:
-        """Get all playlists with track counts.
+        """Get all playlists with track counts and match statistics.
         
         Returns:
-            List of dicts with id, name, owner_id, owner_name, track_count
+            List of dicts with id, name, owner_id, owner_name, track_count,
+            matched_count, unmatched_count, coverage.
         """
-        return self.db.list_playlists(provider=self._provider)
+        # Use SQL aggregation for performance (single query instead of N+1)
+        return self.db.get_playlist_coverage(provider=self._provider)
     
     def get_playlist_detail(self, playlist_id: str) -> List[Dict[str, Any]]:
         """Get tracks in a playlist with best-match local paths.
@@ -239,3 +241,150 @@ class DataFacade:
             'matches': matches,
             'liked': liked,
         }
+    
+    def list_all_tracks_unified(self) -> List[Dict[str, Any]]:
+        """Get all unique tracks with concatenated playlist names.
+        
+        Returns:
+            List of dicts with: name, artist, album, year, matched (Yes/No),
+            local_path, playlists (comma-separated names)
+        """
+        from collections import defaultdict
+        from typing import Dict, List, Any
+        
+        # Group tracks by track_id to concatenate playlists
+        track_map: Dict[str, Dict[str, Any]] = defaultdict(lambda: {
+            'playlists': [],
+            'data': None
+        })
+        
+        # Get all playlists
+        playlists = self.db.list_playlists(provider=self._provider)
+        
+        for playlist in playlists:
+            playlist_id = playlist['id']
+            playlist_name = playlist['name']
+            
+            # Get tracks for this playlist
+            tracks = self.db.get_playlist_tracks_with_local_paths(
+                playlist_id,
+                provider=self._provider
+            )
+            
+            for track in tracks:
+                track_id = track.get('track_id', '')
+                if not track_id:
+                    continue
+                
+                # Add playlist name to this track
+                track_map[track_id]['playlists'].append(playlist_name)
+                
+                # Store track data (use first occurrence)
+                if track_map[track_id]['data'] is None:
+                    has_match = bool(track.get('local_path'))
+                    matched_str = "Yes" if has_match else "No"
+                    
+                    track_map[track_id]['data'] = {
+                        'id': track_id,
+                        'name': track.get('name', ''),
+                        'artist': track.get('artist', ''),
+                        'album': track.get('album', ''),
+                        'year': track.get('year'),  # May be None
+                        'matched': matched_str,
+                        'local_path': track.get('local_path', ''),
+                    }
+        
+        # Build result with concatenated playlists
+        result: List[Dict[str, Any]] = []
+        for track_id, track_info in track_map.items():
+            if track_info['data'] is None:
+                continue
+            
+            data = dict(track_info['data'])  # Create a copy
+            # Concatenate playlist names (sorted for consistency)
+            playlists_list = track_info['playlists']
+            data['playlists'] = ', '.join(sorted(playlists_list))
+            result.append(data)
+        
+        return result
+    
+    def list_all_tracks_unified_fast(self) -> List[Dict[str, Any]]:
+        """Get all unique tracks with minimal fields (fast path).
+        
+        Returns one row per track without pre-aggregating playlists.
+        Use this for initial load, then lazy-load playlists for visible rows.
+        
+        Returns:
+            List of dicts with: id, name, artist, album, year, matched (bool),
+            local_path, playlists (empty string - to be filled lazily)
+        """
+        tracks = self.db.list_unified_tracks_min(provider=self._provider)
+        
+        # Add empty playlists field for compatibility with existing model
+        for track in tracks:
+            track['playlists'] = ''  # Will be populated lazily for visible rows
+        
+        return tracks
+    
+    def get_playlists_for_tracks(self, track_ids: List[str]) -> Dict[str, str]:
+        """Get comma-separated playlist names for given track IDs.
+        
+        Args:
+            track_ids: List of track IDs
+            
+        Returns:
+            Dict mapping track_id -> "Playlist A, Playlist B, ..."
+        """
+        return self.db.get_playlists_for_track_ids(track_ids, provider=self._provider)
+    
+    def get_track_ids_for_playlist(self, playlist_name: str) -> set:
+        """Get set of track IDs that belong to a specific playlist.
+        
+        Args:
+            playlist_name: Name of playlist to filter by
+            
+        Returns:
+            Set of track IDs in the playlist
+        """
+        return self.db.get_track_ids_for_playlist(playlist_name, provider=self._provider)
+    
+    def get_unique_owners(self) -> List[str]:
+        """Get list of unique playlist owners.
+        
+        Returns:
+            Sorted list of unique owner names
+        """
+        playlists = self.db.list_playlists(provider=self._provider)
+        owners = set()
+        for p in playlists:
+            owner = p.get('owner_name', p.get('owner_id', 'Unknown'))
+            if owner:
+                owners.add(owner)
+        return sorted(owners)
+    
+    def get_unique_artists(self) -> List[str]:
+        """Get list of unique artists from all tracks.
+        
+        Returns:
+            Sorted list of unique artist names (excluding empty)
+        """
+        # Use SQL DISTINCT for performance
+        return self.db.get_distinct_artists(provider=self._provider)
+    
+    def get_unique_albums(self) -> List[str]:
+        """Get list of unique albums from all tracks.
+        
+        Returns:
+            Sorted list of unique album names (excluding empty)
+        """
+        # Use SQL DISTINCT for performance
+        return self.db.get_distinct_albums(provider=self._provider)
+    
+    def get_unique_years(self) -> List[int]:
+        """Get list of unique years from all tracks.
+        
+        Returns:
+            Sorted list of unique years (excluding None)
+        """
+        # Use SQL DISTINCT for performance
+        return self.db.get_distinct_years(provider=self._provider)

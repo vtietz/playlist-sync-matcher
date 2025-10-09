@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import Iterable, Sequence, Any, Dict, Tuple, Optional, List
 from .interface import DatabaseInterface
 from .models import TrackRow, LibraryFileRow, MatchRow, PlaylistRow
+from . import queries_analytics
+from . import queries_unified
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +30,11 @@ SCHEMA = [
     "CREATE INDEX IF NOT EXISTS idx_matches_track ON matches(track_id, provider);",
     "CREATE INDEX IF NOT EXISTS idx_matches_file ON matches(file_id);",
     "CREATE INDEX IF NOT EXISTS idx_liked_tracks_track ON liked_tracks(track_id, provider);",
+    # Phase 8: Indexes for GUI sorting and filtering
+    "CREATE INDEX IF NOT EXISTS idx_tracks_name ON tracks(name);",
+    "CREATE INDEX IF NOT EXISTS idx_tracks_artist ON tracks(artist);",
+    "CREATE INDEX IF NOT EXISTS idx_tracks_album ON tracks(album);",
+    "CREATE INDEX IF NOT EXISTS idx_tracks_year ON tracks(year);",
     # Metadata table
     "CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);",
 ]
@@ -536,6 +543,7 @@ class Database(DatabaseInterface):
                 t.name,
                 t.artist,
                 t.album,
+                t.year,
                 t.duration_ms,
                 lf.path AS local_path
             FROM playlist_tracks pt
@@ -555,6 +563,7 @@ class Database(DatabaseInterface):
                 t.name,
                 t.artist,
                 t.album,
+                t.year,
                 t.duration_ms,
                 lf.path AS local_path
             FROM playlist_tracks pt
@@ -677,6 +686,73 @@ class Database(DatabaseInterface):
         """
         row = self.conn.execute(sql, (track_id, provider)).fetchone()
         return dict(row) if row else None
+
+    # --- Performance / Analytics queries (delegate to helper modules) ---
+    
+    def get_distinct_artists(self, provider: str | None = None) -> List[str]:
+        """Get unique artist names from tracks (SQL DISTINCT)."""
+        provider = provider or 'spotify'
+        return queries_analytics.get_distinct_artists(self.conn, provider)
+    
+    def get_distinct_albums(self, provider: str | None = None) -> List[str]:
+        """Get unique album names from tracks (SQL DISTINCT)."""
+        provider = provider or 'spotify'
+        return queries_analytics.get_distinct_albums(self.conn, provider)
+    
+    def get_distinct_years(self, provider: str | None = None) -> List[int]:
+        """Get unique years from tracks (SQL DISTINCT)."""
+        provider = provider or 'spotify'
+        return queries_analytics.get_distinct_years(self.conn, provider)
+    
+    def get_playlist_coverage(self, provider: str | None = None) -> List[Dict[str, Any]]:
+        """Get playlist coverage statistics in a single SQL query."""
+        provider = provider or 'spotify'
+        return queries_analytics.get_playlist_coverage(self.conn, provider)
+    
+    def list_unified_tracks_min(
+        self,
+        provider: str | None = None,
+        sort_column: Optional[str] = None,
+        sort_order: str = 'ASC',
+        limit: Optional[int] = None,
+        offset: int = 0
+    ) -> List[Dict[str, Any]]:
+        """Get minimal unified tracks (fast path without playlist aggregation)."""
+        provider = provider or 'spotify'
+        return queries_unified.list_unified_tracks_min(
+            self.conn,
+            provider,
+            sort_column,
+            sort_order,
+            limit,
+            offset
+        )
+    
+    def get_playlists_for_track_ids(
+        self,
+        track_ids: List[str],
+        provider: str | None = None
+    ) -> Dict[str, str]:
+        """Get comma-separated playlist names for each track ID."""
+        provider = provider or 'spotify'
+        return queries_analytics.get_playlists_for_track_ids(
+            self.conn,
+            track_ids,
+            provider
+        )
+    
+    def get_track_ids_for_playlist(
+        self,
+        playlist_name: str,
+        provider: str | None = None
+    ) -> set:
+        """Get set of track IDs that belong to a specific playlist."""
+        provider = provider or 'spotify'
+        return queries_unified.get_track_ids_for_playlist(
+            self.conn,
+            playlist_name,
+            provider
+        )
 
     def close(self):
         if not self._closed:

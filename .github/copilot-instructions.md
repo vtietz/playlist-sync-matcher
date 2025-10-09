@@ -34,6 +34,28 @@
 * **Use Standard Library**: Prefer built-in modules (copy.deepcopy, functools.lru_cache) over custom implementations.
 * **Performance Awareness**: Cache expensive operations (normalization, OAuth sessions), use connection pooling, avoid redundant work.
 * **Type Hints**: Add type hints to function signatures for better IDE support and self-documentation.
+* **Avoid Nested If Statements**: Use early returns/exits to reduce nesting. Check failure conditions first and return early, then handle the success path in the main flow. This improves readability and reduces cognitive load.
+
+**Example - Bad (nested):**
+```python
+if condition1:
+    if condition2:
+        if condition3:
+            # Do work
+            return result
+```
+
+**Example - Good (early returns):**
+```python
+if not condition1:
+    return
+if not condition2:
+    return
+if not condition3:
+    return
+# Do work
+return result
+```
 
 ## Documentation
 * **Update README.md**: Document new features, changed behavior, and important configuration options.

@@ -226,7 +226,11 @@ def load_typed_config(explicit_file: str | None = None, overrides: Dict[str, Any
 
 
 def _configure_logging(level_str: str) -> None:
-    """Configure Python logging based on configured level."""
+    """Configure Python logging based on configured level.
+    
+    Only configures if not already set up (e.g., by GUI). This prevents
+    overwriting the GUI's detailed logging format with timestamps.
+    """
     level_str = level_str.upper()
     level_map = {
         'DEBUG': logging.DEBUG,
@@ -237,12 +241,17 @@ def _configure_logging(level_str: str) -> None:
     }
     level = level_map.get(level_str, logging.INFO)
     
-    # Configure root logger
-    logging.basicConfig(
-        level=level,
-        format='%(message)s',  # Simple format - just the message
-        force=True  # Reconfigure even if already configured
-    )
+    # Only configure if no handlers exist (not already configured by GUI)
+    root_logger = logging.getLogger()
+    if not root_logger.handlers:
+        # Configure root logger for CLI mode (simple format)
+        logging.basicConfig(
+            level=level,
+            format='%(message)s',  # Simple format - just the message
+        )
+    else:
+        # Logging already configured (e.g., by GUI), just update level
+        root_logger.setLevel(level)
 
 
 def coerce_scalar(value: str) -> Any:

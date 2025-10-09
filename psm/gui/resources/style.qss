@@ -42,10 +42,13 @@ QPushButton:checked:hover {
 /* Tables */
 QTableView {
     alternate-background-color: palette(alternate-base);
+    border: none;
+    gridline-color: transparent;
 }
 
 QTableView::item {
     padding: 4px;
+    border: none;
 }
 
 QHeaderView::section {

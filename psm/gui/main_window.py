@@ -1,22 +1,27 @@
 """Main window for the GUI application.
 
-Assembles all UI components: master-detail playlists, report tabs,
-action buttons, watch toggle, progress bar, and log window.
+Assembles all UI components using composition:
+- SortFilterTable for all tabular data
+- LogPanel for command output
+- Toolbar for actions
 """
 from __future__ import annotations
 from typing import Dict, Any, List, Optional
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QSplitter,
-    QTableView, QTabWidget, QPushButton, QTextEdit, QProgressBar,
-    QLabel, QGroupBox, QMessageBox, QToolBar
+    QTabWidget, QPushButton, QProgressBar,
+    QLabel, QMessageBox, QToolBar
 )
-from PySide6.QtCore import Qt, Signal, QModelIndex
+from PySide6.QtCore import Qt, Signal, QItemSelectionModel
+from PySide6.QtGui import QFont
 import logging
 
+from .components import SortFilterTable, LogPanel
+from .views import UnifiedTracksView
 from .models import (
     PlaylistsModel, PlaylistDetailModel, UnmatchedTracksModel,
     MatchedTracksModel, PlaylistCoverageModel, UnmatchedAlbumsModel,
-    LikedTracksModel
+    LikedTracksModel, UnifiedTracksModel
 )
 
 logger = logging.getLogger(__name__)
@@ -27,17 +32,18 @@ class MainWindow(QMainWindow):
     
     # Signals
     on_playlist_selected = Signal(str)  # playlist_id
+    on_playlist_filter_requested = Signal(str)  # playlist_name for filtering unified tracks
     on_pull_clicked = Signal()
     on_scan_clicked = Signal()
     on_match_clicked = Signal()
     on_export_clicked = Signal()
     on_report_clicked = Signal()
+    on_open_reports_clicked = Signal()
     on_build_clicked = Signal()
     on_pull_one_clicked = Signal()
     on_match_one_clicked = Signal()
     on_export_one_clicked = Signal()
     on_watch_toggled = Signal(bool)
-    on_tab_changed = Signal(str)
     
     def __init__(self):
         """Initialize main window."""
@@ -45,6 +51,7 @@ class MainWindow(QMainWindow):
         
         self.setWindowTitle("Playlist Sync Matcher")
         self.resize(1400, 900)
+        self.setMinimumSize(800, 600)  # Allow reducing window size to reasonable minimum
         
         # Track selected playlist
         self._selected_playlist_id: Optional[str] = None
@@ -57,6 +64,7 @@ class MainWindow(QMainWindow):
         self.coverage_model = PlaylistCoverageModel(self)
         self.unmatched_albums_model = UnmatchedAlbumsModel(self)
         self.liked_tracks_model = LikedTracksModel(self)
+        self.unified_tracks_model = UnifiedTracksModel(self)
         
         # Build UI
         self._create_ui()
@@ -83,8 +91,16 @@ class MainWindow(QMainWindow):
         right_widget = self._create_right_panel()
         main_splitter.addWidget(right_widget)
         
+        # Allow user to resize, but set reasonable constraints
         main_splitter.setStretchFactor(0, 1)
-        main_splitter.setStretchFactor(1, 3)
+        main_splitter.setStretchFactor(1, 2)
+        
+        # Set collapsible to False so panels can't be completely hidden
+        main_splitter.setCollapsible(0, False)
+        main_splitter.setCollapsible(1, False)
+        
+        # Store reference for later size adjustments
+        self.main_splitter = main_splitter
         
         layout.addWidget(main_splitter)
         
@@ -107,6 +123,7 @@ class MainWindow(QMainWindow):
         self.btn_match = QPushButton("Match All")
         self.btn_export = QPushButton("Export All")
         self.btn_report = QPushButton("Generate Reports")
+        self.btn_open_reports = QPushButton("Open Reports")
         self.btn_build = QPushButton("Build")
         
         # Watch mode toggle
@@ -124,6 +141,7 @@ class MainWindow(QMainWindow):
         toolbar.addWidget(self.btn_match)
         toolbar.addWidget(self.btn_export)
         toolbar.addWidget(self.btn_report)
+        toolbar.addWidget(self.btn_open_reports)
         toolbar.addWidget(self.btn_build)
         toolbar.addSeparator()
         toolbar.addWidget(self.btn_pull_one)
@@ -141,6 +159,7 @@ class MainWindow(QMainWindow):
         self.btn_match.clicked.connect(self.on_match_clicked.emit)
         self.btn_export.clicked.connect(self.on_export_clicked.emit)
         self.btn_report.clicked.connect(self.on_report_clicked.emit)
+        self.btn_open_reports.clicked.connect(self.on_open_reports_clicked.emit)
         self.btn_build.clicked.connect(self.on_build_clicked.emit)
         
         self.btn_pull_one.clicked.connect(self.on_pull_one_clicked.emit)
@@ -151,72 +170,52 @@ class MainWindow(QMainWindow):
     
     def _create_playlists_widget(self) -> QWidget:
         """Create the playlists master table widget."""
-        group = QGroupBox("Playlists")
-        layout = QVBoxLayout(group)
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(0, 0, 0, 0)  # Remove margins
         
-        self.playlists_table = QTableView()
-        self.playlists_table.setModel(self.playlists_model)
-        self.playlists_table.setSelectionBehavior(QTableView.SelectRows)
-        self.playlists_table.setSelectionMode(QTableView.SingleSelection)
-        self.playlists_table.selectionModel().selectionChanged.connect(
+        # Add label for cleaner look
+        label = QLabel("Playlists")
+        label.setFont(QFont("Segoe UI", 10, QFont.Bold))
+        layout.addWidget(label)
+        
+        # Use SortFilterTable component
+        self.playlists_table = SortFilterTable(
+            source_model=self.playlists_model,
+            stretch_columns=True
+        )
+        
+        # Set objectName for stylesheet targeting
+        self.playlists_table.table_view.setObjectName("playlistsTable")
+        
+        # Enable text eliding for long playlist names
+        self.playlists_table.table_view.setTextElideMode(Qt.ElideRight)
+        self.playlists_table.table_view.setWordWrap(False)
+        
+        # Set intelligent column widths for playlists
+        # Columns: Name, Owner, Coverage
+        # Name should get most space, Owner medium, Coverage small
+        self.playlists_table.set_column_widths([250, 120, 120])
+        
+        # Connect selection signal
+        self.playlists_table.selection_model().selectionChanged.connect(
             self._on_playlist_selection_changed
         )
         
         layout.addWidget(self.playlists_table)
         
-        return group
+        return widget
     
     def _create_right_panel(self) -> QWidget:
-        """Create the right panel with tabs."""
+        """Create the right panel with unified tracks view."""
         widget = QWidget()
         layout = QVBoxLayout(widget)
         layout.setContentsMargins(0, 0, 0, 0)
         
-        # Tabs for different views
-        self.tabs = QTabWidget()
-        
-        # Playlist detail tab
-        detail_widget = self._create_playlist_detail_widget()
-        self.tabs.addTab(detail_widget, "Playlist Detail")
-        
-        # Unmatched tracks tab
-        unmatched_widget = self._create_table_widget(
-            self.unmatched_tracks_model, 
-            "Unmatched Tracks"
-        )
-        self.tabs.addTab(unmatched_widget, "Unmatched Tracks")
-        
-        # Matched tracks tab
-        matched_widget = self._create_table_widget(
-            self.matched_tracks_model, 
-            "Matched Tracks"
-        )
-        self.tabs.addTab(matched_widget, "Matched Tracks")
-        
-        # Coverage tab
-        coverage_widget = self._create_table_widget(
-            self.coverage_model, 
-            "Playlist Coverage"
-        )
-        self.tabs.addTab(coverage_widget, "Coverage")
-        
-        # Unmatched albums tab
-        albums_widget = self._create_table_widget(
-            self.unmatched_albums_model, 
-            "Unmatched Albums"
-        )
-        self.tabs.addTab(albums_widget, "Unmatched Albums")
-        
-        # Liked tracks tab
-        liked_widget = self._create_table_widget(
-            self.liked_tracks_model, 
-            "Liked Tracks"
-        )
-        self.tabs.addTab(liked_widget, "Liked Tracks")
-        
-        self.tabs.currentChanged.connect(self._on_tab_index_changed)
-        
-        layout.addWidget(self.tabs)
+        # Single unified tracks view (replaces all tabs)
+        self.unified_tracks_view = UnifiedTracksView(self.unified_tracks_model)
+        # Note: Filter options are now populated on-demand from visible data
+        layout.addWidget(self.unified_tracks_view)
         
         return widget
     
@@ -228,30 +227,13 @@ class MainWindow(QMainWindow):
         self.detail_label = QLabel("Select a playlist to view details")
         layout.addWidget(self.detail_label)
         
-        self.detail_table = QTableView()
-        self.detail_table.setModel(self.playlist_detail_model)
+        # Use SortFilterTable component
+        self.detail_table = SortFilterTable(
+            source_model=self.playlist_detail_model,
+            stretch_columns=True
+        )
+        
         layout.addWidget(self.detail_table)
-        
-        return widget
-    
-    def _create_table_widget(self, model, title: str) -> QWidget:
-        """Create a generic table widget.
-        
-        Args:
-            model: Table model
-            title: Widget title
-            
-        Returns:
-            Widget with table
-        """
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-        
-        table = QTableView()
-        table.setModel(model)
-        table.setSelectionBehavior(QTableView.SelectRows)
-        
-        layout.addWidget(table)
         
         return widget
     
@@ -263,6 +245,7 @@ class MainWindow(QMainWindow):
         # Progress bar
         progress_layout = QHBoxLayout()
         self.progress_label = QLabel("Ready")
+        self.progress_label.setFont(QFont("Segoe UI Emoji", 9))  # Support emoji in progress messages
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
@@ -272,21 +255,13 @@ class MainWindow(QMainWindow):
         
         layout.addLayout(progress_layout)
         
-        # Log window
-        log_group = QGroupBox("Log")
-        log_layout = QVBoxLayout(log_group)
-        
-        self.log_text = QTextEdit()
-        self.log_text.setObjectName("logWindow")  # For stylesheet targeting
-        self.log_text.setReadOnly(True)
-        self.log_text.setMaximumHeight(200)
-        
-        log_layout.addWidget(self.log_text)
-        
-        layout.addWidget(log_group)
+        # Use LogPanel component
+        self.log_panel = LogPanel(title="Log", max_height=200, font_size=9)
+        layout.addWidget(self.log_panel)
         
         # Status bar
         self.status_label = QLabel("Ready")
+        self.status_label.setFont(QFont("Segoe UI Emoji", 9))  # Support emoji in status messages
         self.statusBar().addWidget(self.status_label)
         
         return widget
@@ -300,22 +275,23 @@ class MainWindow(QMainWindow):
             playlists: List of playlist dicts
         """
         self.playlists_model.set_data(playlists)
-        self.playlists_table.resizeColumnsToContents()
+        self.playlists_table.resize_columns_to_contents()
+        
+        # Default sort by name (column 0) alphabetically
+        self.playlists_table.set_default_sort(0, Qt.AscendingOrder)
+        
+        # No auto-selection - user can click to select/deselect
     
     def update_playlist_detail(self, tracks: List[Dict[str, Any]]):
         """Update playlist detail table.
         
+        DEPRECATED: This method is no longer used since tabs were removed.
+        Kept for backward compatibility with controllers.
+        
         Args:
             tracks: List of track dicts
         """
-        self.playlist_detail_model.set_data(tracks)
-        self.detail_table.resizeColumnsToContents()
-        
-        # Update detail label
-        if self._selected_playlist_id:
-            self.detail_label.setText(
-                f"Playlist: {self._selected_playlist_id} ({len(tracks)} tracks)"
-            )
+        pass  # No-op - detail table no longer exists
     
     def update_unmatched_tracks(self, tracks: List[Dict[str, Any]]):
         """Update unmatched tracks table."""
@@ -336,6 +312,32 @@ class MainWindow(QMainWindow):
     def update_liked_tracks(self, tracks: List[Dict[str, Any]]):
         """Update liked tracks table."""
         self.liked_tracks_model.set_data(tracks)
+    
+    def update_unified_tracks(self, tracks: List[Dict[str, Any]], playlists: List[Dict[str, Any]]):
+        """Update unified tracks view with data and filter options.
+        
+        Args:
+            tracks: List of all tracks with metadata
+            playlists: List of playlists for filtering (no longer used - filtering via left panel)
+        """
+        self.unified_tracks_model.set_data(tracks)
+        # No longer call set_playlists - playlist filtering is handled by left panel selection
+        self.unified_tracks_view.resize_columns_to_contents()
+    
+    def populate_track_filter_options(
+        self,
+        artists: List[str],
+        albums: List[str],
+        years: List[int]
+    ):
+        """Populate filter dropdown options in unified tracks view.
+        
+        Args:
+            artists: List of unique artist names
+            albums: List of unique album names
+            years: List of unique years
+        """
+        self.unified_tracks_view.populate_filter_options(artists, albums, years)
     
     def update_status_counts(self, counts: Dict[str, int]):
         """Update status bar with counts.
@@ -360,15 +362,11 @@ class MainWindow(QMainWindow):
         Args:
             message: Log message
         """
-        self.log_text.append(message)
-        # Auto-scroll to bottom
-        self.log_text.verticalScrollBar().setValue(
-            self.log_text.verticalScrollBar().maximum()
-        )
+        self.log_panel.append(message)
     
     def clear_logs(self):
         """Clear the log window."""
-        self.log_text.clear()
+        self.log_panel.clear()
     
     def set_progress(self, current: int, total: int, message: str):
         """Update progress bar.
@@ -438,56 +436,80 @@ class MainWindow(QMainWindow):
         """
         return self._selected_playlist_id
     
-    def get_current_tab(self) -> str:
-        """Get current tab name.
-        
-        Returns:
-            Tab name
-        """
-        index = self.tabs.currentIndex()
-        tab_names = [
-            'playlist_detail',
-            'unmatched_tracks',
-            'matched_tracks',
-            'coverage',
-            'unmatched_albums',
-            'liked',
-        ]
-        if 0 <= index < len(tab_names):
-            return tab_names[index]
-        return 'unknown'
-    
     # Event handlers
     
     def _on_playlist_selection_changed(self, selected, deselected):
         """Handle playlist selection change.
         
+        Simple behavior: Only show tracks when a playlist is selected.
+        
         Args:
             selected: QItemSelection of selected items
             deselected: QItemSelection of deselected items
         """
-        selection = self.playlists_table.selectionModel()
-        if selection.hasSelection():
-            row = selection.selectedRows()[0].row()
-            playlist_data = self.playlists_model.get_row_data(row)
-            if playlist_data:
-                self._selected_playlist_id = playlist_data.get('id')
-                if self._selected_playlist_id:
-                    self.on_playlist_selected.emit(self._selected_playlist_id)
-    
-    def _on_tab_index_changed(self, index: int):
-        """Handle tab change.
+        # Extract playlist data directly from 'selected' parameter to avoid timing issues
+        # Qt provides both 'selected' and 'deselected' specifically so we don't need to
+        # query the selection model, which may not be fully updated when this signal fires
         
-        Args:
-            index: New tab index
-        """
-        tab_name = self.get_current_tab()
-        self.on_tab_changed.emit(tab_name)
+        if selected.isEmpty():
+            return
+        
+        proxy_indexes = selected.indexes()
+        if not proxy_indexes:
+            return
+        
+        # Find index for column 0 (we need the first column for row data)
+        proxy_index = None
+        for idx in proxy_indexes:
+            if idx.column() == 0:
+                proxy_index = idx
+                break
+        
+        if not proxy_index:
+            return
+        
+        # Map proxy index to source model
+        source_index = self.playlists_table.proxy_model.mapToSource(proxy_index)
+        source_row = source_index.row()
+        
+        # Get row data from source model
+        playlist_data = self.playlists_model.get_row_data(source_row)
+        
+        if not playlist_data:
+            return
+        
+        # Playlist selected - apply filter to show only this playlist's tracks
+        self._selected_playlist_id = playlist_data.get('id')
+        playlist_name = playlist_data.get('name')
+        
+        # Request filter via signal (controller will fetch track IDs)
+        self.on_playlist_filter_requested.emit(playlist_name)
+        
+        # Emit signal for other components
+        if self._selected_playlist_id:
+            self.on_playlist_selected.emit(self._selected_playlist_id)
     
     def _on_watch_button_toggled(self, checked: bool):
         """Handle watch button toggle.
-        
-        Args:
             checked: True if checked
         """
         self.on_watch_toggled.emit(checked)
+    
+    def showEvent(self, event):
+        """Handle window show event - set initial splitter sizes.
+        
+        Args:
+            event: QShowEvent
+        """
+        super().showEvent(event)
+        
+        # Set splitter sizes after window is shown (only on first show)
+        if not hasattr(self, '_splitter_initialized'):
+            self._splitter_initialized = True
+            # Use actual window width for calculation
+            window_width = self.width()
+            # Set 400px minimum for playlists, rest for tracks
+            # This ensures playlist panel is wide enough to read names
+            playlist_width = max(400, window_width // 3)
+            tracks_width = window_width - playlist_width
+            self.main_splitter.setSizes([playlist_width, tracks_width])

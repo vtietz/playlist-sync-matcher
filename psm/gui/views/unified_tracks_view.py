@@ -1,0 +1,438 @@
+"""Unified tracks view combining filter bar and sortable table.
+
+This view composition demonstrates the architecture guidelines:
+- FilterBar component for user filtering inputs
+- Custom proxy model for multi-criteria filtering
+- SortFilterTable component for data display
+- Clean signals-based communication
+- No business logic (just UI composition)
+- Lazy playlist loading for performance
+"""
+from __future__ import annotations
+from typing import Optional, List, Dict, Any, Callable, Set
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
+from PySide6.QtCore import Signal, Qt, QTimer, QPoint
+from PySide6.QtGui import QFont
+import logging
+
+from ..components import FilterBar, UnifiedTracksProxyModel
+from ..models import BaseTableModel
+from PySide6.QtWidgets import QTableView, QHeaderView
+
+logger = logging.getLogger(__name__)
+
+
+class UnifiedTracksView(QWidget):
+    """Unified view for all tracks with filtering capabilities.
+    
+    This view composes:
+    - FilterBar for status/search filtering
+    - Custom proxy model for playlist/status/search filtering
+    - QTableView for displaying filtered tracks
+    
+    The view is purely compositional - it doesn't contain business logic,
+    just wires filter changes to proxy model methods.
+    
+    Playlist filtering is handled externally via set_playlist_filter().
+    
+    Example:
+        model = UnifiedTracksModel()
+        view = UnifiedTracksView(model)
+        view.set_playlist_filter("My Playlist")
+    """
+    
+    # Signal emitted when a track is selected
+    track_selected = Signal(str)  # track_id
+    
+    def __init__(
+        self,
+        source_model: BaseTableModel,
+        parent: Optional[QWidget] = None
+    ):
+        """Initialize unified tracks view.
+        
+        Args:
+            source_model: Table model for tracks data
+            parent: Parent widget
+        """
+        super().__init__(parent)
+        
+        # Create filter bar
+        self.filter_bar = FilterBar()
+        self.filter_bar.filter_changed.connect(self._apply_filters)
+        # Populate filter options from visible data when user opens a dropdown
+        self.filter_bar.filter_options_needed.connect(self.populate_filter_options_from_visible_data)
+        
+        # Create custom proxy model for filtering
+        self.proxy_model = UnifiedTracksProxyModel()
+        self.proxy_model.setSourceModel(source_model)
+        
+        # Create tracks table
+        self.tracks_table = QTableView()
+        self.tracks_table.setObjectName("tracksTable")  # For stylesheet targeting
+        self.tracks_table.setModel(self.proxy_model)
+        self.tracks_table.setSortingEnabled(True)
+        self.tracks_table.setSelectionBehavior(QTableView.SelectRows)
+        self.tracks_table.setSelectionMode(QTableView.SingleSelection)
+        
+        # Enable text eliding (truncate with "..." for overflow)
+        self.tracks_table.setTextElideMode(Qt.ElideRight)
+        self.tracks_table.setWordWrap(False)  # Disable word wrapping to ensure eliding works
+        
+        # Performance optimizations for large datasets
+        # Note: setUniformItemSizes() is for QListView, not QTableView
+        # For QTableView, uniform row heights are achieved via vertical header
+        self.tracks_table.verticalHeader().setDefaultSectionSize(22)  # Fixed row height
+        self.tracks_table.verticalHeader().setMinimumSectionSize(22)  # Prevent smaller rows
+        
+        # Enable scrollbars when content exceeds view
+        self.tracks_table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.tracks_table.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        
+        # Configure column resizing: Interactive mode with last column stretch
+        header = self.tracks_table.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.Interactive)
+        header.setStretchLastSection(True)
+        
+        # Set intelligent initial column widths
+        # Columns: Playlist, Owner, Track, Artist, Album, Year, Matched, Local File
+        self._set_initial_column_widths()
+        
+        # Create loading overlay
+        self._loading_overlay = QLabel("Loading...", self.tracks_table.viewport())
+        self._loading_overlay.setAlignment(Qt.AlignCenter)
+        self._loading_overlay.setStyleSheet("""
+            QLabel {
+                background-color: rgba(255, 255, 255, 200);
+                color: #333;
+                font-size: 16px;
+                font-weight: bold;
+                border: 2px solid #ccc;
+                border-radius: 8px;
+                padding: 20px;
+            }
+        """)
+        font = QFont("Segoe UI", 14, QFont.Bold)
+        self._loading_overlay.setFont(font)
+        self._loading_overlay.setMinimumSize(150, 80)
+        self._loading_overlay.setAttribute(Qt.WA_TransparentForMouseEvents)
+        self._loading_overlay.hide()
+        
+        # Install event filter to reposition overlay on viewport resize
+        self.tracks_table.viewport().installEventFilter(self)
+        
+        # Lazy playlist loading
+        self._playlist_fetch_callback: Optional[Callable[[List[str]], Dict[str, str]]] = None
+        self._playlists_loaded = False
+        self._lazy_load_timer = QTimer()
+        self._lazy_load_timer.setSingleShot(True)
+        self._lazy_load_timer.timeout.connect(self._load_visible_playlists)
+        
+        # Trigger lazy load when scrolling stops
+        self.tracks_table.verticalScrollBar().valueChanged.connect(
+            lambda: self._lazy_load_timer.start(200)  # 200ms after scroll stops
+        )
+        
+        # Layout
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self.filter_bar)
+        layout.addWidget(self.tracks_table)
+        
+        # Connect table selection to signal
+        selection_model = self.tracks_table.selectionModel()
+        if selection_model:
+            selection_model.selectionChanged.connect(self._on_selection_changed)
+    
+    def _apply_filters(self):
+        """Apply current filter settings to the proxy model."""
+        # Get filter state from filter bar
+        status_filter = self.filter_bar.get_track_filter()
+        search_text = self.filter_bar.get_search_text()
+        artist_filter = self.filter_bar.get_artist_filter()
+        album_filter = self.filter_bar.get_album_filter()
+        year_filter = self.filter_bar.get_year_filter()
+        
+        # Apply to proxy model
+        self.proxy_model.set_status_filter(status_filter)
+        self.proxy_model.set_artist_filter(artist_filter)
+        self.proxy_model.set_album_filter(album_filter)
+        self.proxy_model.set_year_filter(year_filter)
+        self.proxy_model.set_search_text_debounced(search_text, delay_ms=300)
+    
+    def _on_selection_changed(self, selected, deselected):
+        """Handle track selection change.
+        
+        Args:
+            selected: QItemSelection of selected items
+            deselected: QItemSelection of deselected items
+        """
+        selection = self.tracks_table.selectionModel()
+        if selection and selection.hasSelection():
+            proxy_row = selection.selectedRows()[0].row()
+            source_index = self.proxy_model.mapToSource(
+                self.proxy_model.index(proxy_row, 0)
+            )
+            source_row = source_index.row()
+            
+            # Access source model's get_row_data if available
+            source_model = self.proxy_model.sourceModel()
+            if hasattr(source_model, 'get_row_data'):
+                track_data = source_model.get_row_data(source_row)
+                if track_data and 'id' in track_data:
+                    self.track_selected.emit(track_data['id'])
+    
+    def set_playlist_filter(self, playlist_name: Optional[str], track_ids: Optional[Set[str]] = None):
+        """Set playlist filter (called when playlist is selected).
+        
+        Args:
+            playlist_name: Playlist name to filter by, or None for all playlists
+            track_ids: Set of track IDs in the playlist (for efficient filtering)
+        """
+        # Temporarily disable sorting to avoid performance issues during refilter
+        header = self.tracks_table.horizontalHeader()
+        sort_column = header.sortIndicatorSection()
+        sort_order = header.sortIndicatorOrder()
+        self.tracks_table.setSortingEnabled(False)
+        
+        # Set filter on proxy model
+        self.proxy_model.set_playlist_filter(playlist_name, track_ids)
+        
+        # Re-enable sorting after a brief delay to allow filter to complete
+        QTimer.singleShot(0, lambda: (
+            self.tracks_table.setSortingEnabled(True),
+            self.tracks_table.sortByColumn(sort_column, sort_order)
+        ))
+        
+        # Update filter options to show only values from this playlist
+        self.populate_filter_options_from_visible_data()
+    
+    def clear_filters(self):
+        """Reset all filters to default state."""
+        self.filter_bar.clear_filters()
+        self.proxy_model.set_playlist_filter(None, None)
+        self.proxy_model.set_status_filter("all")
+        self.proxy_model.set_artist_filter(None)
+        self.proxy_model.set_album_filter(None)
+        self.proxy_model.set_year_filter(None)
+        self.proxy_model.set_search_text_immediate("")
+        self.proxy_model.set_year_filter(None)
+        self.proxy_model.set_search_text_immediate("")
+    
+    def populate_filter_options(
+        self,
+        artists: List[str],
+        albums: List[str],
+        years: List[int]
+    ):
+        """Populate filter dropdown options.
+        
+        Args:
+            artists: List of unique artist names
+            albums: List of unique album names
+            years: List of unique years
+        """
+        self.filter_bar.populate_filter_options(artists, albums, years)
+    
+    def populate_filter_options_from_visible_data(self):
+        """Populate filter options from currently visible (filtered) rows.
+        
+        This provides dynamic filtering - only showing options that are
+        actually present in the current filtered dataset.
+        """
+        artists = set()
+        albums = set()
+        years = set()
+        
+        # Extract unique values from visible rows in the proxy model
+        for row in range(self.proxy_model.rowCount()):
+            # Map proxy row to source row
+            proxy_index = self.proxy_model.index(row, 0)
+            source_index = self.proxy_model.mapToSource(proxy_index)
+            source_row = source_index.row()
+            
+            # Get row data from source model
+            source_model = self.proxy_model.sourceModel()
+            if hasattr(source_model, 'get_row_data'):
+                row_data = source_model.get_row_data(source_row)
+                if row_data:
+                    # Extract artist
+                    artist = row_data.get('artist')
+                    if artist:
+                        artists.add(artist)
+                    
+                    # Extract album
+                    album = row_data.get('album')
+                    if album:
+                        albums.add(album)
+                    
+                    # Extract year
+                    year = row_data.get('year')
+                    if year:
+                        try:
+                            years.add(int(year))
+                        except (ValueError, TypeError):
+                            pass
+        
+        # Update filter options with visible data
+        self.filter_bar.populate_filter_options(
+            sorted(artists),
+            sorted(albums),
+            sorted(years, reverse=True)  # Years descending
+        )
+    
+    def _set_initial_column_widths(self):
+        """Set intelligent initial column widths.
+        
+        Column strategy:
+        - Text fields (Track, Artist, Album, Local File, Playlists): More space
+        - Short fields (Year, Matched): Less space
+        """
+        # Column indices from UnifiedTracksModel:
+        # 0: Track, 1: Artist, 2: Album, 3: Year, 4: Matched, 5: Local File, 6: Playlists
+        header = self.tracks_table.horizontalHeader()
+        
+        # Set initial widths (in pixels)
+        # These are reasonable defaults that will be user-adjustable
+        header.resizeSection(0, 250)  # Track - large (most important)
+        header.resizeSection(1, 180)  # Artist - medium
+        header.resizeSection(2, 200)  # Album - medium-large
+        header.resizeSection(3, 60)   # Year - small
+        header.resizeSection(4, 80)   # Matched - small
+        header.resizeSection(5, 300)  # Local File - large
+        # Column 6 (Playlists) stretches to fill remaining space
+    
+    def resize_columns_to_contents(self):
+        """Resize table columns to fit contents (with performance gating).
+        
+        Only performs resize for small datasets to avoid performance hit.
+        For large datasets, relies on initial column widths and user resizing.
+        """
+        # Gate resizing for large datasets (> 1000 rows visible)
+        if self.proxy_model.rowCount() > 1000:
+            logger.debug(f"Skipping resizeColumnsToContents for {self.proxy_model.rowCount()} rows (performance)")
+            return
+        
+        # Only resize if we have data, otherwise keep initial widths
+        if self.proxy_model.rowCount() > 0:
+            self.tracks_table.resizeColumnsToContents()
+            # Re-apply minimum widths for small columns
+            header = self.tracks_table.horizontalHeader()
+            # Ensure Year and Matched columns don't get too wide
+            if header.sectionSize(3) > 80:
+                header.resizeSection(3, 80)  # Year max 80px
+            if header.sectionSize(4) > 100:
+                header.resizeSection(4, 100)  # Matched max 100px
+    
+    def show_loading(self):
+        """Show loading overlay on the tracks table."""
+        self._loading_overlay.show()
+        self._position_loading_overlay()
+    
+    def hide_loading(self):
+        """Hide loading overlay."""
+        self._loading_overlay.hide()
+    
+    def _position_loading_overlay(self):
+        """Position the loading overlay in the center of the viewport."""
+        viewport = self.tracks_table.viewport()
+        overlay_size = self._loading_overlay.sizeHint()
+        x = (viewport.width() - overlay_size.width()) // 2
+        y = (viewport.height() - overlay_size.height()) // 2
+        self._loading_overlay.move(max(0, x), max(0, y))
+    
+    def eventFilter(self, obj, event):
+        """Filter events to reposition overlay on viewport resize.
+        
+        Args:
+            obj: Event source object
+            event: Event to filter
+            
+        Returns:
+            bool: True if event handled, False otherwise
+        """
+        if obj == self.tracks_table.viewport() and event.Type.Resize:
+            if self._loading_overlay.isVisible():
+                self._position_loading_overlay()
+        return super().eventFilter(obj, event)
+    
+    def set_playlist_fetch_callback(self, callback: Callable[[List[str]], Dict[str, str]]):
+        """Set callback for fetching playlist names for track IDs.
+        
+        Args:
+            callback: Function that takes list of track_ids and returns
+                     dict mapping track_id -> comma-separated playlist names
+        """
+        self._playlist_fetch_callback = callback
+    
+    def _load_visible_playlists(self):
+        """Load playlist names for currently visible rows (lazy loading)."""
+        if not self._playlist_fetch_callback:
+            return
+        
+        # Skip if playlists already loaded
+        if self._playlists_loaded:
+            return
+        
+        # Get visible rows
+        visible_rows = self._get_visible_source_rows()
+        if not visible_rows:
+            return
+        
+        # Get track IDs for visible rows
+        source_model = self.proxy_model.sourceModel()
+        if not hasattr(source_model, 'get_row_data'):
+            return
+        
+        track_ids = []
+        for row_idx in visible_rows:
+            row_data = source_model.get_row_data(row_idx)
+            if row_data and 'id' in row_data:
+                track_id = row_data['id']
+                # Only fetch if playlists column is empty
+                if not row_data.get('playlists'):
+                    track_ids.append(track_id)
+        
+        if not track_ids:
+            return
+        
+        logger.debug(f"Lazy loading playlists for {len(track_ids)} visible tracks")
+        
+        # Fetch playlist data
+        try:
+            playlists_data = self._playlist_fetch_callback(track_ids)
+            
+            # Update model
+            if hasattr(source_model, 'update_playlists_for_rows'):
+                source_model.update_playlists_for_rows(visible_rows, playlists_data)
+        except Exception as e:
+            logger.error(f"Error loading playlists: {e}")
+    
+    def _get_visible_source_rows(self) -> List[int]:
+        """Get list of source model row indices currently visible in viewport.
+        
+        Returns:
+            List of source model row indices
+        """
+        source_rows = []
+        
+        # Get viewport's visible rect
+        viewport = self.tracks_table.viewport()
+        visible_rect = viewport.rect()
+        
+        # Iterate through visible proxy rows
+        for y in range(0, visible_rect.height(), 22):  # 22px row height
+            index = self.tracks_table.indexAt(visible_rect.topLeft() + self.tracks_table.viewport().pos() + QPoint(0, y))
+            if index.isValid():
+                proxy_row = index.row()
+                source_index = self.proxy_model.mapToSource(self.proxy_model.index(proxy_row, 0))
+                source_row = source_index.row()
+                if source_row not in source_rows:
+                    source_rows.append(source_row)
+        
+        return source_rows
+    
+    def trigger_lazy_playlist_load(self):
+        """Manually trigger lazy loading of playlists for visible rows."""
+        self._playlists_loaded = False
+        self._load_visible_playlists()

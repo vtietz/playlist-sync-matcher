@@ -1,0 +1,125 @@
+"""Unified tracks queries for GUI table display.
+
+Provides fast queries that return one row per track with minimal fields,
+deferring expensive aggregations like playlist concatenation.
+"""
+from __future__ import annotations
+import sqlite3
+from typing import List, Dict, Any, Optional, Tuple, Set
+
+
+def list_unified_tracks_min(
+    conn: sqlite3.Connection,
+    provider: str,
+    sort_column: Optional[str] = None,
+    sort_order: str = 'ASC',
+    limit: Optional[int] = None,
+    offset: int = 0
+) -> List[Dict[str, Any]]:
+    """Get minimal unified tracks (one row per track, no playlists aggregation).
+    
+    Returns core track metadata with matched flag computed in SQL using EXISTS.
+    Defers playlist name concatenation to lazy loading.
+    
+    Args:
+        conn: SQLite connection
+        provider: Provider filter
+        sort_column: Column name to sort by (name, artist, album, year)
+        sort_order: 'ASC' or 'DESC'
+        limit: Maximum rows to return (for paging)
+        offset: Row offset (for paging)
+        
+    Returns:
+        List of dicts with: id, name, artist, album, year, matched (bool), local_path
+    """
+    # Build ORDER BY clause
+    order_by = ""
+    if sort_column:
+        # Sanitize column name (whitelist approach)
+        valid_columns = {'name', 'artist', 'album', 'year'}
+        if sort_column.lower() in valid_columns:
+            order_by = f"ORDER BY t.{sort_column.lower()} {sort_order}"
+    
+    # Build LIMIT/OFFSET clause
+    limit_clause = ""
+    if limit is not None:
+        limit_clause = f"LIMIT {int(limit)} OFFSET {int(offset)}"
+    
+    # Main query: one row per track with EXISTS check for matches
+    # Use window function or subquery to get best local_path per track
+    query = f"""
+    SELECT 
+        t.id,
+        t.name,
+        t.artist,
+        t.album,
+        t.year,
+        CASE WHEN m.track_id IS NOT NULL THEN 1 ELSE 0 END as matched,
+        COALESCE(lf.path, '') as local_path
+    FROM tracks t
+    LEFT JOIN (
+        -- Get best match per track (highest score)
+        SELECT 
+            m1.track_id,
+            m1.provider,
+            m1.file_id
+        FROM matches m1
+        INNER JOIN (
+            SELECT track_id, provider, MAX(score) as max_score
+            FROM matches
+            GROUP BY track_id, provider
+        ) m2 ON m1.track_id = m2.track_id 
+            AND m1.provider = m2.provider 
+            AND m1.score = m2.max_score
+    ) m ON t.id = m.track_id AND t.provider = m.provider
+    LEFT JOIN library_files lf ON m.file_id = lf.id
+    WHERE t.provider = ?
+    {order_by}
+    {limit_clause}
+    """
+    
+    cursor = conn.execute(query, (provider,))
+    
+    results = []
+    for row in cursor.fetchall():
+        results.append({
+            'id': row[0],
+            'name': row[1] or '',
+            'artist': row[2] or '',
+            'album': row[3] or '',
+            'year': row[4],  # May be None
+            'matched': bool(row[5]),  # 1/0 -> True/False
+            'local_path': row[6],
+        })
+    
+    return results
+
+
+def get_track_ids_for_playlist(
+    conn: sqlite3.Connection,
+    playlist_name: str,
+    provider: str
+) -> Set[str]:
+    """Get set of track IDs that belong to a specific playlist.
+    
+    Used for efficient playlist filtering in GUI without loading playlists column.
+    
+    Args:
+        conn: SQLite connection
+        playlist_name: Name of playlist to filter by
+        provider: Provider filter
+        
+    Returns:
+        Set of track IDs in the playlist
+    """
+    cursor = conn.execute(
+        """
+        SELECT DISTINCT pt.track_id
+        FROM playlist_tracks pt
+        JOIN playlists p ON pt.playlist_id = p.id AND pt.provider = p.provider
+        WHERE p.name = ? AND p.provider = ?
+        """,
+        (playlist_name, provider)
+    )
+    
+    return {row[0] for row in cursor.fetchall()}

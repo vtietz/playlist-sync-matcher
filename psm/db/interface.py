@@ -254,6 +254,123 @@ class DatabaseInterface(ABC):
         """
         ...
 
+    # --- Performance / Analytics queries ---
+    @abstractmethod
+    def get_distinct_artists(self, provider: str | None = None) -> List[str]:
+        """Get unique artist names from tracks (SQL DISTINCT).
+        
+        Args:
+            provider: Provider name filter (required)
+            
+        Returns:
+            Sorted list of unique artist names (excluding empty/None)
+        """
+        ...
+    
+    @abstractmethod
+    def get_distinct_albums(self, provider: str | None = None) -> List[str]:
+        """Get unique album names from tracks (SQL DISTINCT).
+        
+        Args:
+            provider: Provider name filter (required)
+            
+        Returns:
+            Sorted list of unique album names (excluding empty/None)
+        """
+        ...
+    
+    @abstractmethod
+    def get_distinct_years(self, provider: str | None = None) -> List[int]:
+        """Get unique years from tracks (SQL DISTINCT).
+        
+        Args:
+            provider: Provider name filter (required)
+            
+        Returns:
+            Sorted list of unique years (newest first, excluding None)
+        """
+        ...
+    
+    @abstractmethod
+    def get_playlist_coverage(self, provider: str | None = None) -> List[Dict[str, Any]]:
+        """Get playlist coverage statistics in a single SQL query.
+        
+        Computes total tracks and matched tracks per playlist using aggregation
+        to avoid N+1 queries.
+        
+        Args:
+            provider: Provider name filter (required)
+            
+        Returns:
+            List of dicts with id, name, owner_id, owner_name, matched_count,
+            unmatched_count, coverage (percentage)
+        """
+        ...
+    
+    @abstractmethod
+    def list_unified_tracks_min(
+        self,
+        provider: str | None = None,
+        sort_column: Optional[str] = None,
+        sort_order: str = 'ASC',
+        limit: Optional[int] = None,
+        offset: int = 0
+    ) -> List[Dict[str, Any]]:
+        """Get minimal unified tracks (one row per track, no playlists aggregation).
+        
+        Returns core track metadata with matched flag computed in SQL.
+        Defers playlist name concatenation to lazy loading for performance.
+        
+        Args:
+            provider: Provider name filter (required)
+            sort_column: Column name to sort by (name, artist, album, year)
+            sort_order: 'ASC' or 'DESC'
+            limit: Maximum rows to return (for paging)
+            offset: Row offset (for paging)
+            
+        Returns:
+            List of dicts with: id, name, artist, album, year, matched (bool), local_path
+        """
+        ...
+    
+    @abstractmethod
+    def get_playlists_for_track_ids(
+        self,
+        track_ids: List[str],
+        provider: str | None = None
+    ) -> Dict[str, str]:
+        """Get comma-separated playlist names for each track ID.
+        
+        Uses SQL GROUP_CONCAT for performance instead of Python loops.
+        
+        Args:
+            track_ids: List of track IDs to look up
+            provider: Provider name filter (required)
+            
+        Returns:
+            Dict mapping track_id -> "Playlist A, Playlist B, ..." (sorted)
+        """
+        ...
+    
+    @abstractmethod
+    def get_track_ids_for_playlist(
+        self,
+        playlist_name: str,
+        provider: str | None = None
+    ) -> set:
+        """Get set of track IDs that belong to a specific playlist.
+        
+        Used for efficient playlist filtering in GUI without loading playlists column.
+        
+        Args:
+            playlist_name: Name of playlist to filter by
+            provider: Provider name filter (required)
+            
+        Returns:
+            Set of track IDs in the playlist
+        """
+        ...
+
     # --- Meta ---
     @abstractmethod
     def set_meta(self, key: str, value: str): ...

@@ -34,6 +34,8 @@ PATTERNS = {
     'completion_export': re.compile(r'^✓\s+Exported\s+(\d+)\s+playlists?'),
     'completion_incremental': re.compile(r'^✓\s+Incremental rebuild complete'),
     'completion_sync': re.compile(r'^✓\s+Database sync complete'),
+    'completion_matched': re.compile(r'^✓\s+Matched\s+(\d+)/(\d+)\s+tracks'),
+    'completion_created': re.compile(r'^✓\s+Created\s+(\d+)\s+new match'),
     
     # Standard status: "→ Found 42 playlists"
     'status': re.compile(r'→\s+(.+)'),
@@ -114,6 +116,17 @@ def parse_progress(line: str) -> Optional[Tuple[int, int, str]]:
     if match:
         return (100, 100, "✓ Database sync complete")
     
+    match = PATTERNS['completion_matched'].search(line)
+    if match:
+        matched = match.group(1)
+        total = match.group(2)
+        return (100, 100, f"✓ Matched {matched}/{total} tracks")
+    
+    match = PATTERNS['completion_created'].search(line)
+    if match:
+        count = match.group(1)
+        return (100, 100, f"✓ Created {count} new matches")
+    
     # Section headers
     match = PATTERNS['section'].search(line)
     if match:
@@ -162,5 +175,7 @@ def is_completion_marker(line: str) -> bool:
         PATTERNS['completion'].search(line) or
         PATTERNS['completion_export'].search(line) or
         PATTERNS['completion_incremental'].search(line) or
-        PATTERNS['completion_sync'].search(line)
+        PATTERNS['completion_sync'].search(line) or
+        PATTERNS['completion_matched'].search(line) or
+        PATTERNS['completion_created'].search(line)
     )
