@@ -425,14 +425,15 @@ class MainController(QObject):
         self._execute_command(['diagnose', track_id], f"✓ Diagnosis completed for track {track_id}", refresh_after=False)
     
     def _on_open_reports(self):
-        """Handle open reports directory in OS file browser."""
-        import subprocess
+        """Handle opening reports index page in web browser."""
+        import webbrowser
         from pathlib import Path
         from psm.config import load_config
         
         try:
             config = load_config()
             reports_dir = Path(config['reports']['directory'])
+            index_file = reports_dir / 'index.html'
             
             if not reports_dir.exists():
                 logger.warning(f"Reports directory does not exist: {reports_dir}")
@@ -442,18 +443,21 @@ class MainController(QObject):
                 )
                 return
             
-            # Open in OS file browser
-            if reports_dir.is_dir():
-                # Windows
-                subprocess.run(['explorer', str(reports_dir)])
-                logger.info(f"Opened reports directory: {reports_dir}")
-                self.window.append_log(f"✓ Opened {reports_dir}")
-            else:
-                logger.error(f"Reports path is not a directory: {reports_dir}")
-                self.window.append_log(f"✗ Not a directory: {reports_dir}")
+            if not index_file.exists():
+                logger.warning(f"Reports index not found: {index_file}")
+                self.window.append_log(
+                    f"⚠ Reports index.html not found\n"
+                    "Generate reports first with: psm report"
+                )
+                return
+            
+            # Open index.html in default web browser
+            webbrowser.open(index_file.as_uri())
+            logger.info(f"Opened reports index in browser: {index_file}")
+            self.window.append_log(f"✓ Opened reports in browser")
                 
         except Exception as e:
-            logger.exception("Failed to open reports directory")
+            logger.exception("Failed to open reports")
             self.window.append_log(f"✗ Error opening reports: {e}")
     
     def _on_build(self):

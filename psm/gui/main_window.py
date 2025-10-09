@@ -10,9 +10,9 @@ from typing import Dict, Any, List, Optional
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QSplitter,
     QTabWidget, QPushButton, QProgressBar,
-    QLabel, QMessageBox, QToolBar
+    QLabel, QMessageBox, QToolBar, QSizePolicy
 )
-from PySide6.QtCore import Qt, Signal, QItemSelectionModel
+from PySide6.QtCore import Qt, Signal, QItemSelectionModel, QSettings
 from PySide6.QtGui import QFont
 import logging
 
@@ -55,6 +55,9 @@ class MainWindow(QMainWindow):
         """Initialize main window."""
         super().__init__()
         
+        # Settings for persistent state (stored in INI format)
+        self.settings = QSettings("vtietz", "PlaylistSyncMatcher")
+        
         self.setWindowTitle("Playlist Sync Matcher")
         self.resize(1400, 900)
         self.setMinimumSize(800, 600)  # Allow reducing window size to reasonable minimum
@@ -74,6 +77,9 @@ class MainWindow(QMainWindow):
         
         # Build UI
         self._create_ui()
+        
+        # Restore window state after UI is created
+        self._restore_window_state()
     
     def _create_ui(self):
         """Create the main UI layout."""
@@ -140,7 +146,12 @@ class MainWindow(QMainWindow):
         toolbar.addWidget(self.btn_analyze)
         toolbar.addWidget(self.btn_report)
         toolbar.addWidget(self.btn_open_reports)
-        toolbar.addSeparator()
+        
+        # Add spacer to push Watch Mode button to the right
+        spacer = QWidget()
+        spacer.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        toolbar.addWidget(spacer)
+        
         toolbar.addWidget(self.btn_watch)
         
         # Connect signals
@@ -270,6 +281,9 @@ class MainWindow(QMainWindow):
         if selection_model:
             selection_model.selectionChanged.connect(self._on_track_selection_changed)
         
+        # Auto-run diagnosis when track is selected
+        self.unified_tracks_view.track_selected.connect(self._on_track_auto_diagnose)
+        
         # Add track action buttons below the table
         buttons_layout = QHBoxLayout()
         buttons_layout.setSpacing(5)
@@ -306,6 +320,16 @@ class MainWindow(QMainWindow):
             track_id = track_data.get('id')
             if track_id:
                 self.on_diagnose_clicked.emit(track_id)
+    
+    def _on_track_auto_diagnose(self, track_id: str):
+        """Auto-run diagnosis when a track is selected.
+        
+        Args:
+            track_id: ID of selected track
+        """
+        if track_id:
+            # Emit diagnose signal to run diagnosis in background
+            self.on_diagnose_clicked.emit(track_id)
     
     def _create_playlist_detail_widget(self) -> QWidget:
         """Create the playlist detail widget."""
@@ -664,3 +688,73 @@ class MainWindow(QMainWindow):
             playlist_width = max(400, window_width // 3)
             tracks_width = window_width - playlist_width
             self.main_splitter.setSizes([playlist_width, tracks_width])
+    
+    def closeEvent(self, event):
+        """Handle window close event - save state.
+        
+        Args:
+            event: QCloseEvent
+        """
+        self._save_window_state()
+        super().closeEvent(event)
+    
+    def _save_window_state(self):
+        """Save window geometry, splitter positions, and column widths."""
+        # Save window geometry and state
+        self.settings.setValue("geometry", self.saveGeometry())
+        self.settings.setValue("windowState", self.saveState())
+        
+        # Save main splitter position
+        self.settings.setValue("mainSplitter", self.main_splitter.saveState())
+        
+        # Save playlists table column widths
+        playlists_header = self.playlists_table_view.horizontalHeader()
+        playlists_widths = []
+        for col in range(playlists_header.count()):
+            playlists_widths.append(playlists_header.sectionSize(col))
+        self.settings.setValue("playlistsColumnWidths", playlists_widths)
+        
+        # Save unified tracks table column widths
+        tracks_header = self.unified_tracks_view.tracks_table.horizontalHeader()
+        tracks_widths = []
+        for col in range(tracks_header.count()):
+            tracks_widths.append(tracks_header.sectionSize(col))
+        self.settings.setValue("tracksColumnWidths", tracks_widths)
+        
+        logger.info("Window state saved")
+    
+    def _restore_window_state(self):
+        """Restore window geometry, splitter positions, and column widths."""
+        # Restore window geometry and state
+        geometry = self.settings.value("geometry")
+        if geometry:
+            self.restoreGeometry(geometry)
+        
+        window_state = self.settings.value("windowState")
+        if window_state:
+            self.restoreState(window_state)
+        
+        # Restore main splitter position (deferred until after show event)
+        splitter_state = self.settings.value("mainSplitter")
+        if splitter_state:
+            self.main_splitter.restoreState(splitter_state)
+        
+        # Restore playlists table column widths
+        playlists_widths = self.settings.value("playlistsColumnWidths")
+        if playlists_widths:
+            playlists_header = self.playlists_table_view.horizontalHeader()
+            for col, width in enumerate(playlists_widths):
+                if col < playlists_header.count():
+                    # Convert to int (QSettings may return strings)
+                    playlists_header.resizeSection(col, int(width))
+        
+        # Restore unified tracks table column widths
+        tracks_widths = self.settings.value("tracksColumnWidths")
+        if tracks_widths:
+            tracks_header = self.unified_tracks_view.tracks_table.horizontalHeader()
+            for col, width in enumerate(tracks_widths):
+                if col < tracks_header.count():
+                    # Convert to int (QSettings may return strings)
+                    tracks_header.resizeSection(col, int(width))
+        
+        logger.info("Window state restored")

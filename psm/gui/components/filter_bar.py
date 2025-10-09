@@ -106,15 +106,12 @@ class FilterBar(QWidget):
         
         # Layout - Two rows
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(5)
+        main_layout.setContentsMargins(10, 10, 10, 10)  # Add padding around filter panels
+        main_layout.setSpacing(8)  # Increase spacing between rows
         
         # First row: Status and metadata filters
         row1_layout = QHBoxLayout()
         row1_layout.setSpacing(10)
-        
-        row1_layout.addWidget(QLabel("Status:"))
-        row1_layout.addWidget(self.track_status_combo)
         
         row1_layout.addWidget(QLabel("Artist:"))
         row1_layout.addWidget(self.artist_combo)
@@ -124,6 +121,9 @@ class FilterBar(QWidget):
         
         row1_layout.addWidget(QLabel("Year:"))
         row1_layout.addWidget(self.year_combo)
+        
+        row1_layout.addWidget(QLabel("Matched:"))
+        row1_layout.addWidget(self.track_status_combo)
         
         row1_layout.addWidget(QLabel("Confidence:"))
         row1_layout.addWidget(self.confidence_combo)

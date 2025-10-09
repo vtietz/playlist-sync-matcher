@@ -60,8 +60,8 @@ class PlaylistFilterBar(QWidget):
         
         # Layout - Two rows
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(5)
+        main_layout.setContentsMargins(10, 10, 10, 10)  # Add padding around filter panels
+        main_layout.setSpacing(8)  # Increase spacing between rows
         
         # First row: Owner filter
         row1_layout = QHBoxLayout()
