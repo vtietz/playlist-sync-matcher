@@ -87,6 +87,9 @@ class MainController(QObject):
         # Watch mode
         self.window.on_watch_toggled.connect(self._on_watch_toggled)
         
+        # Cancel command
+        self.window.on_cancel_clicked.connect(self._on_cancel)
+        
         # Note: Filter options are now populated on-demand from visible data
         # in UnifiedTracksView.populate_filter_options_from_visible_data()
     
@@ -126,8 +129,8 @@ class MainController(QObject):
                 loader.wait()
             self._active_loaders.clear()
         
-        # Show loading state - indeterminate progress
-        self.window.set_progress(0, 0, "Loading data...")
+        # Show loading state
+        self.window.set_execution_status(True, "Loading data")
         self.window.unified_tracks_view.show_loading()
         
         # Define loading functions using facade_factory for thread safety
@@ -161,18 +164,7 @@ class MainController(QObject):
             data: Loaded data
         """
         logger.debug(f"Loaded {key}: {len(data) if hasattr(data, '__len__') else 'N/A'} items")
-        
-        # Update progress based on key
-        progress_map = {
-            'playlists': 15,
-            'tracks': 45,
-            'artists': 65,
-            'albums': 80,
-            'years': 90,
-            'counts': 100,
-        }
-        if key in progress_map:
-            self.window.set_progress(progress_map[key], 100, f"Loading {key}...")
+        # No progress updates needed - using simple execution status instead
     
     def _on_data_loaded(self, results: dict):
         """Handle all data loaded successfully.
@@ -206,8 +198,8 @@ class MainController(QObject):
             if 'counts' in results:
                 self.window.update_status_counts(results['counts'])
             
-            # Clear progress and hide loading overlay
-            self.window.set_progress(0, 100, "Ready")
+            # Clear execution status and hide loading overlay
+            self.window.set_execution_status(False)
             self.window.unified_tracks_view.hide_loading()
             self.window.append_log("Data loaded successfully")
             
@@ -259,7 +251,7 @@ class MainController(QObject):
         """
         logger.error(f"Data loading error: {error_msg}")
         self.window.append_log(f"Error loading data: {error_msg}")
-        self.window.set_progress(0, 100, "Error loading data")
+        self.window.set_execution_status(False)  # Set to Ready
         self.window.unified_tracks_view.hide_loading()
         
         # Clean up loader reference
@@ -368,7 +360,6 @@ class MainController(QObject):
             self.window.unified_tracks_view.set_playlist_filter(playlist_name, track_ids)
         else:
             self.window.unified_tracks_view.set_playlist_filter(None, None)
-    
     # Action handlers
     
     def _execute_command(self, args: list, success_message: str, refresh_after: bool = True):
@@ -379,18 +370,23 @@ class MainController(QObject):
             success_message: Message to show on success
             refresh_after: Whether to refresh data after successful execution (default: True)
         """
-        # Clear log and reset progress before execution
+        # Clear log before execution
         self.window.clear_logs()
-        self.window.set_progress(0, 100, "Starting...")
         
         # Execute via command service with standardized lifecycle
         self.command_service.execute(
             args=args,
             on_log=self.window.append_log,
-            on_progress=self.window.set_progress,
+            on_execution_status=self.window.set_execution_status,
             on_success=self.refresh_all_async if refresh_after else None,  # Conditional refresh
             success_message=success_message
         )
+    
+    def _on_cancel(self):
+        """Handle cancel button click."""
+        logger.info("Cancel button clicked - stopping current command")
+        self.command_service.stop_current()
+        self.window.append_log("\n⚠ Command cancelled by user")
     
     def _on_pull(self):
         """Handle pull all playlists."""
@@ -500,7 +496,7 @@ class MainController(QObject):
         if enabled:
             logger.info("Starting watch mode...")
             self.window.clear_logs()
-            self.window.set_progress(0, 0, "Watching...")
+            self.window.set_execution_status(True, "Watch mode")
             self.window.enable_actions(False)
             self.window.set_watch_mode(True)  # Update button label immediately
             
@@ -508,17 +504,20 @@ class MainController(QObject):
                 self.window.append_log(line)
             
             def on_progress(current: int, total: int, message: str):
-                self.window.set_progress(current, total, message)
+                # Ignore progress updates in watch mode - just keep showing "Running: Watch mode"
+                pass
             
             def on_finished(exit_code: int):
                 self.window.set_watch_mode(False)
                 self.window.enable_actions(True)
+                self.window.set_execution_status(False)  # Set to Ready
                 self.window.append_log("\nWatch mode stopped")
                 self.refresh_all_async()  # Async refresh after watch mode stops
             
             def on_error(error: str):
                 self.window.set_watch_mode(False)
                 self.window.enable_actions(True)
+                self.window.set_execution_status(False)  # Set to Ready
                 self.window.append_log(f"\nError: {error}")
             
             self.executor.execute(

@@ -114,29 +114,6 @@ class UnifiedTracksView(QWidget):
         # Enable mouse tracking for hover effects
         self.tracks_table.setMouseTracking(True)
         
-        # Create loading overlay
-        self._loading_overlay = QLabel("Loading...", self.tracks_table.viewport())
-        self._loading_overlay.setAlignment(Qt.AlignCenter)
-        self._loading_overlay.setStyleSheet("""
-            QLabel {
-                background-color: rgba(255, 255, 255, 200);
-                color: #333;
-                font-size: 16px;
-                font-weight: bold;
-                border: 2px solid #ccc;
-                border-radius: 8px;
-                padding: 20px;
-            }
-        """)
-        font = QFont("Segoe UI", 14, QFont.Bold)
-        self._loading_overlay.setFont(font)
-        self._loading_overlay.setMinimumSize(150, 80)
-        self._loading_overlay.setAttribute(Qt.WA_TransparentForMouseEvents)
-        self._loading_overlay.hide()
-        
-        # Install event filter to reposition overlay on viewport resize
-        self.tracks_table.viewport().installEventFilter(self)
-        
         # Lazy playlist loading
         self._playlist_fetch_callback: Optional[Callable[[List[str]], Dict[str, str]]] = None
         self._playlists_loaded = False
@@ -351,24 +328,15 @@ class UnifiedTracksView(QWidget):
                 header.resizeSection(6, 110)  # Quality max 110px
     
     def show_loading(self):
-        """Show loading overlay on the tracks table."""
-        self._loading_overlay.show()
-        self._position_loading_overlay()
+        """Show loading overlay (removed - no longer needed)."""
+        pass
     
     def hide_loading(self):
-        """Hide loading overlay."""
-        self._loading_overlay.hide()
-    
-    def _position_loading_overlay(self):
-        """Position the loading overlay in the center of the viewport."""
-        viewport = self.tracks_table.viewport()
-        overlay_size = self._loading_overlay.sizeHint()
-        x = (viewport.width() - overlay_size.width()) // 2
-        y = (viewport.height() - overlay_size.height()) // 2
-        self._loading_overlay.move(max(0, x), max(0, y))
+        """Hide loading overlay (removed - no longer needed)."""
+        pass
     
     def eventFilter(self, obj, event):
-        """Filter events to reposition overlay on viewport resize.
+        """Filter events (loading overlay removed).
         
         Args:
             obj: Event source object
@@ -377,9 +345,6 @@ class UnifiedTracksView(QWidget):
         Returns:
             bool: True if event handled, False otherwise
         """
-        if obj == self.tracks_table.viewport() and event.Type.Resize:
-            if self._loading_overlay.isVisible():
-                self._position_loading_overlay()
         return super().eventFilter(obj, event)
     
     def set_playlist_fetch_callback(self, callback: Callable[[List[str]], Dict[str, str]]):

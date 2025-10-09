@@ -48,7 +48,7 @@ class MatchingConfig:
     """Track matching algorithm configuration (aligned with _DEFAULTS)."""
     fuzzy_threshold: float = 0.78  # 0.0-1.0 scale
     use_year: bool = False
-    duration_tolerance: float = 2.0  # seconds
+    duration_tolerance: float = 5.0  # seconds (aligned with _DEFAULTS)
     show_unmatched_tracks: int = 20
     show_unmatched_albums: int = 20
     max_candidates_per_track: int = 500  # Performance safeguard: cap candidates per track

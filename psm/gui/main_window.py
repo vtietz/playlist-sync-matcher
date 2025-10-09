@@ -9,14 +9,14 @@ from __future__ import annotations
 from typing import Dict, Any, List, Optional
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QSplitter,
-    QTabWidget, QPushButton, QProgressBar,
+    QTabWidget, QPushButton,
     QLabel, QMessageBox, QToolBar, QSizePolicy
 )
 from PySide6.QtCore import Qt, Signal, QItemSelectionModel, QSettings
 from PySide6.QtGui import QFont
 import logging
 
-from .components import SortFilterTable, LogPanel
+from .components import SortFilterTable, LogPanel, StatusBar
 from .components.link_delegate import LinkDelegate
 from .components.folder_delegate import FolderDelegate
 from .components.playlist_filter_bar import PlaylistFilterBar
@@ -50,6 +50,7 @@ class MainWindow(QMainWindow):
     on_match_one_clicked = Signal()
     on_export_one_clicked = Signal()
     on_watch_toggled = Signal(bool)
+    on_cancel_clicked = Signal()  # Cancel current command
     
     def __init__(self):
         """Initialize main window."""
@@ -64,6 +65,9 @@ class MainWindow(QMainWindow):
         
         # Track selected playlist
         self._selected_playlist_id: Optional[str] = None
+        
+        # Track running state (for gating auto-diagnose and UI actions)
+        self._is_running: bool = False
         
         # Create models
         self.playlists_model = PlaylistsModel(self)
@@ -116,9 +120,12 @@ class MainWindow(QMainWindow):
         
         layout.addWidget(main_splitter)
         
-        # Bottom: Log and progress
+        # Bottom: Log and status bar
         bottom_widget = self._create_bottom_panel()
         layout.addWidget(bottom_widget)
+        
+        # Connect cancel button (after status bar is created)
+        self.status_bar_component.connect_cancel(self.on_cancel_clicked.emit)
         
         layout.setStretch(0, 3)
         layout.setStretch(1, 1)
@@ -324,9 +331,15 @@ class MainWindow(QMainWindow):
     def _on_track_auto_diagnose(self, track_id: str):
         """Auto-run diagnosis when a track is selected.
         
+        Skips execution if a command is currently running.
+        
         Args:
             track_id: ID of selected track
         """
+        # Don't auto-diagnose if a command is running
+        if self._is_running:
+            return
+        
         if track_id:
             # Emit diagnose signal to run diagnosis in background
             self.on_diagnose_clicked.emit(track_id)
@@ -364,31 +377,16 @@ class MainWindow(QMainWindow):
         return widget
     
     def _create_bottom_panel(self) -> QWidget:
-        """Create the bottom panel with log and progress."""
+        """Create the bottom panel with log."""
         widget = QWidget()
         layout = QVBoxLayout(widget)
-        
-        # Progress bar
-        progress_layout = QHBoxLayout()
-        self.progress_label = QLabel("Ready")
-        self.progress_label.setFont(QFont("Segoe UI Emoji", 9))  # Support emoji in progress messages
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setRange(0, 100)
-        self.progress_bar.setValue(0)
-        
-        progress_layout.addWidget(self.progress_label)
-        progress_layout.addWidget(self.progress_bar)
-        
-        layout.addLayout(progress_layout)
         
         # Use LogPanel component
         self.log_panel = LogPanel(title="Log", max_height=200, font_size=9)
         layout.addWidget(self.log_panel)
         
-        # Status bar
-        self.status_label = QLabel("Ready")
-        self.status_label.setFont(QFont("Segoe UI Emoji", 9))  # Support emoji in status messages
-        self.statusBar().addWidget(self.status_label)
+        # Initialize status bar component
+        self.status_bar_component = StatusBar(self.statusBar())
         
         return widget
     
@@ -477,66 +475,65 @@ class MainWindow(QMainWindow):
         Args:
             counts: Dict with playlists, tracks, library_files, matches counts
         """
-        status = (
-            f"Playlists: {counts.get('playlists', 0)} | "
-            f"Tracks: {counts.get('tracks', 0)} | "
-            f"Library: {counts.get('library_files', 0)} | "
-            f"Matches: {counts.get('matches', 0)} | "
-            f"Liked: {counts.get('liked', 0)}"
-        )
-        self.status_label.setText(status)
+        self.status_bar_component.update_stats(counts)
     
     # Log and progress methods
     
     def append_log(self, message: str):
-        """Append message to log.
+        """Append message to log with ANSI color code stripping.
         
         Args:
-            message: Log message
+            message: Log message (may contain ANSI escape codes)
         """
-        self.log_panel.append(message)
+        # Strip ANSI escape codes for better readability in GUI
+        import re
+        ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+        clean_message = ansi_escape.sub('', message)
+        self.log_panel.append(clean_message)
     
     def clear_logs(self):
         """Clear the log window."""
         self.log_panel.clear()
     
-    def set_progress(self, current: int, total: int, message: str):
-        """Update progress bar.
+    def set_execution_status(self, running: bool, message: str = ""):
+        """Set execution status indicator and track running state.
         
         Args:
-            current: Current value
-            total: Total value (0 for indeterminate)
-            message: Progress message
+            running: True if command is running, False if ready
+            message: Optional status message (displayed when running)
         """
-        if total == 0:
-            # Indeterminate progress
-            self.progress_bar.setRange(0, 0)
-        else:
-            self.progress_bar.setRange(0, total)
-            self.progress_bar.setValue(current)
-        
-        self.progress_label.setText(message)
+        self._is_running = running
+        self.status_bar_component.set_execution_status(running, message)
     
     # UI state methods
     
     def enable_actions(self, enabled: bool):
-        """Enable/disable action buttons.
+        """Enable/disable action buttons (except cancel button).
         
         Args:
             enabled: True to enable, False to disable
         """
-        self.btn_pull.setEnabled(enabled)
+        # Toolbar buttons
         self.btn_scan.setEnabled(enabled)
+        self.btn_build.setEnabled(enabled)
+        self.btn_analyze.setEnabled(enabled)
+        self.btn_report.setEnabled(enabled)
+        self.btn_watch.setEnabled(enabled)
+        # Note: btn_open_reports stays enabled (no CLI execution)
+        
+        # Playlist action buttons
+        self.btn_pull.setEnabled(enabled)
         self.btn_match.setEnabled(enabled)
         self.btn_export.setEnabled(enabled)
-        self.btn_report.setEnabled(enabled)
-        self.btn_build.setEnabled(enabled)
         
         # Per-playlist actions only if playlist selected
         if enabled and self._selected_playlist_id:
             self.enable_playlist_actions(True)
         else:
             self.enable_playlist_actions(False)
+        
+        # Per-track actions
+        self.enable_track_actions(enabled)
     
     def enable_playlist_actions(self, enabled: bool):
         """Enable/disable per-playlist action buttons.

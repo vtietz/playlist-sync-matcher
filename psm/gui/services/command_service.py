@@ -67,7 +67,7 @@ class CommandService:
         self,
         args: list[str],
         on_log: Callable[[str], None],
-        on_progress: Callable[[int, int, str], None],
+        on_execution_status: Callable[[bool, str], None],
         on_success: Optional[Callable[[], None]] = None,
         success_message: str = "✓ Command completed"
     ):
@@ -76,7 +76,7 @@ class CommandService:
         Args:
             args: Command arguments (e.g., ['pull', '--force'])
             on_log: Callback for log lines
-            on_progress: Callback for progress updates (current, total, message)
+            on_execution_status: Callback for execution status (running: bool, message: str)
             on_success: Optional callback invoked after successful execution
             success_message: Message to log on success
         """
@@ -88,8 +88,9 @@ class CommandService:
         # Clear log buffer for new command
         self._log_buffer.clear()
         
-        # Pre-execution: disable actions
+        # Pre-execution: disable actions and set running status
         self.enable_actions(False)
+        on_execution_status(True, ' '.join(args))  # Show command being run
         
         def on_log_with_capture(line: str):
             """Log callback that also captures to buffer for error analysis."""
@@ -99,6 +100,7 @@ class CommandService:
         def on_finished(exit_code: int):
             """Handle command completion."""
             self.enable_actions(True)
+            on_execution_status(False, "")  # Set to Ready
             
             if exit_code == 0:
                 # Success path
@@ -117,13 +119,15 @@ class CommandService:
         def on_error(error: str):
             """Handle command error."""
             self.enable_actions(True)
+            on_execution_status(False, "")  # Set to Ready
             on_log(f"\n✗ Error: {error}")
         
-        # Execute via executor
+        # Execute via executor (note: executor still expects on_progress callback)
+        # We pass a no-op lambda since we're not using progress bars anymore
         self.executor.execute(
             args,
             on_log=on_log_with_capture,
-            on_progress=on_progress,
+            on_progress=lambda c, t, m: None,  # No-op: we use execution status instead
             on_finished=on_finished,
             on_error=on_error,
         )

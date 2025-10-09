@@ -265,16 +265,18 @@ class MatchingEngine:
             
             # Delete existing matches for these tracks (they were updated)
             self.db.delete_matches_by_track_ids(track_ids)
+            match_type = "changed"  # These are specific tracks that changed
         else:
             # Match all currently unmatched tracks (fallback)
             track_rows = self.db.get_unmatched_tracks(provider='spotify')
             tracks_to_match = [row.to_dict() for row in track_rows]
+            match_type = "unmatched"  # These are all tracks without matches
         
         if not tracks_to_match:
             logger.debug("No tracks need matching")
             return 0
         
-        logger.info(f"Incrementally matching {len(all_files)} file(s) against {len(tracks_to_match)} changed track(s)...")
+        logger.info(f"Incrementally matching {len(all_files)} file(s) against {len(tracks_to_match)} {match_type} track(s)...")
         
         new_matches = 0
         processed = 0
@@ -379,16 +381,18 @@ class MatchingEngine:
             
             # Delete existing matches for these files (they were updated)
             self.db.delete_matches_by_file_ids(file_ids)
+            match_type = "changed"  # These are specific files that changed
         else:
             # Match all currently unmatched files (fallback)
             file_rows = self.db.get_unmatched_library_files()
             files_to_match = [self._normalize_file_dict(row.to_dict()) for row in file_rows]
+            match_type = "unmatched"  # These are all files without matches
         
         if not files_to_match:
             logger.debug("No files need matching")
             return (0, [])
         
-        logger.info(f"Incrementally matching {len(files_to_match)} file(s) against {len(all_tracks)} tracks...")
+        logger.info(f"Incrementally matching {len(files_to_match)} {match_type} file(s) against {len(all_tracks)} tracks...")
         
         new_matches = 0
         matched_track_ids = []  # Track which tracks got new matches

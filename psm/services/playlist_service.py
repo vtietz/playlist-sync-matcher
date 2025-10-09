@@ -165,7 +165,7 @@ def match_single_playlist(
     
     # Get matching config
     fuzzy_threshold = config.get('matching', {}).get('fuzzy_threshold', 0.78)
-    duration_tolerance = config.get('matching', {}).get('duration_tolerance', 2.0)
+    duration_tolerance = config.get('matching', {}).get('duration_tolerance', 5.0)
     
     # Run matching using MatchingEngine for all tracks (it will match only unmatched ones)
     from ..config_types import MatchingConfig
@@ -173,7 +173,6 @@ def match_single_playlist(
     
     matching_config_dict = {
         'fuzzy_threshold': fuzzy_threshold,
-        'strategies': ['duration_filter', 'isrc_exact', 'exact', 'fuzzy'],
         'duration_tolerance': duration_tolerance,
     }
     matching_cfg = MatchingConfig(**{**_DEFAULTS.get('matching', {}), **matching_config_dict})

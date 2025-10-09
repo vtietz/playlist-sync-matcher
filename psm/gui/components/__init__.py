@@ -8,9 +8,10 @@ from .playlist_proxy_model import PlaylistProxyModel
 from .link_delegate import LinkDelegate
 from .folder_delegate import FolderDelegate
 from .debounced_search_field import DebouncedSearchField
+from .status_bar import StatusBar
 
 __all__ = [
     'SortFilterTable', 'LogPanel', 'FilterBar', 'PlaylistFilterBar', 
     'UnifiedTracksProxyModel', 'PlaylistProxyModel', 'LinkDelegate', 
-    'FolderDelegate', 'DebouncedSearchField'
+    'FolderDelegate', 'DebouncedSearchField', 'StatusBar'
 ]
