@@ -88,8 +88,7 @@ class UnifiedTracksProxyModel(QSortFilterProxyModel):
         self._playlist_filter = playlist_name
         self._playlist_track_ids = track_ids
         self._col_cache = None  # Invalidate cache when source model might change
-        # Use invalidateFilter() for consistency with other filters
-        self.invalidateFilter()
+        self.invalidate()
     
     def set_status_filter(self, status: str):
         """Set match status filter.
@@ -98,7 +97,7 @@ class UnifiedTracksProxyModel(QSortFilterProxyModel):
             status: "all", "matched", or "unmatched"
         """
         self._status_filter = status
-        self.invalidateFilter()
+        self.invalidate()
     
     def set_artist_filter(self, artist: Optional[str]):
         """Set artist filter.
@@ -107,7 +106,7 @@ class UnifiedTracksProxyModel(QSortFilterProxyModel):
             artist: Artist name to filter by, or None for all artists
         """
         self._artist_filter = artist
-        self.invalidateFilter()
+        self.invalidate()
     
     def set_album_filter(self, album: Optional[str]):
         """Set album filter.
@@ -116,7 +115,7 @@ class UnifiedTracksProxyModel(QSortFilterProxyModel):
             album: Album name to filter by, or None for all albums
         """
         self._album_filter = album
-        self.invalidateFilter()
+        self.invalidate()
     
     def set_year_filter(self, year: Optional[int]):
         """Set year filter.
@@ -125,7 +124,7 @@ class UnifiedTracksProxyModel(QSortFilterProxyModel):
             year: Year to filter by, or None for all years
         """
         self._year_filter = year
-        self.invalidateFilter()
+        self.invalidate()
     
     def set_confidence_filter(self, confidence: Optional[str]):
         """Set confidence filter.
@@ -134,7 +133,7 @@ class UnifiedTracksProxyModel(QSortFilterProxyModel):
             confidence: Confidence level to filter by (CERTAIN/HIGH/MODERATE/LOW), or None for all
         """
         self._confidence_filter = confidence
-        self.invalidateFilter()
+        self.invalidate()
     
     def set_quality_filter(self, quality: Optional[str]):
         """Set quality filter.
@@ -143,7 +142,7 @@ class UnifiedTracksProxyModel(QSortFilterProxyModel):
             quality: Quality level to filter by (EXCELLENT/GOOD/PARTIAL/POOR), or None for all
         """
         self._quality_filter = quality
-        self.invalidateFilter()
+        self.invalidate()
     
     def set_search_text_debounced(self, text: str, delay_ms: int = 300):
         """Set search text with debouncing.
@@ -161,7 +160,7 @@ class UnifiedTracksProxyModel(QSortFilterProxyModel):
         if self._pending_search_text is not None:
             self._search_text = self._pending_search_text
             self._pending_search_text = None
-            self.invalidateFilter()
+            self.invalidate()
     
     def set_search_text_immediate(self, text: str):
         """Set search text immediately without debouncing.
@@ -170,7 +169,7 @@ class UnifiedTracksProxyModel(QSortFilterProxyModel):
             text: Search text
         """
         self._search_text = text
-        self.invalidateFilter()
+        self.invalidate()
     
     def filterAcceptsRow(self, source_row: int, source_parent) -> bool:
         """Determine if row passes all filter criteria.

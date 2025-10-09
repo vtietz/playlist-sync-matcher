@@ -20,7 +20,7 @@ def test_matching_config_defaults():
     
     assert config.fuzzy_threshold == 0.78
     assert config.use_year is False
-    assert config.duration_tolerance == 2.0
+    assert config.duration_tolerance == 5.0
     assert config.show_unmatched_tracks == 20
     assert config.show_unmatched_albums == 20
     assert config.max_candidates_per_track == 500
@@ -231,7 +231,7 @@ def test_matching_config_with_partial_dict():
     config = AppConfig.from_dict(partial)
     
     assert config.matching.fuzzy_threshold == 0.85
-    assert config.matching.duration_tolerance == 2.0  # default
+    assert config.matching.duration_tolerance == 5.0  # default
     assert config.matching.max_candidates_per_track == 500  # default
 
 

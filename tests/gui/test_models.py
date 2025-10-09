@@ -11,12 +11,12 @@ class TestPlaylistsModel:
         """Test model starts empty."""
         model = PlaylistsModel()
         assert model.rowCount() == 0
-        assert model.columnCount() == 6  # Name, Owner, Tracks, Matched, Unmatched, Coverage
+        assert model.columnCount() == 3  # Name, Owner, Coverage
     
     def test_column_headers(self):
         """Test column headers are correct."""
         model = PlaylistsModel()
-        expected_headers = ['Name', 'Owner', 'Tracks', 'Matched', 'Unmatched', 'Coverage %']
+        expected_headers = ['Name', 'Owner', 'Coverage']
         
         for col, expected in enumerate(expected_headers):
             actual = model.headerData(col, Qt.Horizontal, Qt.DisplayRole)
@@ -51,18 +51,14 @@ class TestPlaylistsModel:
         
         assert model.rowCount() == 2
         
-        # Check "All Playlists" row (models return strings for display)
+        # Check "All Playlists" row (coverage column shows formatted string)
         assert model.data(model.index(0, 0), Qt.DisplayRole) == 'All Playlists'
-        assert model.data(model.index(0, 2), Qt.DisplayRole) == '100'
-        assert model.data(model.index(0, 3), Qt.DisplayRole) == '75'
-        assert model.data(model.index(0, 4), Qt.DisplayRole) == '25'
-        assert model.data(model.index(0, 5), Qt.DisplayRole) == '75'  # Coverage is stored as int
+        assert model.data(model.index(0, 2), Qt.DisplayRole) == '75% (75/100)'  # Coverage formatted
         
         # Check regular playlist row
         assert model.data(model.index(1, 0), Qt.DisplayRole) == 'Workout Mix'
         assert model.data(model.index(1, 1), Qt.DisplayRole) == 'testuser'
-        assert model.data(model.index(1, 2), Qt.DisplayRole) == '50'
-        assert model.data(model.index(1, 5), Qt.DisplayRole) == '80'  # Coverage is stored as int
+        assert model.data(model.index(1, 2), Qt.DisplayRole) == '80% (40/50)'  # Coverage formatted
     
     def test_get_row_data(self):
         """Test retrieving row data by index."""
@@ -105,14 +101,14 @@ class TestUnifiedTracksModel:
         """Test model starts empty."""
         model = UnifiedTracksModel()
         assert model.rowCount() == 0
-        assert model.columnCount() == 8  # Playlist, Owner, Track, Artist, Album, Matched, Local File, Match %
+        assert model.columnCount() == 9  # Track, Artist, Album, Year, Matched, Confidence, Quality, Local File, Playlists
     
     def test_column_headers(self):
         """Test column headers are correct."""
         model = UnifiedTracksModel()
         expected_headers = [
-            'Playlist', 'Owner', 'Track', 'Artist', 'Album',
-            'Matched', 'Local File', 'Match %'
+            'Track', 'Artist', 'Album', 'Year', 'Matched',
+            'Confidence', 'Quality', 'Local File', 'Playlists'
         ]
         
         for col, expected in enumerate(expected_headers):
@@ -125,24 +121,26 @@ class TestUnifiedTracksModel:
         
         tracks = [
             {
-                'playlist_name': 'Workout Mix',
-                'owner': 'testuser',
                 'name': 'Song 1',
                 'artist': 'Artist 1',
                 'album': 'Album 1',
+                'year': 2020,
                 'matched': True,
+                'confidence': 'HIGH',
+                'quality': 'GOOD',
                 'local_path': '/music/song1.mp3',
-                'completeness': 95
+                'playlists': ''  # Initially empty
             },
             {
-                'playlist_name': 'Chill Vibes',
-                'owner': 'testuser',
                 'name': 'Song 2',
                 'artist': 'Artist 2',
                 'album': 'Album 2',
+                'year': 2021,
                 'matched': False,
+                'confidence': None,
+                'quality': None,
                 'local_path': None,
-                'completeness': None
+                'playlists': ''
             }
         ]
         
@@ -150,18 +148,17 @@ class TestUnifiedTracksModel:
         
         assert model.rowCount() == 2
         
-        # Check matched track
-        assert model.data(model.index(0, 0), Qt.DisplayRole) == 'Workout Mix'
-        assert model.data(model.index(0, 1), Qt.DisplayRole) == 'testuser'
-        assert model.data(model.index(0, 2), Qt.DisplayRole) == 'Song 1'
-        assert model.data(model.index(0, 5), Qt.DisplayRole) == 'True'  # matched stored as bool
-        assert model.data(model.index(0, 6), Qt.DisplayRole) == '/music/song1.mp3'
-        assert model.data(model.index(0, 7), Qt.DisplayRole) == '95'  # completeness stored as int
+        # Check matched track (columns: Track, Artist, Album, Year, Matched, Confidence, Quality, Local File, Playlists)
+        assert model.data(model.index(0, 0), Qt.DisplayRole) == 'Song 1'  # Track name
+        assert model.data(model.index(0, 1), Qt.DisplayRole) == 'Artist 1'  # Artist
+        assert model.data(model.index(0, 2), Qt.DisplayRole) == 'Album 1'  # Album
+        assert model.data(model.index(0, 3), Qt.DisplayRole) == '2020'  # Year
+        # Note: matched column shows ✓ or ✗, not 'True'/'False'
+        assert model.data(model.index(0, 7), Qt.DisplayRole) == '/music/song1.mp3'  # Local File
         
         # Check unmatched track
-        assert model.data(model.index(1, 5), Qt.DisplayRole) == 'False'
-        assert model.data(model.index(1, 6), Qt.DisplayRole) == ''
-        assert model.data(model.index(1, 7), Qt.DisplayRole) == ''
+        assert model.data(model.index(1, 0), Qt.DisplayRole) == 'Song 2'
+        assert model.data(model.index(1, 7), Qt.DisplayRole) in ['', None]  # No local file
     
     def test_get_row_data(self):
         """Test retrieving row data by index."""

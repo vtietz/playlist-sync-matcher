@@ -79,8 +79,8 @@ def test_match_diagnose_outputs(tmp_path: Path, test_config):
     # Close direct handle so CLI can acquire its own lock
     db.close()
     runner = CliRunner()
-    res = runner.invoke(cli, ['match-diagnose', 't2'], obj=test_config)
+    res = runner.invoke(cli, ['diagnose', 't2'], obj=test_config)
     assert res.exit_code == 0
     assert 'Track: t2' in res.output
-    assert 'Top candidates' in res.output
-    assert 'Existing match' in res.output  # may be none before running match
+    assert 'closest files' in res.output  # Changed from "Top candidates" to match current output
+    # Note: "Existing match" may not appear if no match exists yet

@@ -24,7 +24,7 @@ class TestSortFilterTable:
         table = SortFilterTable(model)
         
         assert table is not None
-        assert table.model() == model.proxy
+        assert table.proxy_model.sourceModel() == model
     
     def test_set_default_sort(self, qapp):
         """Test setting default sort order."""
@@ -93,9 +93,9 @@ class TestLogPanel:
         """Test appending log messages."""
         panel = LogPanel()
         
-        panel.append_log("INFO: Test message")
-        panel.append_log("WARNING: Warning message")
-        panel.append_log("ERROR: Error message")
+        panel.append("INFO: Test message")
+        panel.append("WARNING: Warning message")
+        panel.append("ERROR: Error message")
         
         # Should not raise
         text = panel.log_text.toPlainText()
@@ -107,10 +107,10 @@ class TestLogPanel:
         """Test clearing logs."""
         panel = LogPanel()
         
-        panel.append_log("Test message")
+        panel.append("Test message")
         assert len(panel.log_text.toPlainText()) > 0
         
-        panel.clear_logs()
+        panel.clear()
         assert panel.log_text.toPlainText() == ""
 
 
@@ -130,13 +130,13 @@ class TestFilterBar:
         assert bar.get_track_filter() == "all"
         
         # Change to matched
-        index = bar.status_combo.findText("Matched")
-        bar.status_combo.setCurrentIndex(index)
+        index = bar.track_status_combo.findText("Matched")
+        bar.track_status_combo.setCurrentIndex(index)
         assert bar.get_track_filter() == "matched"
         
         # Change to unmatched
-        index = bar.status_combo.findText("Unmatched")
-        bar.status_combo.setCurrentIndex(index)
+        index = bar.track_status_combo.findText("Unmatched")
+        bar.track_status_combo.setCurrentIndex(index)
         assert bar.get_track_filter() == "unmatched"
     
     def test_get_search_text(self, qapp):
@@ -145,7 +145,7 @@ class TestFilterBar:
         
         assert bar.get_search_text() == ""
         
-        bar.search_input.setText("test search")
+        bar.search_field.setText("test search")
         assert bar.get_search_text() == "test search"
     
     def test_clear_filters(self, qapp):
@@ -153,8 +153,8 @@ class TestFilterBar:
         bar = FilterBar()
         
         # Set some filters
-        bar.status_combo.setCurrentIndex(1)  # Matched
-        bar.search_input.setText("test")
+        bar.track_status_combo.setCurrentIndex(1)  # Matched
+        bar.search_field.setText("test")
         
         # Clear
         bar.clear_filters()
@@ -163,14 +163,14 @@ class TestFilterBar:
         assert bar.get_search_text() == ""
     
     def test_filters_changed_signal(self, qapp):
-        """Test that filters_changed signal is emitted."""
+        """Test that filter_changed signal is emitted."""
         bar = FilterBar()
         
         signal_received = []
-        bar.filters_changed.connect(lambda: signal_received.append(True))
+        bar.filter_changed.connect(lambda: signal_received.append(True))
         
         # Change status filter
-        bar.status_combo.setCurrentIndex(1)
+        bar.track_status_combo.setCurrentIndex(1)
         QApplication.processEvents()
         
         assert len(signal_received) > 0
@@ -190,25 +190,27 @@ class TestUnifiedTracksProxyModel:
         tracks = [
             {
                 'id': 't1',
-                'playlist_name': 'Workout',
-                'owner_name': 'user',
-                'track_name': 'Song 1',
-                'artist_name': 'Artist 1',
-                'album_name': 'Album 1',
+                'name': 'Song 1',
+                'artist': 'Artist 1',
+                'album': 'Album 1',
+                'year': 2020,
                 'matched': True,
+                'confidence': 'HIGH',
+                'quality': 'GOOD',
                 'local_path': '/music/s1.mp3',
-                'match_score': 90
+                'playlists': 'Workout'  # Added playlists field
             },
             {
                 'id': 't2',
-                'playlist_name': 'Chill',
-                'owner_name': 'user',
-                'track_name': 'Song 2',
-                'artist_name': 'Artist 2',
-                'album_name': 'Album 2',
+                'name': 'Song 2',
+                'artist': 'Artist 2',
+                'album': 'Album 2',
+                'year': 2021,
                 'matched': False,
+                'confidence': None,
+                'quality': None,
                 'local_path': None,
-                'match_score': None
+                'playlists': 'Chill'  # Added playlists field
             }
         ]
         model.set_data(tracks)
@@ -219,12 +221,12 @@ class TestUnifiedTracksProxyModel:
         # No filter - should show all
         assert proxy.rowCount() == 2
         
-        # Filter by "Workout"
-        proxy.set_playlist_filter("Workout")
+        # Filter by "Workout" - need to pass track_ids set
+        proxy.set_playlist_filter("Workout", track_ids={'t1'})
         assert proxy.rowCount() == 1
         
-        # Filter by "Chill"
-        proxy.set_playlist_filter("Chill")
+        # Filter by "Chill" - need to pass track_ids set
+        proxy.set_playlist_filter("Chill", track_ids={'t2'})
         assert proxy.rowCount() == 1
         
         # Clear filter
@@ -237,25 +239,27 @@ class TestUnifiedTracksProxyModel:
         tracks = [
             {
                 'id': 't1',
-                'playlist_name': 'Test',
-                'owner_name': 'user',
-                'track_name': 'Matched Song',
-                'artist_name': 'Artist',
-                'album_name': 'Album',
+                'name': 'Matched Song',
+                'artist': 'Artist',
+                'album': 'Album',
+                'year': 2020,
                 'matched': True,
+                'confidence': 'HIGH',
+                'quality': 'GOOD',
                 'local_path': '/music/s1.mp3',
-                'match_score': 90
+                'playlists': 'Test'
             },
             {
                 'id': 't2',
-                'playlist_name': 'Test',
-                'owner_name': 'user',
-                'track_name': 'Unmatched Song',
-                'artist_name': 'Artist',
-                'album_name': 'Album',
+                'name': 'Unmatched Song',
+                'artist': 'Artist',
+                'album': 'Album',
+                'year': 2021,
                 'matched': False,
+                'confidence': None,
+                'quality': None,
                 'local_path': None,
-                'match_score': None
+                'playlists': 'Test'
             }
         ]
         model.set_data(tracks)
@@ -281,25 +285,27 @@ class TestUnifiedTracksProxyModel:
         tracks = [
             {
                 'id': 't1',
-                'playlist_name': 'Test',
-                'owner_name': 'user',
-                'track_name': 'Rock Song',
-                'artist_name': 'Rock Artist',
-                'album_name': 'Rock Album',
+                'name': 'Rock Song',
+                'artist': 'Rock Artist',
+                'album': 'Rock Album',
+                'year': 2020,
                 'matched': True,
+                'confidence': 'HIGH',
+                'quality': 'GOOD',
                 'local_path': '/music/rock.mp3',
-                'match_score': 90
+                'playlists': 'Test'
             },
             {
                 'id': 't2',
-                'playlist_name': 'Test',
-                'owner_name': 'user',
-                'track_name': 'Jazz Song',
-                'artist_name': 'Jazz Artist',
-                'album_name': 'Jazz Album',
+                'name': 'Jazz Song',
+                'artist': 'Jazz Artist',
+                'album': 'Jazz Album',
+                'year': 2021,
                 'matched': False,
+                'confidence': None,
+                'quality': None,
                 'local_path': None,
-                'match_score': None
+                'playlists': 'Test'
             }
         ]
         model.set_data(tracks)

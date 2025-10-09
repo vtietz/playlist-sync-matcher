@@ -548,5 +548,126 @@ class MockDatabase(DatabaseInterface):
             }
         
         return None
+    
+    # --- Missing abstract methods (added for test compatibility) ---
+    
+    def get_distinct_albums(self, provider: str | None = None) -> List[str]:
+        """Get list of distinct albums from library files."""
+        albums = set()
+        for data in self.library_files.values():
+            album = data.get('album')
+            if album:
+                albums.add(album)
+        return sorted(list(albums))
+    
+    def get_distinct_artists(self, provider: str | None = None) -> List[str]:
+        """Get list of distinct artists from library files."""
+        artists = set()
+        for data in self.library_files.values():
+            artist = data.get('artist')
+            if artist:
+                artists.add(artist)
+        return sorted(list(artists))
+    
+    def get_distinct_years(self, provider: str | None = None) -> List[int]:
+        """Get list of distinct years from library files."""
+        years = set()
+        for data in self.library_files.values():
+            year = data.get('year')
+            if year:
+                years.add(year)
+        return sorted(list(years))
+    
+    def get_playlist_coverage(self, provider: str | None = None) -> List[Dict[str, Any]]:
+        """Get playlist coverage statistics."""
+        provider = provider or 'spotify'
+        result = []
+        for (pid, prov), playlist in self.playlists.items():
+            if prov != provider:
+                continue
+            tracks_in_playlist = self.playlist_tracks.get((pid, prov), [])
+            total = len(tracks_in_playlist)
+            matched = sum(1 for _, tid, _ in tracks_in_playlist 
+                         if any(m.get('track_id') == tid and m.get('provider') == prov 
+                               for m in self.matches))
+            result.append({
+                'id': pid,
+                'name': playlist['name'],
+                'total': total,
+                'matched': matched,
+                'coverage_pct': int((matched / total * 100) if total > 0 else 0)
+            })
+        return result
+    
+    def get_playlists_for_track_ids(self, track_ids: List[str], provider: str | None = None) -> Dict[str, str]:
+        """Get comma-separated playlist names for each track ID."""
+        provider = provider or 'spotify'
+        result = {}
+        for track_id in track_ids:
+            playlists = []
+            for (pid, prov), tracks in self.playlist_tracks.items():
+                if prov != provider:
+                    continue
+                if any(tid == track_id for _, tid, _ in tracks):
+                    playlist = self.playlists.get((pid, prov))
+                    if playlist:
+                        playlists.append(playlist['name'])
+            result[track_id] = ', '.join(sorted(playlists))
+        return result
+    
+    def get_track_ids_for_playlist(self, playlist_name: str, provider: str | None = None) -> set:
+        """Get set of track IDs in a playlist."""
+        provider = provider or 'spotify'
+        track_ids = set()
+        for (pid, prov), playlist in self.playlists.items():
+            if prov != provider or playlist.get('name') != playlist_name:
+                continue
+            tracks = self.playlist_tracks.get((pid, prov), [])
+            for _, tid, _ in tracks:
+                track_ids.add(tid)
+        return track_ids
+    
+    def list_unified_tracks_min(
+        self,
+        provider: str | None = None,
+        sort_column: Optional[str] = None,
+        sort_order: str = 'ASC',
+        limit: Optional[int] = None,
+        offset: int = 0
+    ) -> List[Dict[str, Any]]:
+        """Get minimal unified tracks data (for GUI)."""
+        provider = provider or 'spotify'
+        result = []
+        for (tid, prov), track in self.tracks.items():
+            if prov != provider:
+                continue
+            # Find match
+            match = next((m for m in self.matches 
+                         if m.get('track_id') == tid and m.get('provider') == prov), None)
+            
+            result.append({
+                'id': tid,
+                'name': track.get('name'),
+                'artist': track.get('artist'),
+                'album': track.get('album'),
+                'year': track.get('year'),
+                'matched': match is not None,
+                'confidence': match.get('confidence') if match else None,
+                'quality': match.get('quality') if match else None,
+                'local_path': match.get('path') if match else None,
+                'playlists': ''  # Populated separately
+            })
+        
+        # Simple sorting if requested
+        if sort_column and sort_column in ['name', 'artist', 'album', 'year']:
+            result.sort(key=lambda x: x.get(sort_column) or '', reverse=(sort_order == 'DESC'))
+        
+        # Apply pagination
+        if limit:
+            result = result[offset:offset+limit]
+        elif offset:
+            result = result[offset:]
+        
+        return result
 
 __all__ = ["MockDatabase"]

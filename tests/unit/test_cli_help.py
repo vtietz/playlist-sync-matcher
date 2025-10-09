@@ -49,12 +49,12 @@ def test_all_main_commands_have_help():
     # Commands that should have help descriptions
     commands_with_help = [
         'analyze',
-        'build', 
+        'build',
         'config',
         'export',
         'login',
         'match',
-        'match-diagnose',
+        'diagnose',  # Changed from 'match-diagnose' to match actual command name
         'pull',
         'redirect-uri',
         'report',

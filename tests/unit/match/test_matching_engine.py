@@ -174,7 +174,7 @@ def test_matching_engine_with_multiple_candidates(temp_db, sample_config):
     (
         MatchingConfig(),
         'spotify',
-        2.0,
+        5.0,
         500,
         'spotify'
     ),
