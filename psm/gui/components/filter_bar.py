@@ -8,10 +8,12 @@ This component provides filtering controls for:
 from __future__ import annotations
 from typing import Optional, List
 from PySide6.QtWidgets import (
-    QWidget, QHBoxLayout, QVBoxLayout, QLabel, QComboBox, QLineEdit
+    QWidget, QHBoxLayout, QVBoxLayout, QLabel, QComboBox
 )
 from PySide6.QtCore import Signal, Qt
 import logging
+
+from .debounced_search_field import DebouncedSearchField
 
 logger = logging.getLogger(__name__)
 
@@ -87,11 +89,10 @@ class FilterBar(QWidget):
             original_year_showPopup()
         self.year_combo.showPopup = year_showPopup
         
-        # Row 2: Search field
-        self.search_field = QLineEdit()
+        # Row 2: Search field (with debouncing)
+        self.search_field = DebouncedSearchField(debounce_ms=500)
         self.search_field.setPlaceholderText("Search tracks, albums, artists...")
-        self.search_field.setClearButtonEnabled(True)
-        self.search_field.textChanged.connect(self._on_filter_changed)
+        self.search_field.debouncedTextChanged.connect(lambda text: self._on_filter_changed())
         
         # Layout - Two rows
         main_layout = QVBoxLayout(self)

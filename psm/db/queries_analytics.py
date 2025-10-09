@@ -85,7 +85,8 @@ def get_playlist_coverage(conn: sqlite3.Connection, provider: str) -> List[Dict[
         provider: Provider filter
         
     Returns:
-        List of dicts with id, name, owner_id, owner_name, total, matched, coverage_pct
+        List of dicts with id, name, owner_id, owner_name, track_count, 
+        matched_count, unmatched_count, coverage
     """
     cursor = conn.execute(
         """
@@ -117,6 +118,7 @@ def get_playlist_coverage(conn: sqlite3.Connection, provider: str) -> List[Dict[
             'name': row[1],
             'owner_id': row[2],
             'owner_name': row[3],
+            'track_count': total,  # Total number of tracks in playlist
             'matched_count': matched,
             'unmatched_count': total - matched,
             'coverage': coverage_pct,

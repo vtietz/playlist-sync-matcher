@@ -30,7 +30,7 @@ class DataFacade:
         
         Returns:
             List of dicts with id, name, owner_id, owner_name, track_count,
-            matched_count, unmatched_count, coverage.
+            matched_count, unmatched_count, coverage (percentage).
         """
         # Use SQL aggregation for performance (single query instead of N+1)
         return self.db.get_playlist_coverage(provider=self._provider)

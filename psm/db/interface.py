@@ -302,8 +302,8 @@ class DatabaseInterface(ABC):
             provider: Provider name filter (required)
             
         Returns:
-            List of dicts with id, name, owner_id, owner_name, matched_count,
-            unmatched_count, coverage (percentage)
+            List of dicts with id, name, owner_id, owner_name, track_count,
+            matched_count, unmatched_count, coverage (percentage)
         """
         ...
     

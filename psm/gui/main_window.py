@@ -19,6 +19,8 @@ import logging
 from .components import SortFilterTable, LogPanel
 from .components.link_delegate import LinkDelegate
 from .components.folder_delegate import FolderDelegate
+from .components.playlist_filter_bar import PlaylistFilterBar
+from .components.playlist_proxy_model import PlaylistProxyModel
 from .views import UnifiedTracksView
 from .models import (
     PlaylistsModel, PlaylistDetailModel, UnmatchedTracksModel,
@@ -114,64 +116,31 @@ class MainWindow(QMainWindow):
         layout.setStretch(1, 1)
     
     def _create_toolbar(self):
-        """Create the action toolbar."""
+        """Create the action toolbar for general actions."""
         toolbar = QToolBar("Actions")
         toolbar.setMovable(False)
         self.addToolBar(toolbar)
         
-        # Global actions
-        self.btn_pull = QPushButton("Pull All")
+        # General library actions (stay in toolbar)
         self.btn_scan = QPushButton("Scan Library")
-        self.btn_match = QPushButton("Match All")
-        self.btn_export = QPushButton("Export All")
+        self.btn_build = QPushButton("Build")
         self.btn_report = QPushButton("Generate Reports")
         self.btn_open_reports = QPushButton("Open Reports")
-        self.btn_build = QPushButton("Build")
-        
-        # Watch mode toggle
-        self.btn_watch = QPushButton("Start Watch Mode")
-        self.btn_watch.setCheckable(True)
-        
-        # Per-playlist actions
-        self.btn_pull_one = QPushButton("Pull Selected")
-        self.btn_match_one = QPushButton("Match Selected")
-        self.btn_export_one = QPushButton("Export Selected")
         
         # Add to toolbar
-        toolbar.addWidget(self.btn_pull)
         toolbar.addWidget(self.btn_scan)
-        toolbar.addWidget(self.btn_match)
-        toolbar.addWidget(self.btn_export)
+        toolbar.addWidget(self.btn_build)
         toolbar.addWidget(self.btn_report)
         toolbar.addWidget(self.btn_open_reports)
-        toolbar.addWidget(self.btn_build)
-        toolbar.addSeparator()
-        toolbar.addWidget(self.btn_pull_one)
-        toolbar.addWidget(self.btn_match_one)
-        toolbar.addWidget(self.btn_export_one)
-        toolbar.addSeparator()
-        toolbar.addWidget(self.btn_watch)
-        
-        # Initially disable per-playlist actions
-        self.enable_playlist_actions(False)
         
         # Connect signals
-        self.btn_pull.clicked.connect(self.on_pull_clicked.emit)
         self.btn_scan.clicked.connect(self.on_scan_clicked.emit)
-        self.btn_match.clicked.connect(self.on_match_clicked.emit)
-        self.btn_export.clicked.connect(self.on_export_clicked.emit)
+        self.btn_build.clicked.connect(self.on_build_clicked.emit)
         self.btn_report.clicked.connect(self.on_report_clicked.emit)
         self.btn_open_reports.clicked.connect(self.on_open_reports_clicked.emit)
-        self.btn_build.clicked.connect(self.on_build_clicked.emit)
-        
-        self.btn_pull_one.clicked.connect(self.on_pull_one_clicked.emit)
-        self.btn_match_one.clicked.connect(self.on_match_one_clicked.emit)
-        self.btn_export_one.clicked.connect(self.on_export_one_clicked.emit)
-        
-        self.btn_watch.toggled.connect(self._on_watch_button_toggled)
     
     def _create_playlists_widget(self) -> QWidget:
-        """Create the playlists master table widget."""
+        """Create the playlists master table widget with filter bar."""
         widget = QWidget()
         layout = QVBoxLayout(widget)
         layout.setContentsMargins(0, 0, 0, 0)  # Remove margins
@@ -181,37 +150,98 @@ class MainWindow(QMainWindow):
         label.setFont(QFont("Segoe UI", 10, QFont.Bold))
         layout.addWidget(label)
         
-        # Use SortFilterTable component
-        self.playlists_table = SortFilterTable(
-            source_model=self.playlists_model,
-            stretch_columns=True
-        )
+        # Add filter bar
+        self.playlist_filter_bar = PlaylistFilterBar()
+        self.playlist_filter_bar.filter_changed.connect(self._apply_playlist_filters)
+        self.playlist_filter_bar.filter_options_needed.connect(self._populate_playlist_filter_options)
+        layout.addWidget(self.playlist_filter_bar)
         
-        # Set objectName for stylesheet targeting
-        self.playlists_table.table_view.setObjectName("playlistsTable")
+        # Create custom proxy model for filtering
+        self.playlist_proxy_model = PlaylistProxyModel()
+        self.playlist_proxy_model.setSourceModel(self.playlists_model)
+        
+        # Create table view manually (not using SortFilterTable since we have custom proxy)
+        from PySide6.QtWidgets import QTableView, QHeaderView
+        self.playlists_table_view = QTableView()
+        self.playlists_table_view.setObjectName("playlistsTable")
+        self.playlists_table_view.setModel(self.playlist_proxy_model)
+        self.playlists_table_view.setSortingEnabled(True)
+        self.playlists_table_view.setSelectionBehavior(QTableView.SelectRows)
+        self.playlists_table_view.setSelectionMode(QTableView.SingleSelection)
         
         # Enable text eliding for long playlist names
-        self.playlists_table.table_view.setTextElideMode(Qt.ElideRight)
-        self.playlists_table.table_view.setWordWrap(False)
+        self.playlists_table_view.setTextElideMode(Qt.ElideRight)
+        self.playlists_table_view.setWordWrap(False)
+        
+        # Configure column resizing
+        header = self.playlists_table_view.horizontalHeader()
+        header.setStretchLastSection(True)
+        header.setSectionResizeMode(QHeaderView.Interactive)
         
         # Set intelligent column widths for playlists
         # Columns: Name, Owner, Coverage
-        # Name should get most space, Owner medium, Coverage small
-        self.playlists_table.set_column_widths([250, 120, 120])
+        self.playlists_table_view.setColumnWidth(0, 250)  # Name
+        self.playlists_table_view.setColumnWidth(1, 120)  # Owner
+        self.playlists_table_view.setColumnWidth(2, 120)  # Coverage
         
         # Apply link delegate to Name column (column 0 = playlist link)
-        link_delegate = LinkDelegate(provider="spotify", parent=self.playlists_table.table_view)
-        self.playlists_table.table_view.setItemDelegateForColumn(0, link_delegate)
+        link_delegate = LinkDelegate(provider="spotify", parent=self.playlists_table_view)
+        self.playlists_table_view.setItemDelegateForColumn(0, link_delegate)
         
         # Enable mouse tracking for hover effects
-        self.playlists_table.table_view.setMouseTracking(True)
+        self.playlists_table_view.setMouseTracking(True)
         
         # Connect selection signal
-        self.playlists_table.selection_model().selectionChanged.connect(
-            self._on_playlist_selection_changed
-        )
+        selection_model = self.playlists_table_view.selectionModel()
+        if selection_model:
+            selection_model.selectionChanged.connect(self._on_playlist_selection_changed)
         
-        layout.addWidget(self.playlists_table)
+        layout.addWidget(self.playlists_table_view)
+        
+        # Add playlist action buttons below the table
+        buttons_layout = QHBoxLayout()
+        buttons_layout.setSpacing(5)
+        
+        # Global playlist actions
+        self.btn_pull = QPushButton("Pull All")
+        self.btn_match = QPushButton("Match All")
+        self.btn_export = QPushButton("Export All")
+        
+        # Per-playlist actions
+        self.btn_pull_one = QPushButton("Pull Selected")
+        self.btn_match_one = QPushButton("Match Selected")
+        self.btn_export_one = QPushButton("Export Selected")
+        
+        # Watch mode toggle
+        self.btn_watch = QPushButton("Start Watch Mode")
+        self.btn_watch.setCheckable(True)
+        
+        # Add buttons to layout
+        buttons_layout.addWidget(self.btn_pull)
+        buttons_layout.addWidget(self.btn_match)
+        buttons_layout.addWidget(self.btn_export)
+        buttons_layout.addStretch()
+        buttons_layout.addWidget(self.btn_pull_one)
+        buttons_layout.addWidget(self.btn_match_one)
+        buttons_layout.addWidget(self.btn_export_one)
+        buttons_layout.addStretch()
+        buttons_layout.addWidget(self.btn_watch)
+        
+        layout.addLayout(buttons_layout)
+        
+        # Initially disable per-playlist actions
+        self.enable_playlist_actions(False)
+        
+        # Connect signals
+        self.btn_pull.clicked.connect(self.on_pull_clicked.emit)
+        self.btn_match.clicked.connect(self.on_match_clicked.emit)
+        self.btn_export.clicked.connect(self.on_export_clicked.emit)
+        
+        self.btn_pull_one.clicked.connect(self.on_pull_one_clicked.emit)
+        self.btn_match_one.clicked.connect(self.on_match_one_clicked.emit)
+        self.btn_export_one.clicked.connect(self.on_export_one_clicked.emit)
+        
+        self.btn_watch.toggled.connect(self._on_watch_button_toggled)
         
         return widget
     
@@ -220,6 +250,11 @@ class MainWindow(QMainWindow):
         widget = QWidget()
         layout = QVBoxLayout(widget)
         layout.setContentsMargins(0, 0, 0, 0)
+        
+        # Add header label
+        label = QLabel("Tracks")
+        label.setFont(QFont("Segoe UI", 10, QFont.Bold))
+        layout.addWidget(label)
         
         # Single unified tracks view (replaces all tabs)
         self.unified_tracks_view = UnifiedTracksView(self.unified_tracks_model)
@@ -298,10 +333,16 @@ class MainWindow(QMainWindow):
             playlists: List of playlist dicts
         """
         self.playlists_model.set_data(playlists)
-        self.playlists_table.resize_columns_to_contents()
+        
+        # Resize columns to fit content
+        self.playlists_table_view.resizeColumnsToContents()
+        
+        # Restore preferred column widths (resizeColumnsToContents might make them too wide)
+        self.playlists_table_view.setColumnWidth(0, max(250, self.playlists_table_view.columnWidth(0)))
+        self.playlists_table_view.setColumnWidth(1, max(120, self.playlists_table_view.columnWidth(1)))
         
         # Default sort by name (column 0) alphabetically
-        self.playlists_table.set_default_sort(0, Qt.AscendingOrder)
+        self.playlists_table_view.sortByColumn(0, Qt.AscendingOrder)
         
         # No auto-selection - user can click to select/deselect
     
@@ -492,7 +533,7 @@ class MainWindow(QMainWindow):
             return
         
         # Map proxy index to source model
-        source_index = self.playlists_table.proxy_model.mapToSource(proxy_index)
+        source_index = self.playlist_proxy_model.mapToSource(proxy_index)
         source_row = source_index.row()
         
         # Get row data from source model
@@ -511,6 +552,30 @@ class MainWindow(QMainWindow):
         # Emit signal for other components
         if self._selected_playlist_id:
             self.on_playlist_selected.emit(self._selected_playlist_id)
+    
+    def _apply_playlist_filters(self):
+        """Apply current playlist filter settings to the proxy model."""
+        # Get filter state from filter bar
+        owner_filter = self.playlist_filter_bar.get_owner_filter()
+        search_text = self.playlist_filter_bar.get_search_text()
+        
+        # Apply to proxy model
+        self.playlist_proxy_model.set_owner_filter(owner_filter)
+        self.playlist_proxy_model.set_search_text(search_text)
+    
+    def _populate_playlist_filter_options(self):
+        """Populate playlist filter options from visible data."""
+        # Extract unique owner names from visible playlists
+        owners = set()
+        for row in range(self.playlists_model.rowCount()):
+            row_data = self.playlists_model.get_row_data(row)
+            if row_data:
+                owner_name = row_data.get('owner_name')
+                if owner_name:
+                    owners.add(owner_name)
+        
+        # Populate filter bar
+        self.playlist_filter_bar.populate_owner_options(sorted(owners))
     
     def _on_watch_button_toggled(self, checked: bool):
         """Handle watch button toggle.
