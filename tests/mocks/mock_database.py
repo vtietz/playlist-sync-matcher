@@ -162,10 +162,17 @@ class MockDatabase(DatabaseInterface):
         self.call_log.append('add_library_file')
         self.library_files[data['path']] = data.copy()
 
-    def add_match(self, track_id: str, file_id: int, score: float, method: str, provider: str | None = None):
+    def add_match(self, track_id: str, file_id: int, score: float, method: str, provider: str | None = None, confidence: str | None = None):
         self.call_log.append('add_match')
         provider = provider or 'spotify'
-        self.matches.append({'track_id': track_id, 'file_id': file_id, 'score': score, 'method': method, 'provider': provider})
+        self.matches.append({
+            'track_id': track_id, 
+            'file_id': file_id, 
+            'score': score, 
+            'method': method, 
+            'provider': provider,
+            'confidence': confidence
+        })
 
     def count_tracks(self, provider: str | None = 'spotify') -> int:
         if provider:
@@ -367,16 +374,23 @@ class MockDatabase(DatabaseInterface):
         return counts
     
     def get_match_confidence_tier_counts(self) -> Dict[str, int]:
-        """Get count of matches grouped by confidence tier (extracted from method)."""
+        """Get count of matches grouped by confidence tier.
+        
+        Uses confidence field if available, falls back to parsing method string.
+        """
         counts: Dict[str, int] = {}
         for m in self.matches:
-            method = m.get('method', 'UNKNOWN')
-            # Extract tier from "score:TIER" or "score:TIER:details" format
-            if method.startswith('score:'):
-                parts = method.split(':')
-                tier = parts[1] if len(parts) > 1 else 'UNKNOWN'
+            # Use confidence field if available (preferred)
+            if m.get('confidence'):
+                tier = m['confidence']
             else:
-                tier = method
+                # Fallback: Extract tier from "score:TIER" or "score:TIER:details" format
+                method = m.get('method', 'UNKNOWN')
+                if method.startswith('score:'):
+                    parts = method.split(':')
+                    tier = parts[1] if len(parts) > 1 else 'UNKNOWN'
+                else:
+                    tier = method
             counts[tier] = counts.get(tier, 0) + 1
         return counts
     
