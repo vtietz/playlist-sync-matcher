@@ -62,13 +62,25 @@ def test_all_main_commands_have_help():
         'token-info'
     ]
     
+    # Find the Commands section to avoid matching options or other text
+    lines = result.output.split('\n')
+    commands_start = None
+    for i, line in enumerate(lines):
+        if line.strip() == 'Commands:':
+            commands_start = i
+            break
+    
+    assert commands_start is not None, "Commands section not found in help output"
+    
+    # Only look at lines after the Commands: header
+    command_lines_section = lines[commands_start + 1:]
+    
     for command in commands_with_help:
         # Each command should appear with a description
         assert command in result.output
-        # Look for the command in the Commands section
-        lines = result.output.split('\n')
-        command_lines = [line for line in lines if line.strip().startswith(command)]
-        assert len(command_lines) > 0, f"Command {command} not found in help output"
+        # Look for the command in the Commands section only
+        command_lines = [line for line in command_lines_section if line.strip().startswith(command + ' ')]
+        assert len(command_lines) > 0, f"Command {command} not found in Commands section"
         
         # The command line should have description text after spaces
         command_line = command_lines[0]

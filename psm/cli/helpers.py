@@ -37,8 +37,10 @@ def _redact_spotify_config(cfg: dict) -> dict:
 @click.group()
 @click.version_option(version=__version__, prog_name="playlist-sync-matcher")
 @click.option('--config-file', type=click.Path(exists=False), default=None, help='Deprecated: config file parameter (ignored; use .env)')
+@click.option('--progress/--no-progress', default=None, help='Enable/disable progress logging (overrides config)')
+@click.option('--progress-interval', type=int, default=None, help='Log progress every N items (overrides config)')
 @click.pass_context
-def cli(ctx: click.Context, config_file: str | None):
+def cli(ctx: click.Context, config_file: str | None, progress: bool | None, progress_interval: int | None):
     """Spotify-to-local music library synchronization tool.
     
     \b
@@ -82,6 +84,12 @@ def cli(ctx: click.Context, config_file: str | None):
         ctx.obj = ctx.obj
     else:
         ctx.obj = load_typed_config(config_file).to_dict()
+    
+    # Override logging config from CLI flags
+    if progress is not None:
+        ctx.obj.setdefault('logging', {})['progress_enabled'] = progress
+    if progress_interval is not None:
+        ctx.obj.setdefault('logging', {})['progress_interval'] = progress_interval
 
 
 def get_db(cfg):

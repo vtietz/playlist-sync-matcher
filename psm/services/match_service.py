@@ -63,8 +63,19 @@ def run_matching(
     )
     provider = config.get('provider', 'spotify')
     
-    # Use matching engine
-    engine = MatchingEngine(db, matching_config, provider=provider)
+    # Get logging configuration
+    logging_dict = config.get('logging', {})
+    progress_enabled = logging_dict.get('progress_enabled', True)
+    progress_interval = logging_dict.get('progress_interval', 100)
+    
+    # Use matching engine with logging config
+    engine = MatchingEngine(
+        db, 
+        matching_config, 
+        provider=provider,
+        progress_enabled=progress_enabled,
+        progress_interval=progress_interval
+    )
     
     if force_full:
         # Full re-match: delete all existing matches and re-run from scratch

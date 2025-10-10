@@ -14,6 +14,7 @@ from .scoring import ScoringConfig, evaluate_pair, MatchConfidence
 from .candidate_selector import CandidateSelector
 from ..db import Database
 from ..config_types import MatchingConfig
+from ..utils.logging_helpers import log_progress
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +39,9 @@ class MatchingEngine:
         self,
         db: Database,
         matching_config: MatchingConfig,
-        provider: str = 'spotify'
+        provider: str = 'spotify',
+        progress_enabled: bool = True,
+        progress_interval: int = 100
     ):
         """Initialize the matching engine.
         
@@ -46,6 +49,8 @@ class MatchingEngine:
             db: Database instance
             matching_config: MatchingConfig instance with matching parameters
             provider: Provider name (default: 'spotify')
+            progress_enabled: Enable progress logging (default: True)
+            progress_interval: Log progress every N tracks (default: 100)
         """
         self.db = db
         self.selector = CandidateSelector()
@@ -55,8 +60,8 @@ class MatchingEngine:
         # Extract config values
         self.dur_tolerance = matching_config.duration_tolerance
         self.max_candidates = matching_config.max_candidates_per_track
-        self.progress_interval = matching_config.progress_interval
-        self.enable_verbose_progress = matching_config.enable_verbose_progress
+        self.progress_enabled = progress_enabled
+        self.progress_interval = progress_interval
     
     def match_all(self) -> int:
         """Match all tracks against all library files.
@@ -140,8 +145,17 @@ class MatchingEngine:
                 matches += 1
             
             # Log progress periodically
-            if processed - last_progress_log >= self.progress_interval:
-                self._log_progress(processed, len(tracks), matches, start)
+            if self.progress_enabled and processed - last_progress_log >= self.progress_interval:
+                elapsed = time.time() - start
+                skipped = processed - matches
+                log_progress(
+                    processed=processed,
+                    total=len(tracks),
+                    new=matches,
+                    skipped=skipped,
+                    elapsed_seconds=elapsed,
+                    item_name="tracks"
+                )
                 last_progress_log = processed
         
         # Commit all matches
@@ -159,47 +173,6 @@ class MatchingEngine:
             logger.info(f"  Confidence: {confidence_summary}")
         
         return matches
-    
-    def _log_progress(
-        self, 
-        processed: int, 
-        total: int, 
-        matches: int, 
-        start_time: float
-    ) -> None:
-        """Log matching progress.
-        
-        Uses INFO level if verbose progress is enabled, otherwise DEBUG level
-        to reduce log noise for automated/batch scenarios.
-        
-        Args:
-            processed: Number of tracks processed so far
-            total: Total number of tracks to process
-            matches: Number of matches found so far
-            start_time: Time matching started (from time.time())
-        """
-        elapsed = time.time() - start_time
-        match_rate = (matches / processed * 100) if processed > 0 else 0
-        unmatched = processed - matches
-        
-        # Choose log level based on verbosity setting
-        log_level = logging.INFO if self.enable_verbose_progress else logging.DEBUG
-        
-        logger.log(
-            log_level,
-            f"{processed}/{total} tracks "
-            f"({processed/total*100:.0f}%) | "
-            f"{matches} matched | "
-            f"{unmatched} unmatched | "
-            f"{processed/elapsed:.1f} tracks/s"
-        )
-        
-        confidence_summary = self._get_confidence_summary(matches)
-        logger.log(
-            log_level,
-            f"  Match rate: {match_rate:.1f}% | "
-            f"Confidence breakdown: {confidence_summary}"
-        )
     
     def _get_confidence_summary(self, total_matches: int) -> str:
         """Get a summary of match confidence distribution.
@@ -330,13 +303,16 @@ class MatchingEngine:
                 new_matches += 1
             
             # Log progress periodically
-            if processed - last_progress_log >= self.progress_interval:
+            if self.progress_enabled and processed - last_progress_log >= self.progress_interval:
                 elapsed = time.time() - start
-                match_rate = (new_matches / processed * 100) if processed > 0 else 0
-                logger.info(
-                    f"Progress: {processed}/{total} tracks ({processed/total*100:.0f}%) | "
-                    f"{new_matches} matched ({match_rate:.1f}% match rate) | "
-                    f"{processed/elapsed:.1f} tracks/s"
+                skipped = processed - new_matches
+                log_progress(
+                    processed=processed,
+                    total=total,
+                    new=new_matches,
+                    skipped=skipped,
+                    elapsed_seconds=elapsed,
+                    item_name="tracks"
                 )
                 last_progress_log = processed
         
@@ -448,13 +424,16 @@ class MatchingEngine:
                 matched_track_ids.append(track['id'])  # Track which tracks got matched
             
             # Log progress periodically
-            if processed - last_progress_log >= self.progress_interval:
+            if self.progress_enabled and processed - last_progress_log >= self.progress_interval:
                 elapsed = time.time() - start
-                match_rate = (new_matches / processed * 100) if processed > 0 else 0
-                logger.info(
-                    f"Progress: {processed}/{total} tracks ({processed/total*100:.0f}%) | "
-                    f"{new_matches} matched ({match_rate:.1f}% match rate) | "
-                    f"{processed/elapsed:.1f} tracks/s"
+                skipped = processed - new_matches
+                log_progress(
+                    processed=processed,
+                    total=total,
+                    new=new_matches,
+                    skipped=skipped,
+                    elapsed_seconds=elapsed,
+                    item_name="tracks"
                 )
                 last_progress_log = processed
         

@@ -44,6 +44,18 @@ class LibraryConfig:
 
 
 @dataclass
+class LoggingConfig:
+    """Progress logging configuration."""
+    progress_enabled: bool = True  # Enable/disable progress logging
+    progress_interval: int = 100  # Log progress every N items (default for matching)
+    scan_progress_interval: int = 500  # Log progress for scan operations (higher due to faster processing)
+    item_name_overrides: Dict[str, str] = field(default_factory=dict)  # Optional custom item names per operation
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for backward compatibility."""
+        return asdict(self)
+
+
 @dataclass
 class MatchingConfig:
     """Track matching algorithm configuration (aligned with _DEFAULTS)."""
@@ -53,8 +65,6 @@ class MatchingConfig:
     show_unmatched_tracks: int = 20
     show_unmatched_albums: int = 20
     max_candidates_per_track: int = 500  # Performance safeguard: cap candidates per track
-    progress_interval: int = 100  # Log progress every N tracks
-    enable_verbose_progress: bool = True  # Enable detailed progress logging (use DEBUG level if False)
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for backward compatibility."""
@@ -122,6 +132,7 @@ class AppConfig:
     export: ExportConfig = field(default_factory=ExportConfig)
     reports: ReportsConfig = field(default_factory=ReportsConfig)
     database: DatabaseConfig = field(default_factory=DatabaseConfig)
+    logging: LoggingConfig = field(default_factory=LoggingConfig)
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to nested dictionary for backward compatibility.
@@ -138,6 +149,7 @@ class AppConfig:
             "export": self.export.to_dict(),
             "reports": self.reports.to_dict(),
             "database": self.database.to_dict(),
+            "logging": self.logging.to_dict(),
         }
     
     @classmethod
@@ -164,6 +176,7 @@ class AppConfig:
             export=ExportConfig(**data.get("export", {})),
             reports=ReportsConfig(**data.get("reports", {})),
             database=DatabaseConfig(**data.get("database", {})),
+            logging=LoggingConfig(**data.get("logging", {})),
         )
 
 
@@ -211,5 +224,6 @@ __all__ = [
     "ExportConfig",
     "ReportsConfig",
     "DatabaseConfig",
+    "LoggingConfig",
     "TypedConfigDict",
 ]

@@ -48,6 +48,12 @@ _DEFAULTS: Dict[str, Any] = {
         "show_unmatched_albums": 20,
         "max_candidates_per_track": 500,  # Performance safeguard: cap candidates per track
     },
+    "logging": {
+        "progress_enabled": True,  # Enable/disable progress logging
+        "progress_interval": 100,  # Log progress every N items (default for matching)
+        "scan_progress_interval": 500,  # Log progress for scan operations
+        "item_name_overrides": {},  # Optional custom item names per operation
+    },
     "export": {
         "directory": "data/export/playlists",
         "mode": "strict",
