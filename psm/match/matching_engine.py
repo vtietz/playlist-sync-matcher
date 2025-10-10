@@ -479,12 +479,17 @@ class MatchingEngine:
         This adapter function harmonizes the field names and ensures all
         required keys exist with appropriate defaults.
         
+        Performance: Precomputes token sets from normalized string to avoid
+        recomputation during token_prescore() for each track comparison.
+        
         Args:
             raw_row: Raw file dict from database
         
         Returns:
-            Normalized file dict with 'name' field
+            Normalized file dict with 'name' field and precomputed 'normalized_tokens'
         """
+        normalized_str = raw_row.get('normalized') or ''
+        
         return {
             'id': raw_row['id'],
             'path': raw_row.get('path', ''),
@@ -494,7 +499,8 @@ class MatchingEngine:
             'album': raw_row.get('album'),
             'year': raw_row.get('year'),
             'duration': raw_row.get('duration'),
-            'normalized': raw_row.get('normalized') or '',
+            'normalized': normalized_str,
+            'normalized_tokens': set(normalized_str.split()),  # Precompute for token_prescore()
             'isrc': raw_row.get('isrc'),
         }
 

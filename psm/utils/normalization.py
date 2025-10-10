@@ -12,7 +12,7 @@ _punct_pattern = re.compile(r"[\s\-_.]+")
 _stopwords = {"the", "a", "an", "and", "or", "of", "in", "on", "at", "to", "for", "with", "from"}
 
 
-@lru_cache(maxsize=2048)
+@lru_cache(maxsize=8192)
 def normalize_token(s: str) -> str:
     s = s.lower().strip()
     # Unicode normalization (handle accents, diacritics)
