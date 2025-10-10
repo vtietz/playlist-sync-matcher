@@ -76,7 +76,7 @@ class MatchingEngine:
         start = time.time()
         
         # Fetch all tracks and files using repository methods
-        track_rows = self.db.get_all_tracks(provider='spotify')
+        track_rows = self.db.get_all_tracks(provider=self.provider)
         tracks = [row.to_dict() for row in track_rows]
         
         file_rows = self.db.get_all_library_files()
@@ -242,7 +242,7 @@ class MatchingEngine:
             if not track_ids:  # Empty list
                 return 0
             
-            track_rows = self.db.get_tracks_by_ids(track_ids, provider='spotify')
+            track_rows = self.db.get_tracks_by_ids(track_ids, provider=self.provider)
             tracks_to_match = [row.to_dict() for row in track_rows]
             
             # Delete existing matches for these tracks (they were updated)
@@ -250,7 +250,7 @@ class MatchingEngine:
             match_type = "changed"  # These are specific tracks that changed
         else:
             # Match all currently unmatched tracks (fallback)
-            track_rows = self.db.get_unmatched_tracks(provider='spotify')
+            track_rows = self.db.get_unmatched_tracks(provider=self.provider)
             tracks_to_match = [row.to_dict() for row in track_rows]
             match_type = "unmatched"  # These are all tracks without matches
         
@@ -349,7 +349,7 @@ class MatchingEngine:
         """
         # Get all tracks if not provided
         if all_tracks is None:
-            track_rows = self.db.get_all_tracks(provider='spotify')
+            track_rows = self.db.get_all_tracks(provider=self.provider)
             all_tracks = [row.to_dict() for row in track_rows]
         
         if not all_tracks:
