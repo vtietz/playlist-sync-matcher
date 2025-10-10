@@ -425,8 +425,9 @@ def format_diagnostic_output(result: DiagnosticResult) -> str:
     elif best_score >= result.fuzzy_threshold - 0.05:
         lines.append("• The closest file is very close to the threshold!")
         # Calculate the right direction: need to LOWER threshold to be more permissive
-        recommended_threshold = max(0.5, best_score - 0.02)
-        lines.append(f"  → Consider lowering fuzzy_threshold from {result.fuzzy_threshold:.0%} to {recommended_threshold:.0%}")
+        # Suggest a threshold slightly below the best score (with 5% margin)
+        recommended_threshold = max(0.5, best_score - 0.05)
+        lines.append(f"  → Consider lowering fuzzy_threshold from {result.fuzzy_threshold:.1%} to {recommended_threshold:.1%}")
         lines.append("  → Edit config or set: PSM__MATCHING__FUZZY_THRESHOLD=" + f"{recommended_threshold:.2f}")
     
     # Low scores: Tag issues
