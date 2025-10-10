@@ -116,8 +116,11 @@ class CandidateSelector:
         # Score each file using Jaccard similarity
         scored_files: List[Tuple[float, Dict[str, Any]]] = []
         for f in files:
-            # Use precomputed tokens from file dict
-            file_tokens = f['normalized_tokens']
+            # Use precomputed tokens if available (hot path optimization)
+            file_tokens = f.get('normalized_tokens')
+            if file_tokens is None:
+                # Fallback: compute on-demand for backward compatibility
+                file_tokens = set((f.get('normalized') or '').split())
             similarity = self._jaccard_similarity(track_tokens, file_tokens)
             scored_files.append((similarity, f))
         
