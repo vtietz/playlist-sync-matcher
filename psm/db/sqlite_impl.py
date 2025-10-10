@@ -19,7 +19,7 @@ SCHEMA = [
     "CREATE TABLE IF NOT EXISTS tracks (id TEXT NOT NULL, provider TEXT NOT NULL DEFAULT 'spotify', name TEXT, album TEXT, artist TEXT, album_id TEXT, artist_id TEXT, isrc TEXT, duration_ms INTEGER, normalized TEXT, year INTEGER, PRIMARY KEY(id, provider));",
     "CREATE TABLE IF NOT EXISTS liked_tracks (track_id TEXT NOT NULL, provider TEXT NOT NULL DEFAULT 'spotify', added_at TEXT, PRIMARY KEY(track_id, provider));",
     "CREATE TABLE IF NOT EXISTS library_files (id INTEGER PRIMARY KEY AUTOINCREMENT, path TEXT UNIQUE, size INTEGER, mtime REAL, partial_hash TEXT, title TEXT, album TEXT, artist TEXT, duration REAL, normalized TEXT, year INTEGER, bitrate_kbps INTEGER);",
-    "CREATE TABLE IF NOT EXISTS matches (track_id TEXT NOT NULL, provider TEXT NOT NULL DEFAULT 'spotify', file_id INTEGER NOT NULL, score REAL NOT NULL, method TEXT NOT NULL, PRIMARY KEY(track_id, provider, file_id));",
+    "CREATE TABLE IF NOT EXISTS matches (track_id TEXT NOT NULL, provider TEXT NOT NULL DEFAULT 'spotify', file_id INTEGER NOT NULL, score REAL NOT NULL, method TEXT NOT NULL, confidence TEXT, PRIMARY KEY(track_id, provider, file_id));",
     # Existing indexes
     "CREATE INDEX IF NOT EXISTS idx_tracks_isrc ON tracks(isrc);",
     "CREATE INDEX IF NOT EXISTS idx_tracks_normalized ON tracks(normalized);",
@@ -29,6 +29,8 @@ SCHEMA = [
     "CREATE INDEX IF NOT EXISTS idx_playlist_tracks_track ON playlist_tracks(track_id, provider);",
     "CREATE INDEX IF NOT EXISTS idx_matches_track ON matches(track_id, provider);",
     "CREATE INDEX IF NOT EXISTS idx_matches_file ON matches(file_id);",
+    # Covering index for best-match queries with window functions
+    "CREATE INDEX IF NOT EXISTS idx_matches_best_match ON matches(provider, track_id, score DESC);",
     "CREATE INDEX IF NOT EXISTS idx_liked_tracks_track ON liked_tracks(track_id, provider);",
     # Phase 8: Indexes for GUI sorting and filtering
     "CREATE INDEX IF NOT EXISTS idx_tracks_name ON tracks(name);",
@@ -84,6 +86,11 @@ class Database(DatabaseInterface):
             cur.execute(stmt)
         self._ensure_column('tracks', 'artist_id', 'TEXT')
         self._ensure_column('tracks', 'album_id', 'TEXT')
+        self._ensure_column('matches', 'confidence', 'TEXT')
+        
+        # Migrate existing matches to populate confidence from method string
+        self._migrate_confidence_column()
+        
         cur.execute("INSERT OR REPLACE INTO meta(key,value) VALUES('schema_version','1')")
         self.conn.commit()
 
@@ -93,6 +100,45 @@ class Database(DatabaseInterface):
         if column not in cols:
             self.conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}")
             self.conn.commit()
+
+    def _migrate_confidence_column(self):  # pragma: no cover
+        """Populate confidence column from existing method strings.
+        
+        Extracts confidence tier from method format: "score:TIER" or "score:TIER:details"
+        Only updates rows where confidence is NULL to avoid overwriting existing data.
+        """
+        try:
+            # Check if we need to migrate (if there are NULL confidence values)
+            check = self.conn.execute("SELECT COUNT(*) FROM matches WHERE confidence IS NULL").fetchone()
+            if check and check[0] > 0:
+                logger.info(f"Migrating {check[0]} matches to populate confidence column...")
+                
+                # Extract confidence tier from method string
+                migrate_sql = """
+                UPDATE matches
+                SET confidence = (
+                    CASE
+                        WHEN method LIKE 'score:%' THEN 
+                            SUBSTR(
+                                method,
+                                7,  -- Start after "score:"
+                                CASE 
+                                    WHEN INSTR(SUBSTR(method, 7), ':') > 0 
+                                    THEN INSTR(SUBSTR(method, 7), ':') - 1
+                                    ELSE LENGTH(method) - 6
+                                END
+                            )
+                        ELSE NULL
+                    END
+                )
+                WHERE confidence IS NULL AND method LIKE 'score:%'
+                """
+                self.conn.execute(migrate_sql)
+                self.conn.commit()
+                logger.info("✓ Confidence column migration complete")
+        except Exception as e:
+            logger.warning(f"Failed to migrate confidence column: {e}")
+
 
     def _execute_with_lock_handling(self, sql: str, params: Any = None):
         """Execute SQL with better diagnostics on database lock (but let SQLite retry)."""
@@ -170,12 +216,12 @@ class Database(DatabaseInterface):
             ),
         )
 
-    def add_match(self, track_id: str, file_id: int, score: float, method: str, provider: str | None = None):
+    def add_match(self, track_id: str, file_id: int, score: float, method: str, provider: str | None = None, confidence: str | None = None):
         if provider is None:
             raise ValueError("provider parameter is required")
         self._execute_with_lock_handling(
-            "INSERT INTO matches(track_id,provider,file_id,score,method) VALUES(?,?,?,?,?) ON CONFLICT(track_id,provider,file_id) DO UPDATE SET score=excluded.score, method=excluded.method",
-            (track_id, provider, file_id, score, method),
+            "INSERT INTO matches(track_id,provider,file_id,score,method,confidence) VALUES(?,?,?,?,?,?) ON CONFLICT(track_id,provider,file_id) DO UPDATE SET score=excluded.score, method=excluded.method, confidence=excluded.confidence",
+            (track_id, provider, file_id, score, method, confidence),
         )
 
     def get_missing_tracks(self) -> Iterable[sqlite3.Row]:
@@ -447,27 +493,30 @@ class Database(DatabaseInterface):
         return {row[0]: row[1] for row in rows}
     
     def get_match_confidence_tier_counts(self) -> Dict[str, int]:
-        """Get count of matches grouped by confidence tier (robustly extracted from method).
+        """Get count of matches grouped by confidence tier.
         
-        Parses method column format: "score:TIER" or "score:TIER:details"
-        to extract the confidence tier (CERTAIN, HIGH, MEDIUM, LOW).
+        Uses the confidence column directly for reliable aggregation.
+        Falls back to parsing method string for legacy data.
         """
         sql = """
         SELECT 
-            CASE
-                -- Extract tier from "score:TIER" or "score:TIER:details" format
-                WHEN method LIKE 'score:%' THEN 
-                    SUBSTR(
-                        method,
-                        7,  -- Start after "score:"
-                        CASE 
-                            WHEN INSTR(SUBSTR(method, 7), ':') > 0 
-                            THEN INSTR(SUBSTR(method, 7), ':') - 1  -- Stop before next ':'
-                            ELSE LENGTH(method) - 6  -- Or end of string
-                        END
-                    )
-                ELSE method  -- Fallback for non-standard formats
-            END as confidence_tier,
+            COALESCE(
+                confidence,
+                -- Fallback: Extract tier from method for legacy data
+                CASE
+                    WHEN method LIKE 'score:%' THEN 
+                        SUBSTR(
+                            method,
+                            7,  -- Start after "score:"
+                            CASE 
+                                WHEN INSTR(SUBSTR(method, 7), ':') > 0 
+                                THEN INSTR(SUBSTR(method, 7), ':') - 1
+                                ELSE LENGTH(method) - 6
+                            END
+                        )
+                    ELSE method
+                END
+            ) as confidence_tier,
             COUNT(*) as count
         FROM matches
         GROUP BY confidence_tier

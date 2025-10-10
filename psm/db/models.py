@@ -122,6 +122,7 @@ class MatchRow:
     file_id: int
     score: float
     method: str
+    confidence: Optional[str] = None
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for compatibility with existing code."""
@@ -151,6 +152,7 @@ class MatchRow:
             file_id=row['file_id'],
             score=row['score'],
             method=row['method'],
+            confidence=row['confidence'] if 'confidence' in row.keys() else None,
         )
 
 

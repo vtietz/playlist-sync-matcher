@@ -140,7 +140,8 @@ class MatchingEngine:
                     best_file_id,
                     best_breakdown.raw_score / 100.0,
                     f"score:{best_breakdown.confidence}",
-                    provider=self.provider
+                    provider=self.provider,
+                    confidence=best_breakdown.confidence.value
                 )
                 matches += 1
             
@@ -298,7 +299,8 @@ class MatchingEngine:
                     best_file_id,
                     best_breakdown.raw_score / 100.0,
                     f"score:{best_breakdown.confidence}",
-                    provider=self.provider
+                    provider=self.provider,
+                    confidence=best_breakdown.confidence.value
                 )
                 new_matches += 1
             
@@ -418,7 +420,8 @@ class MatchingEngine:
                     best_file_id,
                     best_breakdown.raw_score / 100.0,
                     f"score:{best_breakdown.confidence}",
-                    provider=self.provider
+                    provider=self.provider,
+                    confidence=best_breakdown.confidence.value
                 )
                 new_matches += 1
                 matched_track_ids.append(track['id'])  # Track which tracks got matched
