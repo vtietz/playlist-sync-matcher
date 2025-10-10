@@ -126,12 +126,11 @@ class TestUpdatePlaylists:
         coordinator.playlists_model.set_data.assert_called_once_with(playlists)
     
     def test_resizes_columns_when_view_set(self, qapp):
-        """Should resize columns when view is available."""
+        """Should set minimum column widths and apply sort when view is available."""
         coordinator = ModelCoordinator()
         
         # Mock view
         mock_view = Mock()
-        mock_view.resizeColumnsToContents = Mock()
         mock_view.columnWidth = Mock(return_value=100)
         mock_view.setColumnWidth = Mock()
         mock_view.sortByColumn = Mock()
@@ -141,8 +140,10 @@ class TestUpdatePlaylists:
         
         coordinator.update_playlists([{"id": "1"}])
         
-        mock_view.resizeColumnsToContents.assert_called_once()
+        # Should set minimum column widths (not call resizeColumnsToContents)
         assert mock_view.setColumnWidth.call_count == 2  # Two columns
+        mock_view.setColumnWidth.assert_any_call(0, max(250, 100))
+        mock_view.setColumnWidth.assert_any_call(1, max(120, 100))
     
     def test_applies_pending_sort(self, qapp):
         """Should apply pending sort and clear it."""
@@ -362,7 +363,7 @@ class TestUpdateUnifiedTracks:
         coordinator.unified_tracks_model.set_data.assert_called_once_with(tracks)
     
     def test_resizes_columns_when_view_set(self, qapp):
-        """Should resize columns when view is available."""
+        """Should NOT resize columns (behavior is now disabled to preserve user widths)."""
         coordinator = ModelCoordinator()
         
         mock_view = Mock()
@@ -373,7 +374,8 @@ class TestUpdateUnifiedTracks:
         
         coordinator.update_unified_tracks([{"title": "Track"}], [])
         
-        mock_view.resize_columns_to_contents.assert_called_once()
+        # resize_columns_to_contents should NOT be called (behavior disabled)
+        mock_view.resize_columns_to_contents.assert_not_called()
     
     def test_handles_no_view_gracefully(self, qapp):
         """Should not crash when no view is set."""

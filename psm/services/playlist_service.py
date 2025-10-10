@@ -265,7 +265,7 @@ def export_single_playlist(
     provider = 'spotify'  # TODO: Make configurable when adding multi-provider support
     track_rows = db.get_playlist_tracks_with_local_paths(playlist_id, provider)
     tracks = [dict(r) | {'position': r['position']} for r in track_rows]
-    playlist_meta = {'name': pl['name'], 'id': playlist_id}
+    playlist_meta = {'name': pl.name, 'id': playlist_id}
     
     # Dispatch to export function based on mode
     if mode == 'strict':
@@ -280,7 +280,7 @@ def export_single_playlist(
     
     # Ensure directory exists (export_* helpers may create, but defensive here)
     target_dir.mkdir(parents=True, exist_ok=True)
-    safe_name = sanitize_filename(pl['name']) if 'name' in pl.keys() else 'playlist'
+    safe_name = sanitize_filename(pl.name)
     result.exported_file = str(target_dir / f"{safe_name}.m3u")
     result.tracks_processed = len(tracks)
     result.duration_seconds = time.time() - start

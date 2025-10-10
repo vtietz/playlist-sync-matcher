@@ -85,7 +85,7 @@ def run_matching(
     
     result.spotify_tracks = db.count_tracks()
     result.matched = matched_count
-    result.unmatched = result.library_files - result.matched
+    result.unmatched = result.spotify_tracks - result.matched
     
     # Gather unmatched diagnostics using repository method
     if result.unmatched > 0:

@@ -11,12 +11,12 @@ class TestPlaylistsModel:
         """Test model starts empty."""
         model = PlaylistsModel()
         assert model.rowCount() == 0
-        assert model.columnCount() == 3  # Name, Owner, Coverage
+        assert model.columnCount() == 4  # Name, Owner, Coverage, Relevance
     
     def test_column_headers(self):
         """Test column headers are correct."""
         model = PlaylistsModel()
-        expected_headers = ['Name', 'Owner', 'Coverage']
+        expected_headers = ['Name', 'Owner', 'Coverage', 'Relevance']
         
         for col, expected in enumerate(expected_headers):
             actual = model.headerData(col, Qt.Horizontal, Qt.DisplayRole)
@@ -101,14 +101,14 @@ class TestUnifiedTracksModel:
         """Test model starts empty."""
         model = UnifiedTracksModel()
         assert model.rowCount() == 0
-        assert model.columnCount() == 9  # Track, Artist, Album, Year, Matched, Confidence, Quality, Local File, Playlists
+        assert model.columnCount() == 10  # Track, Artist, Album, Year, Matched, Confidence, Quality, Local File, #PL, Playlists
     
     def test_column_headers(self):
         """Test column headers are correct."""
         model = UnifiedTracksModel()
         expected_headers = [
             'Track', 'Artist', 'Album', 'Year', 'Matched',
-            'Confidence', 'Quality', 'Local File', 'Playlists'
+            'Confidence', 'Quality', 'Local File', '#PL', 'Playlists'
         ]
         
         for col, expected in enumerate(expected_headers):
