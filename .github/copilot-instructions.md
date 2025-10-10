@@ -71,3 +71,7 @@ return result
 6. ✅ Resources cleaned up properly (threads, sockets, files)
 7. ✅ README updated if functionality changed
 8. ✅ Any new workflow steps use virtualenv-safe invocation (`run.bat` or install + python -m) and avoid raw system Python when project dependencies are required.
+
+# Git Commit Message Guidelines
+* After your summary always propose clear, concise commit messages that accurately describe the changes made.
+* Use the imperative mood in the subject line (e.g., "Add feature", "Fix bug", "Update docs").

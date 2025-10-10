@@ -44,6 +44,7 @@ class LibraryConfig:
 
 
 @dataclass
+@dataclass
 class MatchingConfig:
     """Track matching algorithm configuration (aligned with _DEFAULTS)."""
     fuzzy_threshold: float = 0.78  # 0.0-1.0 scale
@@ -52,6 +53,8 @@ class MatchingConfig:
     show_unmatched_tracks: int = 20
     show_unmatched_albums: int = 20
     max_candidates_per_track: int = 500  # Performance safeguard: cap candidates per track
+    progress_interval: int = 100  # Log progress every N tracks
+    enable_verbose_progress: bool = True  # Enable detailed progress logging (use DEBUG level if False)
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for backward compatibility."""

@@ -55,8 +55,8 @@ class MatchingEngine:
         # Extract config values
         self.dur_tolerance = matching_config.duration_tolerance
         self.max_candidates = matching_config.max_candidates_per_track
-        
-        self.progress_interval = 100  # Log progress every N tracks
+        self.progress_interval = matching_config.progress_interval
+        self.enable_verbose_progress = matching_config.enable_verbose_progress
     
     def match_all(self) -> int:
         """Match all tracks against all library files.
@@ -169,6 +169,9 @@ class MatchingEngine:
     ) -> None:
         """Log matching progress.
         
+        Uses INFO level if verbose progress is enabled, otherwise DEBUG level
+        to reduce log noise for automated/batch scenarios.
+        
         Args:
             processed: Number of tracks processed so far
             total: Total number of tracks to process
@@ -179,7 +182,11 @@ class MatchingEngine:
         match_rate = (matches / processed * 100) if processed > 0 else 0
         unmatched = processed - matches
         
-        logger.info(
+        # Choose log level based on verbosity setting
+        log_level = logging.INFO if self.enable_verbose_progress else logging.DEBUG
+        
+        logger.log(
+            log_level,
             f"{processed}/{total} tracks "
             f"({processed/total*100:.0f}%) | "
             f"{matches} matched | "
@@ -188,7 +195,8 @@ class MatchingEngine:
         )
         
         confidence_summary = self._get_confidence_summary(matches)
-        logger.info(
+        logger.log(
+            log_level,
             f"  Match rate: {match_rate:.1f}% | "
             f"Confidence breakdown: {confidence_summary}"
         )
@@ -452,12 +460,14 @@ class MatchingEngine:
         
         self.db.commit()
         
-        # Final summary
+        # Final summary - report both per-file and per-track rates for clarity
         duration = time.time() - start
-        match_rate = (new_matches / len(files_to_match) * 100) if files_to_match else 0
+        file_match_rate = (new_matches / len(files_to_match) * 100) if files_to_match else 0
+        track_match_rate = (new_matches / total * 100) if total > 0 else 0
         logger.info(
             f"✓ Created {new_matches} new match(es) from {len(files_to_match)} changed file(s) "
-            f"({match_rate:.1f}% match rate) in {duration:.2f}s"
+            f"({file_match_rate:.1f}% of files matched) | "
+            f"{new_matches}/{total} tracks ({track_match_rate:.1f}% of tracks) in {duration:.2f}s"
         )
         return (new_matches, matched_track_ids)
     
