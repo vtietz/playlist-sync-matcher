@@ -115,7 +115,14 @@ class PlaylistsTab(QWidget):
         # Connect selection signal - forward Qt's selected/deselected parameters
         selection_model = table.selectionModel()
         if selection_model:
-            selection_model.selectionChanged.connect(self.selection_changed)
+            # Use a lambda to add logging and ensure signal propagation
+            def on_selection_changed(selected, deselected):
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.info(f"PlaylistsTab: Selection changed - selected: {selected.count()}, deselected: {deselected.count()}")
+                self.selection_changed.emit(selected, deselected)
+            
+            selection_model.selectionChanged.connect(on_selection_changed)
         
         return table
     

@@ -163,11 +163,18 @@ def match_single_playlist(
     
     logger.debug(f"[playlist] Matching '{result.playlist_name}' ({playlist_id})")
     
+    # Get track IDs for this specific playlist only
+    provider = 'spotify'  # TODO: Make configurable when adding multi-provider support
+    playlist_track_rows = db.get_playlist_tracks_with_local_paths(playlist_id, provider)
+    playlist_track_ids = [row['track_id'] for row in playlist_track_rows if row.get('track_id')]
+    
+    logger.info(f"Matching {len(playlist_track_ids)} tracks from playlist '{result.playlist_name}'")
+    
     # Get matching config
     fuzzy_threshold = config.get('matching', {}).get('fuzzy_threshold', 0.78)
     duration_tolerance = config.get('matching', {}).get('duration_tolerance', 5.0)
     
-    # Run matching using MatchingEngine for all tracks (it will match only unmatched ones)
+    # Run matching using MatchingEngine for only this playlist's tracks
     from ..config_types import MatchingConfig
     from psm.config import _DEFAULTS
     
@@ -178,19 +185,21 @@ def match_single_playlist(
     matching_cfg = MatchingConfig(**{**_DEFAULTS.get('matching', {}), **matching_config_dict})
     
     engine = MatchingEngine(db, matching_cfg)  # type: ignore
-    new_matches = engine.match_tracks(track_ids=None)  # Returns int: number of new matches
+    new_matches = engine.match_tracks(track_ids=playlist_track_ids)  # Match only this playlist's tracks
     
     db.commit()
     
-    # Get all tracks and count how many are now matched
-    all_tracks = db.get_all_tracks(provider='spotify')
-    total_matched = sum(1 for t in all_tracks if db.get_match_for_track(t.id, provider='spotify'))
+    # Count how many tracks from this playlist are now matched
+    matched_count = 0
+    for track_id in playlist_track_ids:
+        if db.get_match_for_track(track_id, provider=provider):
+            matched_count += 1
     
-    result.tracks_processed = len(all_tracks)
-    result.tracks_matched = total_matched
+    result.tracks_processed = len(playlist_track_ids)
+    result.tracks_matched = matched_count
     result.duration_seconds = time.time() - start
     
-    logger.debug(f"[playlist] Matched {new_matches} new tracks ({total_matched} total) in {result.duration_seconds:.2f}s")
+    logger.debug(f"[playlist] Matched {new_matches} new tracks ({matched_count}/{len(playlist_track_ids)} total) in {result.duration_seconds:.2f}s")
     
     return result
 

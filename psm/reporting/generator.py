@@ -1,6 +1,6 @@
 from __future__ import annotations
 from pathlib import Path
-from typing import Iterable, Any, TYPE_CHECKING
+from typing import Iterable, Any, TYPE_CHECKING, List
 import csv
 import logging
 import shutil
@@ -103,12 +103,20 @@ def write_analysis_quality_reports(report: QualityReport, out_dir: Path, min_bit
 # Enhanced Match Reports (CSV + HTML)
 # ============================================================================
 
-def write_match_reports(db: Database, out_dir: Path) -> dict[str, tuple[Path, Path]]:
-    """Write comprehensive match reports (wrapper for backward compatibility).
+def write_match_reports(
+    db: Database, 
+    out_dir: Path, 
+    affected_playlist_ids: List[str] | None = None
+) -> dict[str, tuple[Path, Path]]:
+    """Write comprehensive match reports.
     
     Args:
         db: Database instance
         out_dir: Output directory for reports
+        affected_playlist_ids: Optional list of playlist IDs that changed.
+            If provided, only regenerates detail pages for these playlists
+            (but always regenerates overview/index pages).
+            If None, regenerates all reports (full rebuild).
     
     Returns:
         Dict with keys 'matched', 'unmatched_tracks', 'unmatched_albums', 'playlist_coverage'
@@ -116,22 +124,33 @@ def write_match_reports(db: Database, out_dir: Path) -> dict[str, tuple[Path, Pa
     """
     out_dir.mkdir(parents=True, exist_ok=True)
     
-    # Clean up old reports to avoid stale data
-    _cleanup_reports_directory(out_dir)
+    # Determine if this is an incremental update
+    is_incremental = affected_playlist_ids is not None
+    
+    if is_incremental:
+        logger.info(f"Incremental report update for {len(affected_playlist_ids)} playlist(s)")
+        # In incremental mode, don't delete everything
+        # Just ensure the playlists directory exists
+        playlists_dir = out_dir / "playlists"
+        playlists_dir.mkdir(exist_ok=True)
+    else:
+        logger.info("Full report generation - cleaning up old reports")
+        # Full rebuild: clean up old reports to avoid stale data
+        _cleanup_reports_directory(out_dir)
     
     # Get provider from database (default to spotify)
     provider_row = db.conn.execute("SELECT DISTINCT provider FROM tracks LIMIT 1").fetchone()
     provider = provider_row['provider'] if provider_row else 'spotify'
     
-    # Call individual report generators
+    # Always regenerate overview reports (they're fast and must be current)
     reports = {}
     reports['matched'] = write_matched_tracks_report(db, out_dir, provider)
     reports['unmatched_tracks'] = write_unmatched_tracks_report(db, out_dir, provider)
     reports['unmatched_albums'] = write_unmatched_albums_report(db, out_dir)
     reports['playlist_coverage'] = write_playlist_coverage_report(db, out_dir, provider)
     
-    # Generate playlist detail pages
-    _generate_playlist_details(db, out_dir, provider)
+    # Generate playlist detail pages (incremental or full)
+    _generate_playlist_details(db, out_dir, provider, affected_playlist_ids)
     
     return reports
 
@@ -166,18 +185,38 @@ def _cleanup_reports_directory(out_dir: Path) -> None:
             logger.warning(f"Failed to remove playlists directory: {e}")
 
 
-def _generate_playlist_details(db: Database, out_dir: Path, provider: str) -> None:
+def _generate_playlist_details(
+    db: Database, 
+    out_dir: Path, 
+    provider: str,
+    affected_playlist_ids: List[str] | None = None
+) -> None:
     """Generate detail page for each playlist.
     
     Args:
         db: Database instance
         out_dir: Reports directory
         provider: Provider name
+        affected_playlist_ids: Optional list of playlist IDs to regenerate.
+            If None, regenerates all playlists.
     """
-    # Get all playlists
-    playlists = db.conn.execute("SELECT id, name FROM playlists").fetchall()
-    
-    logger.info(f"Generating detail pages for {len(playlists)} playlists")
+    # Determine which playlists to regenerate
+    if affected_playlist_ids is not None:
+        # Incremental: only regenerate specific playlists
+        playlists = []
+        for playlist_id in affected_playlist_ids:
+            playlist = db.conn.execute(
+                "SELECT id, name FROM playlists WHERE id = ?", 
+                (playlist_id,)
+            ).fetchone()
+            if playlist:
+                playlists.append(playlist)
+        
+        logger.info(f"Regenerating detail pages for {len(playlists)} affected playlist(s)")
+    else:
+        # Full rebuild: regenerate all playlists
+        playlists = db.conn.execute("SELECT id, name FROM playlists").fetchall()
+        logger.info(f"Generating detail pages for {len(playlists)} playlists")
     
     for playlist in playlists:
         try:

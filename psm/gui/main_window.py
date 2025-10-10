@@ -538,14 +538,19 @@ class MainWindow(QMainWindow):
         # Qt provides both 'selected' and 'deselected' specifically so we don't need to
         # query the selection model, which may not be fully updated when this signal fires
         
+        import logging
+        logger = logging.getLogger(__name__)
+        
         if selected.isEmpty():
             # No selection - update state and disable actions
+            logger.debug("Playlist selection cleared")
             self._selected_playlist_id = None
             self.ui_state.on_playlist_selected(None)
             return
         
         proxy_indexes = selected.indexes()
         if not proxy_indexes:
+            logger.debug("No proxy indexes in selection")
             return
         
         # Find index for column 0 (we need the first column for row data)
@@ -556,6 +561,7 @@ class MainWindow(QMainWindow):
                 break
         
         if not proxy_index:
+            logger.debug("No column 0 index found in selection")
             return
         
         # Map proxy index to source model
@@ -566,10 +572,12 @@ class MainWindow(QMainWindow):
         playlist_data = self.playlists_model.get_row_data(source_row)
         
         if not playlist_data:
+            logger.debug(f"No playlist data for source row {source_row}")
             return
         
         # Track selected playlist ID and update UI state
         playlist_id = playlist_data.get('id')
+        logger.info(f"Playlist selected: {playlist_id} ({playlist_data.get('name', 'Unknown')})")
         self._selected_playlist_id = playlist_id
         self.ui_state.on_playlist_selected(playlist_id)
         

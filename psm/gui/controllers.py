@@ -171,6 +171,64 @@ class MainController(QObject):
         # Start loading
         loader.start()
     
+    def _refresh_single_playlist(self, playlist_id: str):
+        """Refresh data for a single playlist without reloading all tracks.
+        
+        This is much faster than refresh_all_async() for single-playlist operations.
+        Only updates the changed tracks in the model without a full reload.
+        """
+        logger.info(f"Partial refresh for playlist: {playlist_id}")
+        
+        # Get the playlist
+        playlist = self.db.get_playlist_by_id(playlist_id)
+        if not playlist:
+            logger.warning(f"Playlist {playlist_id} not found for refresh")
+            return
+        
+        # Get current filter state
+        current_filter = self.window.filter_store.state
+        was_filtering_this_playlist = (current_filter.playlist_name == playlist.name)
+        
+        logger.debug(f"Refreshing playlist '{playlist.name}', currently filtered: {was_filtering_this_playlist}")
+        
+        # Get the playlist's track IDs
+        playlist_track_ids = self.db.get_playlist_track_ids(playlist_id)
+        logger.debug(f"Reloading {len(playlist_track_ids)} tracks for playlist '{playlist.name}'")
+        
+        # Reload these tracks from DB to get updated match status
+        updated_tracks_data = []
+        for track_id in playlist_track_ids:
+            track = self.db.get_track_by_id(track_id)
+            if track:
+                # Convert to dict format expected by model
+                track_data = {
+                    'id': track.id,
+                    'title': track.title,
+                    'artist': track.artist,
+                    'album': track.album,
+                    'year': track.year,
+                    'file_path': track.file_path,
+                    'spotify_track_id': track.spotify_track_id,
+                    'spotify_uri': track.spotify_uri,
+                    'match_score': track.match_score,
+                    'match_method': track.match_method,
+                    'playlists': [],  # Will be populated by coordinator
+                }
+                updated_tracks_data.append(track_data)
+        
+        logger.info(f"Loaded {len(updated_tracks_data)} updated tracks for playlist '{playlist.name}'")
+        
+        # Update model's internal data for these tracks
+        # The coordinator handles merging playlist info
+        self.window.model_coordinator.update_unified_tracks(updated_tracks_data, [playlist])
+        
+        # If we were filtering this playlist, reapply the filter to refresh the view
+        if was_filtering_this_playlist:
+            logger.debug(f"Reapplying playlist filter for '{playlist.name}' after partial refresh")
+            self.set_playlist_filter(playlist.name)
+        
+        logger.info(f"✓ Partial refresh complete for playlist: {playlist.name}")
+    
     def _on_item_loaded(self, key: str, data):
         """Handle individual item loaded.
         
@@ -188,6 +246,14 @@ class MainController(QObject):
             results: Dict with all loaded data
         """
         logger.info("All data loaded successfully")
+        
+        # Save current filter state before updating data (will be restored after)
+        saved_filter_state = self.window.filter_store.state
+        saved_playlist_id = self.window.get_selected_playlist_id()
+        logger.debug(f"Saved filter state before reload: {saved_filter_state.active_dimension}, playlist_id: {saved_playlist_id}")
+        
+        # Temporarily clear filter to prevent applying it to empty/partial data during reload
+        self.window.filter_store.clear()
         
         try:
             # Update playlists
@@ -236,21 +302,28 @@ class MainController(QObject):
             self.window.unified_tracks_view.hide_loading()
             self.window.append_log("Data loaded successfully")
             
-            # Reapply active playlist filter if a playlist is selected
-            # This ensures the filter uses fresh track_ids after DB changes (e.g., "Pull Selected")
-            selected_playlist_id = self.window.get_selected_playlist_id()
-            if selected_playlist_id:
+            # Reapply active playlist filter if a playlist was selected before the reload
+            # This ensures the filter uses fresh track_ids after DB changes (e.g., "Pull Selected", "Match Selected")
+            logger.debug(f"After data load, saved_playlist_id: {saved_playlist_id}")
+            if saved_playlist_id:
                 # Fetch current playlist data to get name
-                playlist = self.facade.get_playlist_by_id(selected_playlist_id)
+                playlist = self.facade.get_playlist_by_id(saved_playlist_id)
+                logger.debug(f"Fetched playlist data: {playlist.name if playlist else 'None'}")
                 if playlist:
                     # Recompute filter with fresh track_ids from DB
-                    logger.debug(f"Reapplying playlist filter for '{playlist.name}' after data refresh")
+                    logger.info(f"Reapplying playlist filter for '{playlist.name}' after data refresh")
                     self.set_playlist_filter(playlist.name)
                 else:
                     # Playlist was deleted - clear filter and selection
-                    logger.info(f"Playlist {selected_playlist_id} no longer exists - clearing selection")
+                    logger.warning(f"Playlist {saved_playlist_id} no longer exists - clearing selection")
                     self.window.unified_tracks_view.clear_filters()
                     self.window._selected_playlist_id = None
+            elif saved_filter_state.active_dimension:
+                # Restore non-playlist filter (artist/album) if it was active
+                logger.info(f"Restoring {saved_filter_state.active_dimension} filter after data refresh")
+                # Filter will be automatically restored by filter bar state
+            else:
+                logger.debug("No filter to reapply after data load")
             
             # Trigger lazy playlist loading for visible rows
             QTimer.singleShot(100, self.window.unified_tracks_view.trigger_lazy_playlist_load)
@@ -783,29 +856,54 @@ class MainController(QObject):
     def _on_pull_one(self):
         """Handle pull single playlist."""
         playlist_id = self.window.get_selected_playlist_id()
+        logger.debug(f"Pull one clicked - selected playlist ID: {playlist_id}")
         if playlist_id:
+            logger.info(f"Executing: playlist pull {playlist_id}")
+            # Use partial refresh after single playlist operations
             self._execute_command(
                 ['playlist', 'pull', playlist_id], 
-                f"✓ Pulled playlist {playlist_id}"
+                f"✓ Pulled playlist {playlist_id}",
+                refresh_after=False  # Don't auto-refresh
             )
+            # Manually trigger partial refresh for just this playlist
+            QTimer.singleShot(100, lambda: self._refresh_single_playlist(playlist_id))
+        else:
+            logger.warning("Pull one clicked but no playlist selected")
+            self.window.append_log("⚠ No playlist selected")
     
     def _on_match_one(self):
         """Handle match single playlist."""
         playlist_id = self.window.get_selected_playlist_id()
+        logger.debug(f"Match one clicked - selected playlist ID: {playlist_id}")
         if playlist_id:
+            logger.info(f"Executing: playlist match {playlist_id}")
+            # Use partial refresh after single playlist operations
             self._execute_command(
                 ['playlist', 'match', playlist_id], 
-                f"✓ Matched playlist {playlist_id}"
+                f"✓ Matched playlist {playlist_id}",
+                refresh_after=False  # Don't auto-refresh
             )
+            # Manually trigger partial refresh for just this playlist
+            QTimer.singleShot(100, lambda: self._refresh_single_playlist(playlist_id))
+        else:
+            logger.warning("Match one clicked but no playlist selected")
+            self.window.append_log("⚠ No playlist selected")
     
     def _on_export_one(self):
         """Handle export single playlist."""
         playlist_id = self.window.get_selected_playlist_id()
+        logger.debug(f"Export one clicked - selected playlist ID: {playlist_id}")
         if playlist_id:
+            logger.info(f"Executing: playlist export {playlist_id}")
+            # Export doesn't change DB data, so no refresh needed
             self._execute_command(
                 ['playlist', 'export', playlist_id], 
-                f"✓ Exported playlist {playlist_id}"
+                f"✓ Exported playlist {playlist_id}",
+                refresh_after=False  # Don't refresh for export
             )
+        else:
+            logger.warning("Export one clicked but no playlist selected")
+            self.window.append_log("⚠ No playlist selected")
     
     def _on_watch_toggled(self, enabled: bool):
         """Handle watch mode toggle.

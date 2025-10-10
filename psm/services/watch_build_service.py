@@ -108,10 +108,12 @@ def _handle_library_changes(
             else:
                 progress.step(3, 4, "Export skipped")
             
-            # 4. Regenerate reports (only if matches changed)
+            # 4. Regenerate reports (incrementally for affected playlists)
             if not watch_config.skip_report and matched_track_ids:
-                progress.step(4, 4, "Regenerating reports")
-                _generate_reports(db, watch_config.config)
+                progress.step(4, 4, "Updating reports (incremental)")
+                # Find which playlists contain the newly matched tracks
+                affected_playlist_ids = db.get_playlists_containing_tracks(matched_track_ids)
+                _generate_reports(db, watch_config.config, affected_playlist_ids=affected_playlist_ids)
             else:
                 progress.step(4, 4, "Reports skipped")
         
@@ -158,13 +160,18 @@ def _handle_database_changes(watch_config: WatchBuildConfig) -> float:
                     # Clear the metadata after processing
                     db.set_meta('last_pull_changed_tracks', None)
                     db.commit()
+                    
+                    # Store matched track IDs for incremental report generation
+                    matched_track_ids = changed_track_ids if new_matches > 0 else []
                 else:
                     progress.step(1, 3, "No track changes detected, skipping match")
+                    matched_track_ids = []
             else:
                 # Fallback: Full re-match since we don't know what changed
                 progress.step(1, 3, "Re-matching all tracks (no change tracking available)")
                 result = run_matching(db, config=watch_config.config, verbose=False, top_unmatched_tracks=0, top_unmatched_albums=0)
                 progress.status(f"✓ Matched {result.matched} tracks")
+                matched_track_ids = []  # Full rebuild, so regenerate all reports
             
             # Export
             if not watch_config.skip_export:
@@ -173,10 +180,15 @@ def _handle_database_changes(watch_config: WatchBuildConfig) -> float:
             else:
                 progress.step(2, 3, "Export skipped")
             
-            # Reports
+            # Reports (incremental if we know which tracks changed)
             if not watch_config.skip_report:
-                progress.step(3, 3, "Regenerating reports")
-                _generate_reports(db, watch_config.config)
+                if matched_track_ids:
+                    progress.step(3, 3, "Updating reports (incremental)")
+                    affected_playlist_ids = db.get_playlists_containing_tracks(matched_track_ids)
+                    _generate_reports(db, watch_config.config, affected_playlist_ids=affected_playlist_ids)
+                else:
+                    progress.step(3, 3, "Regenerating all reports")
+                    _generate_reports(db, watch_config.config)  # Full rebuild
             else:
                 progress.step(3, 3, "Reports skipped")
         
@@ -218,12 +230,28 @@ def _export_playlists(db: Database, config: Dict[str, Any], playlist_ids: List[s
     click.echo(click.style(f"  ✓ Exported {result.playlist_count} playlists", fg='green'))
 
 
-def _generate_reports(db: Database, config: Dict[str, Any]) -> None:
-    """Generate reports helper."""
+def _generate_reports(
+    db: Database, 
+    config: Dict[str, Any], 
+    affected_playlist_ids: List[str] | None = None
+) -> None:
+    """Generate reports helper.
+    
+    Args:
+        db: Database instance
+        config: Full configuration dict
+        affected_playlist_ids: Optional list of playlist IDs that changed.
+            If provided, only regenerates detail pages for these playlists.
+            If None, regenerates all reports.
+    """
     out_dir = Path(config['reports']['directory'])
-    write_match_reports(db, out_dir)
+    write_match_reports(db, out_dir, affected_playlist_ids=affected_playlist_ids)
     write_index_page(out_dir, db)
-    click.echo(click.style(f"  ✓ Reports updated in {out_dir}", fg='green'))
+    
+    if affected_playlist_ids:
+        click.echo(click.style(f"  ✓ Reports updated ({len(affected_playlist_ids)} playlist details) in {out_dir}", fg='green'))
+    else:
+        click.echo(click.style(f"  ✓ Reports updated in {out_dir}", fg='green'))
 
 
 def run_watch_build(watch_config: WatchBuildConfig) -> None:

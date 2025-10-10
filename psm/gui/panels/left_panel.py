@@ -6,7 +6,7 @@ containing tabbed views for playlists, artists, and albums.
 from __future__ import annotations
 from typing import TYPE_CHECKING
 from PySide6.QtWidgets import QWidget, QTabWidget
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Signal, QItemSelection
 import logging
 
 if TYPE_CHECKING:
@@ -30,7 +30,7 @@ class LeftPanel(QWidget):
     - AlbumsView with albums table
     
     Signals:
-        playlist_selection_changed(str): Playlist selected (playlist_id or None)
+        playlist_selection_changed(QItemSelection, QItemSelection): Playlist selection changed (selected, deselected)
         pull_one_clicked: Pull selected playlist
         match_one_clicked: Match selected playlist
         export_one_clicked: Export selected playlist
@@ -44,7 +44,7 @@ class LeftPanel(QWidget):
     """
     
     # Signals
-    playlist_selection_changed = Signal(str)  # playlist_id or None
+    playlist_selection_changed = Signal(QItemSelection, QItemSelection)  # selected, deselected
     pull_one_clicked = Signal()
     match_one_clicked = Signal()
     export_one_clicked = Signal()
