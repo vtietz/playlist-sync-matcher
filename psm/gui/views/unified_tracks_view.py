@@ -11,7 +11,7 @@ This view composition demonstrates the architecture guidelines:
 from __future__ import annotations
 from typing import Optional, List, Dict, Any, Callable, Set
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
-from PySide6.QtCore import Signal, Qt, QTimer, QPoint
+from PySide6.QtCore import Signal, Qt, QTimer, QPoint, QSignalBlocker
 from PySide6.QtGui import QFont
 import logging
 
@@ -62,8 +62,8 @@ class UnifiedTracksView(QWidget):
         # Create filter bar
         self.filter_bar = FilterBar()
         self.filter_bar.filter_changed.connect(self._apply_filters)
-        # Populate filter options from visible data when user opens a dropdown
-        self.filter_bar.filter_options_needed.connect(self.populate_filter_options_from_visible_data)
+        # Note: Filter options populated globally via populate_filter_options(),
+        # no longer rescanned from visible rows (performance optimization)
         
         # Create custom proxy model for filtering
         self.proxy_model = UnifiedTracksProxyModel()
@@ -116,6 +116,7 @@ class UnifiedTracksView(QWidget):
         
         # Lazy playlist loading
         self._playlist_fetch_callback: Optional[Callable[[List[str]], Dict[str, str]]] = None
+        self._playlist_track_ids_callback: Optional[Callable[[str], Set[str]]] = None  # Get track IDs for playlist name
         self._playlists_loaded = False
         self._lazy_load_timer = QTimer()
         self._lazy_load_timer.setSingleShot(True)
@@ -137,21 +138,80 @@ class UnifiedTracksView(QWidget):
         if selection_model:
             selection_model.selectionChanged.connect(self._on_selection_changed)
     
+    def on_store_filter_changed(self, state):
+        """Handle FilterStore state changes (single source of truth).
+        
+        Updates proxy model and FilterBar to reflect new filter state.
+        Uses QSignalBlocker to prevent re-emission loops.
+        
+        Args:
+            state: FilterState with playlist_name, album_name, artist_name, track_ids
+        """
+        from ..state import FilterState
+        
+        logger.debug(f"UnifiedTracksView.on_store_filter_changed: {state.active_dimension}")
+        
+        # Update proxy model filters based on active dimension
+        with QSignalBlocker(self.filter_bar):
+            if state.playlist_name:
+                # Playlist filter active
+                self.proxy_model.set_playlist_filter(state.playlist_name, state.track_ids)
+                self.filter_bar.set_playlist_filter(state.playlist_name)
+                # Clear other dimension filters
+                self.filter_bar.set_artist_filter(None)
+                self.filter_bar.set_album_filter(None)
+                self.proxy_model.set_artist_filter(None)
+                self.proxy_model.set_album_filter(None)
+                
+            elif state.album_name and state.artist_name:
+                # Album filter active (requires artist context, but don't show artist in FilterBar)
+                self.proxy_model.set_album_filter(state.album_name)
+                self.filter_bar.set_album_filter(state.album_name)
+                # Don't set artist filter in FilterBar - user wants to see album only
+                self.filter_bar.set_artist_filter(None)
+                # Clear playlist filter
+                self.filter_bar.set_playlist_filter(None)
+                self.proxy_model.set_playlist_filter(None, None)
+                # Note: We keep artist_name in state for context, but don't filter proxy by artist
+                self.proxy_model.set_artist_filter(None)
+                
+            elif state.artist_name:
+                # Artist-only filter active
+                self.proxy_model.set_artist_filter(state.artist_name)
+                self.filter_bar.set_artist_filter(state.artist_name)
+                # Clear other dimension filters
+                self.filter_bar.set_playlist_filter(None)
+                self.filter_bar.set_album_filter(None)
+                self.proxy_model.set_playlist_filter(None, None)
+                self.proxy_model.set_album_filter(None)
+                
+            else:
+                # No filter active - clear all dimension filters
+                self.filter_bar.set_playlist_filter(None)
+                self.filter_bar.set_artist_filter(None)
+                self.filter_bar.set_album_filter(None)
+                self.proxy_model.set_playlist_filter(None, None)
+                self.proxy_model.set_artist_filter(None)
+                self.proxy_model.set_album_filter(None)
+        
+        logger.info(f"Filter applied: {state.active_dimension}, visible rows: {self.proxy_model.rowCount()}")
+    
     def _apply_filters(self):
-        """Apply current filter settings to the proxy model."""
-        # Get filter state from filter bar
+        """Apply current filter settings to the proxy model.
+        
+        Note: Playlist filtering is handled by FilterStore, not here.
+        This method only handles non-dimensional filters (status, search, etc.).
+        """
+        # Get non-dimensional filter state from filter bar
         status_filter = self.filter_bar.get_track_filter()
         search_text = self.filter_bar.get_search_text()
-        artist_filter = self.filter_bar.get_artist_filter()
-        album_filter = self.filter_bar.get_album_filter()
         year_filter = self.filter_bar.get_year_filter()
         confidence_filter = self.filter_bar.get_confidence_filter()
         quality_filter = self.filter_bar.get_quality_filter()
         
         # Apply to proxy model
+        # Note: Playlist, artist, album filters managed by FilterStore via on_store_filter_changed()
         self.proxy_model.set_status_filter(status_filter)
-        self.proxy_model.set_artist_filter(artist_filter)
-        self.proxy_model.set_album_filter(album_filter)
         self.proxy_model.set_year_filter(year_filter)
         self.proxy_model.set_confidence_filter(confidence_filter)
         self.proxy_model.set_quality_filter(quality_filter)
@@ -179,31 +239,6 @@ class UnifiedTracksView(QWidget):
                 if track_data and 'id' in track_data:
                     self.track_selected.emit(track_data['id'])
     
-    def set_playlist_filter(self, playlist_name: Optional[str], track_ids: Optional[Set[str]] = None):
-        """Set playlist filter (called when playlist is selected).
-        
-        Args:
-            playlist_name: Playlist name to filter by, or None for all playlists
-            track_ids: Set of track IDs in the playlist (for efficient filtering)
-        """
-        # Temporarily disable sorting to avoid performance issues during refilter
-        header = self.tracks_table.horizontalHeader()
-        sort_column = header.sortIndicatorSection()
-        sort_order = header.sortIndicatorOrder()
-        self.tracks_table.setSortingEnabled(False)
-        
-        # Set filter on proxy model
-        self.proxy_model.set_playlist_filter(playlist_name, track_ids)
-        
-        # Re-enable sorting after a brief delay to allow filter to complete
-        QTimer.singleShot(0, lambda: (
-            self.tracks_table.setSortingEnabled(True),
-            self.tracks_table.sortByColumn(sort_column, sort_order)
-        ))
-        
-        # Update filter options to show only values from this playlist
-        self.populate_filter_options_from_visible_data()
-    
     def clear_filters(self):
         """Reset all filters to default state."""
         self.filter_bar.clear_filters()
@@ -213,11 +248,10 @@ class UnifiedTracksView(QWidget):
         self.proxy_model.set_album_filter(None)
         self.proxy_model.set_year_filter(None)
         self.proxy_model.set_search_text_immediate("")
-        self.proxy_model.set_year_filter(None)
-        self.proxy_model.set_search_text_immediate("")
     
     def populate_filter_options(
         self,
+        playlists: List[str],
         artists: List[str],
         albums: List[str],
         years: List[int]
@@ -225,11 +259,12 @@ class UnifiedTracksView(QWidget):
         """Populate filter dropdown options.
         
         Args:
+            playlists: List of unique playlist names
             artists: List of unique artist names
             albums: List of unique album names
             years: List of unique years
         """
-        self.filter_bar.populate_filter_options(artists, albums, years)
+        self.filter_bar.populate_filter_options(playlists, artists, albums, years)
     
     def populate_filter_options_from_visible_data(self):
         """Populate filter options from currently visible (filtered) rows.
@@ -271,8 +306,10 @@ class UnifiedTracksView(QWidget):
                         except (ValueError, TypeError):
                             pass
         
-        # Update filter options with visible data
+        # Update filter options with visible data (playlists stay global, not filtered)
+        playlists = []  # Playlists populated separately, not from visible data
         self.filter_bar.populate_filter_options(
+            playlists,  # Keep existing playlist options
             sorted(artists),
             sorted(albums),
             sorted(years, reverse=True)  # Years descending

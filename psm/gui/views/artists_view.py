@@ -11,9 +11,9 @@ This view displays aggregated artist statistics with:
 from __future__ import annotations
 from typing import Optional
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QTableView, QHeaderView, QLineEdit, QHBoxLayout, QLabel
+    QWidget, QVBoxLayout, QTableView, QHeaderView, QLineEdit, QHBoxLayout, QLabel, QPushButton
 )
-from PySide6.QtCore import Qt, QSortFilterProxyModel, QModelIndex
+from PySide6.QtCore import Qt, QSortFilterProxyModel, QModelIndex, Signal
 from PySide6.QtGui import QFont
 import logging
 
@@ -73,7 +73,13 @@ class ArtistsView(QWidget):
     
     Filters:
     - Search box (searches artist name)
+    
+    Signals:
+        artist_selected: Emitted when an artist is selected or cleared (artist_name or None)
     """
+    
+    # Signal emitted when artist is selected (artist_name) or cleared (None)
+    artist_selected = Signal(object)  # artist_name: Optional[str]
     
     def __init__(
         self,
@@ -100,6 +106,12 @@ class ArtistsView(QWidget):
         # Filter bar
         filter_layout = QHBoxLayout()
         filter_layout.setSpacing(10)
+        
+        # Clear button
+        self.clear_btn = QPushButton("✕ Clear Filter")
+        self.clear_btn.setMaximumWidth(120)
+        self.clear_btn.clicked.connect(self._on_clear_clicked)
+        filter_layout.addWidget(self.clear_btn)
         
         # Search box
         filter_layout.addWidget(QLabel("Search:"))
@@ -136,6 +148,11 @@ class ArtistsView(QWidget):
         # Enable mouse tracking for hover effects
         self.table.setMouseTracking(True)
         
+        # Connect selection signal
+        selection_model = self.table.selectionModel()
+        if selection_model:
+            selection_model.selectionChanged.connect(self._on_selection_changed)
+        
         layout.addWidget(self.table)
     
     def _set_initial_column_widths(self):
@@ -154,3 +171,54 @@ class ArtistsView(QWidget):
     def _on_search_changed(self, text: str):
         """Handle search text change."""
         self.proxy_model.set_search_text(text)
+    
+    def _on_selection_changed(self, selected, deselected):
+        """Handle artist selection change."""
+        selection = self.table.selectionModel()
+        if selection and selection.hasSelection():
+            proxy_row = selection.selectedRows()[0].row()
+            source_index = self.proxy_model.mapToSource(
+                self.proxy_model.index(proxy_row, 0)
+            )
+            source_row = source_index.row()
+            
+            # Get artist from source model
+            source_model = self.proxy_model.sourceModel()
+            if hasattr(source_model, 'get_row_data'):
+                row_data = source_model.get_row_data(source_row)
+                if row_data:
+                    artist_name = row_data.get('artist')
+                    if artist_name:
+                        self.artist_selected.emit(artist_name)
+    
+    def _on_clear_clicked(self):
+        """Handle clear filter button click."""
+        # Clear selection
+        self.table.clearSelection()
+        # Clear search
+        self.search_box.clear()
+        # Emit clear signal
+        self.artist_selected.emit(None)
+    
+    def clear_selection(self):
+        """Public method to clear selection and filters (for coordinator)."""
+        self._on_clear_clicked()
+    
+    def select_artist(self, artist_name: str):
+        """Select artist by name in the table (for coordinator).
+        
+        Args:
+            artist_name: Artist name to select
+        """
+        # Search through proxy model for matching artist
+        proxy = self.proxy_model
+        for row in range(proxy.rowCount()):
+            index = proxy.index(row, 0)  # Artist column
+            if index.data() == artist_name:
+                # Select this row
+                self.table.selectRow(row)
+                self.table.scrollTo(index)
+                return
+        
+        # Artist not found - clear selection
+        self.table.clearSelection()

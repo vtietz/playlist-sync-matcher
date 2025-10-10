@@ -11,9 +11,9 @@ This view displays aggregated album statistics with:
 from __future__ import annotations
 from typing import Optional
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QTableView, QHeaderView, QLineEdit, QHBoxLayout, QLabel, QComboBox
+    QWidget, QVBoxLayout, QTableView, QHeaderView, QLineEdit, QHBoxLayout, QLabel, QComboBox, QPushButton
 )
-from PySide6.QtCore import Qt, QSortFilterProxyModel, QModelIndex
+from PySide6.QtCore import Qt, QSortFilterProxyModel, QModelIndex, Signal
 from PySide6.QtGui import QFont
 import logging
 
@@ -88,7 +88,13 @@ class AlbumsView(QWidget):
     Filters:
     - Artist dropdown (filter by artist)
     - Search box (searches artist + album name)
+    
+    Signals:
+        album_selected: Emitted when an album is selected or cleared (album_name, artist_name or None, None)
     """
+    
+    # Signal emitted when album is selected (album_name, artist_name) or cleared (None, None)
+    album_selected = Signal(object, object)  # (album_name: Optional[str], artist_name: Optional[str])
     
     def __init__(
         self,
@@ -115,6 +121,12 @@ class AlbumsView(QWidget):
         # Filter bar
         filter_layout = QHBoxLayout()
         filter_layout.setSpacing(10)
+        
+        # Clear button
+        self.clear_btn = QPushButton("✕ Clear Filter")
+        self.clear_btn.setMaximumWidth(120)
+        self.clear_btn.clicked.connect(self._on_clear_clicked)
+        filter_layout.addWidget(self.clear_btn)
         
         # Artist filter
         filter_layout.addWidget(QLabel("Artist:"))
@@ -160,6 +172,11 @@ class AlbumsView(QWidget):
         # Enable mouse tracking for hover effects
         self.table.setMouseTracking(True)
         
+        # Connect selection signal
+        selection_model = self.table.selectionModel()
+        if selection_model:
+            selection_model.selectionChanged.connect(self._on_selection_changed)
+        
         layout.addWidget(self.table)
     
     def _set_initial_column_widths(self):
@@ -183,6 +200,62 @@ class AlbumsView(QWidget):
     def _on_search_changed(self, text: str):
         """Handle search text change."""
         self.proxy_model.set_search_text(text)
+    
+    def _on_selection_changed(self, selected, deselected):
+        """Handle album selection change."""
+        selection = self.table.selectionModel()
+        if selection and selection.hasSelection():
+            proxy_row = selection.selectedRows()[0].row()
+            source_index = self.proxy_model.mapToSource(
+                self.proxy_model.index(proxy_row, 0)
+            )
+            source_row = source_index.row()
+            
+            # Get album and artist from source model
+            source_model = self.proxy_model.sourceModel()
+            if hasattr(source_model, 'get_row_data'):
+                row_data = source_model.get_row_data(source_row)
+                if row_data:
+                    album_name = row_data.get('album')
+                    artist_name = row_data.get('artist')
+                    if album_name and artist_name:
+                        self.album_selected.emit(album_name, artist_name)
+    
+    def _on_clear_clicked(self):
+        """Handle clear filter button click."""
+        # Clear selection
+        self.table.clearSelection()
+        # Clear filters
+        self.artist_combo.setCurrentIndex(0)
+        self.search_box.clear()
+        # Emit clear signal
+        self.album_selected.emit(None, None)
+    
+    def clear_selection(self):
+        """Public method to clear selection and filters (for coordinator)."""
+        self._on_clear_clicked()
+    
+    def select_album(self, album_name: str, artist_name: str):
+        """Select album by name and artist in the table (for coordinator).
+        
+        Args:
+            album_name: Album name to select
+            artist_name: Artist name to match
+        """
+        # Search through proxy model for matching album+artist
+        proxy = self.proxy_model
+        for row in range(proxy.rowCount()):
+            album_index = proxy.index(row, 0)  # Album column
+            artist_index = proxy.index(row, 1)  # Artist column
+            
+            if album_index.data() == album_name and artist_index.data() == artist_name:
+                # Select this row
+                self.table.selectRow(row)
+                self.table.scrollTo(album_index)
+                return
+        
+        # Album not found - clear selection
+        self.table.clearSelection()
     
     def populate_filter_options(self):
         """Populate artist filter dropdown from visible data."""

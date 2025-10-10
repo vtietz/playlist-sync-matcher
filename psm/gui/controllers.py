@@ -1,7 +1,7 @@
 """Controllers wiring UI events to actions and data updates."""
 from __future__ import annotations
 from typing import TYPE_CHECKING, Optional, List, Dict
-from PySide6.QtCore import QObject, QTimer
+from PySide6.QtCore import QObject, QTimer, QSignalBlocker
 import logging
 
 from .services import CommandService
@@ -59,14 +59,27 @@ class MainController(QObject):
             self._fetch_playlists_for_tracks
         )
         
+        # FilterStore is already initialized in MainWindow.__init__
+        # No coordinator initialization needed - simpler pattern!
+        
         # Initial data load - use async to avoid blocking UI
         QTimer.singleShot(0, self.refresh_all_async)
     
     def _connect_signals(self):
         """Connect UI signals to controller methods."""
-        # Playlist selection
-        self.window.on_playlist_selected.connect(self._on_playlist_selected)
-        self.window.on_playlist_filter_requested.connect(self.set_playlist_filter)
+        # Playlist selection now handled via FilterStore (see MainWindow._on_playlist_selection_changed)
+        # Controller subscribes directly to PlaylistsTab.selection_changed for async loading
+        self.window.playlists_tab.selection_changed.connect(self._on_playlist_selected)
+        
+        # Albums and Artists selection → FilterStore
+        if hasattr(self.window, 'albums_view'):
+            self.window.albums_view.album_selected.connect(self._on_album_selected)
+        if hasattr(self.window, 'artists_view'):
+            self.window.artists_view.artist_selected.connect(self._on_artist_selected)
+        
+        # FilterStore → Left panels (bidirectional sync)
+        # When FilterStore state changes, update left panel selections
+        self.window.filter_store.filterChanged.connect(self._on_filter_store_changed)
         
         # Action buttons
         self.window.on_pull_clicked.connect(self._on_pull)
@@ -348,31 +361,224 @@ class MainController(QObject):
         tracks = self.facade.list_liked_tracks()
         self.window.update_liked_tracks(tracks)
     
-    def _on_playlist_selected(self, playlist_id: str):
-        """Handle playlist selection.
+    def _on_playlist_selected(self, selected, deselected):
+        """Handle playlist selection - async version to prevent UI freeze.
+        
+        Receives selection change from PlaylistsTab and triggers async filter update.
         
         Args:
-            playlist_id: Selected playlist ID
+            selected: QItemSelection of selected items
+            deselected: QItemSelection of deselected items
         """
-        logger.info(f"Playlist selected: {playlist_id}")
+        # Check if selection is empty
+        if selected.isEmpty():
+            logger.info("Playlist selection cleared")
+            self.window.enable_playlist_actions(False)
+            self.window.filter_store.clear()
+            return
+        
+        # Extract playlist name from selected indexes
+        proxy_indexes = selected.indexes()
+        if not proxy_indexes:
+            logger.warning("No indexes in selection")
+            return
+        
+        # Find index for column 0 (playlist name)
+        proxy_index = None
+        for idx in proxy_indexes:
+            if idx.column() == 0:
+                proxy_index = idx
+                break
+        
+        if not proxy_index:
+            logger.warning("No column 0 index found in selection")
+            return
+        
+        # Map proxy index to source model
+        source_index = self.window.playlist_proxy_model.mapToSource(proxy_index)
+        source_row = source_index.row()
+        
+        # Get playlist name from source model
+        # Try row_data first, fallback to display role
+        row_data = self.window.playlists_model.get_row_data(source_row)
+        if row_data:
+            playlist_name = row_data.get('name') or row_data.get('id')
+        else:
+            # Fallback to display role
+            playlist_name = self.window.playlists_model.index(source_row, 0).data()
+        
+        if not playlist_name:
+            logger.warning(f"Could not extract playlist name from row {source_row}")
+            return
+        
+        logger.info(f"Playlist selected: {playlist_name}")
         
         # Enable per-playlist actions
         self.window.enable_playlist_actions(True)
-    
-    def set_playlist_filter(self, playlist_name: Optional[str]):
-        """Set playlist filter on unified tracks view.
         
-        Fetches track IDs for the playlist and passes them to the view for efficient filtering.
+        # Update FilterStore with playlist filter (async to avoid freeze)
+        self.set_playlist_filter_async(playlist_name)
+    
+    def _on_album_selected(self, album_name, artist_name):
+        """Handle album selection from AlbumsView.
+        
+        Filters by album name only (not artist), even though the signal provides both.
+        This allows seeing all tracks from an album across different artists/compilations.
+        
+        Args:
+            album_name: Selected album name (or None to clear)
+            artist_name: Selected artist name (provided but not used for filtering)
+        """
+        if album_name is None:
+            logger.info("Album selection cleared")
+            self.window.filter_store.clear()
+        else:
+            logger.info(f"Album selected: {album_name} (filtering by album only)")
+            # Filter by album only - use artist_name for context but filter shows album only
+            # Note: FilterState requires artist for albums, but we can use it without displaying
+            self.window.filter_store.set_album(album_name, artist_name)
+    
+    def _on_artist_selected(self, artist_name):
+        """Handle artist selection from ArtistsView.
+        
+        Args:
+            artist_name: Selected artist name (or None to clear)
+        """
+        if artist_name is None:
+            logger.info("Artist selection cleared")
+            self.window.filter_store.clear()
+        else:
+            logger.info(f"Artist selected: {artist_name}")
+            # Set artist filter in FilterStore (clears playlist filter per one-dimension rule)
+            self.window.filter_store.set_artist(artist_name)
+    
+    def _on_filter_store_changed(self, filter_state):
+        """Handle FilterStore state changes - update left panel selections (bidirectional sync).
+        
+        When FilterStore changes (e.g., via FilterBar dropdown), this updates the
+        corresponding left panel selection to maintain UI consistency.
+        
+        Uses QSignalBlocker in select_* methods to prevent re-emission loops.
+        
+        Args:
+            filter_state: Current FilterState from FilterStore
+        """
+        logger.debug(f"FilterStore changed: dimension={filter_state.active_dimension}")
+        
+        # Update left panel selection based on active dimension
+        if filter_state.active_dimension == 'playlist' and filter_state.playlist_name:
+            # Select playlist in left panel
+            if hasattr(self.window, 'playlists_tab'):
+                self.window.playlists_tab.select_playlist(filter_state.playlist_name)
+                logger.debug(f"Updated playlist selection: {filter_state.playlist_name}")
+        
+        elif filter_state.active_dimension == 'album' and filter_state.album_name:
+            # Select album in left panel
+            if hasattr(self.window, 'albums_view'):
+                self.window.albums_view.select_album(filter_state.album_name, filter_state.artist_name)
+                logger.debug(f"Updated album selection: {filter_state.album_name} by {filter_state.artist_name}")
+        
+        elif filter_state.active_dimension == 'artist' and filter_state.artist_name:
+            # Select artist in left panel
+            if hasattr(self.window, 'artists_view'):
+                self.window.artists_view.select_artist(filter_state.artist_name)
+                logger.debug(f"Updated artist selection: {filter_state.artist_name}")
+        
+        elif filter_state.is_cleared:
+            # Clear all left panel selections by clearing their selection models
+            if hasattr(self.window, 'playlists_tab'):
+                selection_model = self.window.playlists_tab.table_view.selectionModel()
+                if selection_model:
+                    with QSignalBlocker(selection_model):
+                        selection_model.clearSelection()
+            
+            if hasattr(self.window, 'albums_view'):
+                self.window.albums_view.table.clearSelection()
+            
+            if hasattr(self.window, 'artists_view'):
+                self.window.artists_view.table.clearSelection()
+            
+            logger.debug("Cleared all left panel selections")
+    
+    def set_playlist_filter_async(self, playlist_name: Optional[str]):
+        """Set playlist filter asynchronously to prevent UI freeze.
+        
+        Fetches track IDs for the playlist in a background thread,
+        then publishes to FilterStore on completion.
+        FilterStore emits filterChanged → UnifiedTracksView updates automatically.
         
         Args:
             playlist_name: Playlist name to filter by, or None to clear filter
         """
-        if playlist_name:
-            # Fetch track IDs for this playlist
-            track_ids = self.facade.get_track_ids_for_playlist(playlist_name)
-            self.window.unified_tracks_view.set_playlist_filter(playlist_name, track_ids)
-        else:
-            self.window.unified_tracks_view.set_playlist_filter(None, None)
+        if not playlist_name:
+            # Clear filter immediately (no async needed)
+            logger.info("Clearing playlist filter")
+            self.window.filter_store.clear()
+            return
+        
+        logger.info(f"set_playlist_filter_async called with: {playlist_name}")
+        
+        # Cancel any previous playlist filter loaders
+        # (Allow other loaders to continue - only cancel playlist filtering)
+        for loader in self._active_loaders[:]:  # Copy list to avoid modification during iteration
+            if hasattr(loader, '_is_playlist_filter') and loader._is_playlist_filter:
+                logger.debug("Cancelling previous playlist filter loader")
+                loader.stop()
+                loader.wait()
+                self._active_loaders.remove(loader)
+        
+        # Define async loading function using facade_factory for thread safety
+        load_funcs = {
+            'track_ids': lambda: self.facade_factory().get_track_ids_for_playlist(playlist_name)
+        }
+        
+        # Create async loader
+        loader = MultiAsyncLoader(load_funcs)
+        loader._is_playlist_filter = True  # Mark as playlist filter loader
+        loader._playlist_name = playlist_name  # Store playlist name for callback
+        
+        def on_loaded(results):
+            """Handle track IDs loaded successfully."""
+            track_ids = results.get('track_ids', [])
+            logger.info(f"Loaded {len(track_ids)} tracks for playlist '{playlist_name}'")
+            
+            # Publish to FilterStore (single source of truth)
+            # FilterStore will emit filterChanged → UnifiedTracksView.on_store_filter_changed()
+            self.window.filter_store.set_playlist(playlist_name, set(track_ids))
+            logger.debug(f"Published to FilterStore: {playlist_name}")
+            
+            # Clean up loader
+            if loader in self._active_loaders:
+                self._active_loaders.remove(loader)
+        
+        def on_error(error_msg):
+            """Handle loading error."""
+            logger.error(f"Failed to load playlist tracks: {error_msg}")
+            # Clean up loader
+            if loader in self._active_loaders:
+                self._active_loaders.remove(loader)
+        
+        loader.all_finished.connect(on_loaded)
+        loader.error.connect(on_error)
+        
+        # Track loader to prevent garbage collection
+        self._active_loaders.append(loader)
+        
+        # Start loading in background
+        loader.start()
+        logger.debug(f"Started async loading of track IDs for playlist: {playlist_name}")
+    
+    def set_playlist_filter(self, playlist_name: Optional[str]):
+        """Set playlist filter via FilterStore (single source of truth).
+        
+        DEPRECATED: Use set_playlist_filter_async() instead to prevent UI freeze.
+        Kept for backward compatibility with FilterBar handlers.
+        
+        Args:
+            playlist_name: Playlist name to filter by, or None to clear filter
+        """
+        # Delegate to async version
+        self.set_playlist_filter_async(playlist_name)
     # Action handlers
     
     def _execute_command(self, args: list, success_message: str, refresh_after: bool = True):

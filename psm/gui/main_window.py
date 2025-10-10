@@ -22,6 +22,8 @@ from .components.folder_delegate import FolderDelegate
 from .components.playlist_filter_bar import PlaylistFilterBar
 from .components.playlist_proxy_model import PlaylistProxyModel
 from .views import UnifiedTracksView, AlbumsView, ArtistsView
+from .tabs import PlaylistsTab
+from .state import FilterStore, FilterState
 from .models import (
     PlaylistsModel, PlaylistDetailModel, UnmatchedTracksModel,
     MatchedTracksModel, PlaylistCoverageModel, UnmatchedAlbumsModel,
@@ -35,8 +37,8 @@ class MainWindow(QMainWindow):
     """Main application window."""
     
     # Signals
-    on_playlist_selected = Signal(str)  # playlist_id
-    on_playlist_filter_requested = Signal(str)  # playlist_name for filtering unified tracks
+    # Legacy signals removed: on_playlist_selected, on_playlist_filter_requested
+    # FilterStore is now the single source of truth for filter state
     on_pull_clicked = Signal()
     on_scan_clicked = Signal()
     on_match_clicked = Signal()
@@ -80,6 +82,9 @@ class MainWindow(QMainWindow):
         self.unified_tracks_model = UnifiedTracksModel(self)
         self.albums_model = AlbumsModel(self)
         self.artists_model = ArtistsModel(self)
+        
+        # Create FilterStore BEFORE UI (UI components will wire to it)
+        self.filter_store = FilterStore(self)
         
         # Build UI
         self._create_ui()
@@ -192,101 +197,47 @@ class MainWindow(QMainWindow):
         return tab_widget
     
     def _create_playlists_tab(self) -> QWidget:
-        """Create the playlists tab content."""
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-        layout.setContentsMargins(5, 5, 5, 5)  # Add small margins
-        
-        # Add filter bar
+        """Create the playlists tab content using PlaylistsTab builder."""
+        # Create filter bar and proxy model (still owned by MainWindow for now)
         self.playlist_filter_bar = PlaylistFilterBar()
         self.playlist_filter_bar.filter_changed.connect(self._apply_playlist_filters)
         self.playlist_filter_bar.filter_options_needed.connect(self._populate_playlist_filter_options)
-        layout.addWidget(self.playlist_filter_bar)
         
-        # Create custom proxy model for filtering
         self.playlist_proxy_model = PlaylistProxyModel()
         self.playlist_proxy_model.setSourceModel(self.playlists_model)
         
-        # Create table view manually (not using SortFilterTable since we have custom proxy)
-        from PySide6.QtWidgets import QTableView, QHeaderView
-        self.playlists_table_view = QTableView()
-        self.playlists_table_view.setObjectName("playlistsTable")
-        self.playlists_table_view.setModel(self.playlist_proxy_model)
-        self.playlists_table_view.setSortingEnabled(True)
-        self.playlists_table_view.setSelectionBehavior(QTableView.SelectRows)
-        self.playlists_table_view.setSelectionMode(QTableView.SingleSelection)
+        # Create playlists tab using builder
+        playlists_tab = PlaylistsTab(
+            playlists_model=self.playlists_model,
+            playlist_proxy_model=self.playlist_proxy_model,
+            playlist_filter_bar=self.playlist_filter_bar,
+            parent=self
+        )
         
-        # Enable text eliding for long playlist names
-        self.playlists_table_view.setTextElideMode(Qt.ElideRight)
-        self.playlists_table_view.setWordWrap(False)
+        # Store reference to table view for external access
+        self.playlists_table_view = playlists_tab.table_view
         
-        # Set compact row height to match tracks table
-        self.playlists_table_view.verticalHeader().setDefaultSectionSize(22)
-        self.playlists_table_view.verticalHeader().setMinimumSectionSize(22)
+        # Store reference to buttons for external access
+        self.btn_pull = playlists_tab.btn_pull
+        self.btn_match = playlists_tab.btn_match
+        self.btn_export = playlists_tab.btn_export
+        self.btn_pull_one = playlists_tab.btn_pull_one
+        self.btn_match_one = playlists_tab.btn_match_one
+        self.btn_export_one = playlists_tab.btn_export_one
         
-        # Configure column resizing
-        header = self.playlists_table_view.horizontalHeader()
-        header.setStretchLastSection(True)
-        header.setSectionResizeMode(QHeaderView.Interactive)
+        # Connect tab signals to MainWindow signals
+        playlists_tab.selection_changed.connect(self._on_playlist_selection_changed)
+        playlists_tab.pull_all_clicked.connect(self.on_pull_clicked.emit)
+        playlists_tab.match_all_clicked.connect(self.on_match_clicked.emit)
+        playlists_tab.export_all_clicked.connect(self.on_export_clicked.emit)
+        playlists_tab.pull_one_clicked.connect(self.on_pull_one_clicked.emit)
+        playlists_tab.match_one_clicked.connect(self.on_match_one_clicked.emit)
+        playlists_tab.export_one_clicked.connect(self.on_export_one_clicked.emit)
         
-        # Set intelligent column widths for playlists
-        # Columns: Name, Owner, Coverage
-        self.playlists_table_view.setColumnWidth(0, 250)  # Name
-        self.playlists_table_view.setColumnWidth(1, 120)  # Owner
-        self.playlists_table_view.setColumnWidth(2, 120)  # Coverage
+        # Store tab reference
+        self.playlists_tab = playlists_tab
         
-        # Apply link delegate to Name column (column 0 = playlist link)
-        link_delegate = LinkDelegate(provider="spotify", parent=self.playlists_table_view)
-        self.playlists_table_view.setItemDelegateForColumn(0, link_delegate)
-        
-        # Enable mouse tracking for hover effects
-        self.playlists_table_view.setMouseTracking(True)
-        
-        # Connect selection signal
-        selection_model = self.playlists_table_view.selectionModel()
-        if selection_model:
-            selection_model.selectionChanged.connect(self._on_playlist_selection_changed)
-        
-        layout.addWidget(self.playlists_table_view)
-        
-        # Add playlist action buttons below the table
-        buttons_layout = QHBoxLayout()
-        buttons_layout.setSpacing(5)
-        
-        # Global playlist actions
-        self.btn_pull = QPushButton("Pull All")
-        self.btn_match = QPushButton("Match All")
-        self.btn_export = QPushButton("Export All")
-        
-        # Per-playlist actions
-        self.btn_pull_one = QPushButton("Pull Selected")
-        self.btn_match_one = QPushButton("Match Selected")
-        self.btn_export_one = QPushButton("Export Selected")
-        
-        # Add buttons to layout
-        buttons_layout.addWidget(self.btn_pull)
-        buttons_layout.addWidget(self.btn_match)
-        buttons_layout.addWidget(self.btn_export)
-        buttons_layout.addStretch()
-        buttons_layout.addWidget(self.btn_pull_one)
-        buttons_layout.addWidget(self.btn_match_one)
-        buttons_layout.addWidget(self.btn_export_one)
-        
-        layout.addLayout(buttons_layout)
-        
-        # Initially disable per-playlist actions
-        self.enable_playlist_actions(False)
-        
-        # Connect signals
-        self.btn_pull.clicked.connect(self.on_pull_clicked.emit)
-        self.btn_match.clicked.connect(self.on_match_clicked.emit)
-        self.btn_export.clicked.connect(self.on_export_clicked.emit)
-        
-        self.btn_pull_one.clicked.connect(self.on_pull_one_clicked.emit)
-        self.btn_match_one.clicked.connect(self.on_match_one_clicked.emit)
-        self.btn_export_one.clicked.connect(self.on_export_one_clicked.emit)
-        
-        return widget
+        return playlists_tab
     
     def _create_albums_tab(self) -> QWidget:
         """Create the albums tab content."""
@@ -322,6 +273,16 @@ class MainWindow(QMainWindow):
         self.unified_tracks_view = UnifiedTracksView(self.unified_tracks_model)
         # Note: Filter options are now populated on-demand from visible data
         layout.addWidget(self.unified_tracks_view)
+        
+        # Wire FilterStore to UnifiedTracksView (single source of truth)
+        self.filter_store.filterChanged.connect(self.unified_tracks_view.on_store_filter_changed)
+        
+        # Wire FilterBar user actions to FilterStore (bidirectional filtering)
+        # When user changes filter dropdowns, update FilterStore → emits filterChanged → view updates
+        filter_bar = self.unified_tracks_view.filter_bar
+        filter_bar.playlist_combo.currentTextChanged.connect(self._on_filterbar_playlist_changed)
+        filter_bar.artist_combo.currentTextChanged.connect(self._on_filterbar_artist_changed)
+        filter_bar.album_combo.currentTextChanged.connect(self._on_filterbar_album_changed)
         
         # Connect track selection to enable/disable track actions
         selection_model = self.unified_tracks_view.tracks_table.selectionModel()
@@ -527,7 +488,14 @@ class MainWindow(QMainWindow):
             albums: List of unique album names
             years: List of unique years
         """
-        self.unified_tracks_view.populate_filter_options(artists, albums, years)
+        # Get playlist names from playlists model
+        playlists = []
+        for row in range(self.playlists_model.rowCount()):
+            playlist_name = self.playlists_model.index(row, 0).data()
+            if playlist_name:
+                playlists.append(playlist_name)
+        
+        self.unified_tracks_view.populate_filter_options(playlists, artists, albums, years)
     
     def update_status_counts(self, counts: Dict[str, int]):
         """Update status bar with counts.
@@ -567,6 +535,14 @@ class MainWindow(QMainWindow):
     
     # UI state methods
     
+    def set_controller(self, controller):
+        """Set controller reference (called by app.py after controller creation).
+        
+        Args:
+            controller: MainController instance
+        """
+        self._controller = controller
+    
     def enable_actions(self, enabled: bool):
         """Enable/disable action buttons (except cancel button).
         
@@ -601,9 +577,16 @@ class MainWindow(QMainWindow):
         Args:
             enabled: True to enable, False to disable
         """
-        self.btn_pull_one.setEnabled(enabled)
-        self.btn_match_one.setEnabled(enabled)
-        self.btn_export_one.setEnabled(enabled)
+        if hasattr(self, 'playlists_tab'):
+            self.playlists_tab.enable_playlist_actions(enabled)
+        else:
+            # Fallback for initialization phase
+            if hasattr(self, 'btn_pull_one'):
+                self.btn_pull_one.setEnabled(enabled)
+            if hasattr(self, 'btn_match_one'):
+                self.btn_match_one.setEnabled(enabled)
+            if hasattr(self, 'btn_export_one'):
+                self.btn_export_one.setEnabled(enabled)
     
     def enable_track_actions(self, enabled: bool):
         """Enable/disable per-track action buttons.
@@ -638,7 +621,8 @@ class MainWindow(QMainWindow):
     def _on_playlist_selection_changed(self, selected, deselected):
         """Handle playlist selection change.
         
-        Simple behavior: Only show tracks when a playlist is selected.
+        UI-only handler: Tracks selection state and enables/disables buttons.
+        Does NOT publish to FilterStore - controller handles that via direct signal connection.
         
         Args:
             selected: QItemSelection of selected items
@@ -649,6 +633,9 @@ class MainWindow(QMainWindow):
         # query the selection model, which may not be fully updated when this signal fires
         
         if selected.isEmpty():
+            # No selection - track state and disable actions
+            self._selected_playlist_id = None
+            self.enable_playlist_actions(False)
             return
         
         proxy_indexes = selected.indexes()
@@ -675,16 +662,74 @@ class MainWindow(QMainWindow):
         if not playlist_data:
             return
         
-        # Playlist selected - apply filter to show only this playlist's tracks
+        # Track selected playlist ID for per-playlist actions (Pull Selected, etc.)
         self._selected_playlist_id = playlist_data.get('id')
-        playlist_name = playlist_data.get('name')
         
-        # Request filter via signal (controller will fetch track IDs)
-        self.on_playlist_filter_requested.emit(playlist_name)
+        # Enable per-playlist actions
+        self.enable_playlist_actions(True)
         
-        # Emit signal for other components
-        if self._selected_playlist_id:
-            self.on_playlist_selected.emit(self._selected_playlist_id)
+        # Note: Controller directly subscribes to PlaylistsTab.selection_changed
+        # and publishes to FilterStore asynchronously. No signals emitted here.
+    
+    def _on_filterbar_playlist_changed(self, playlist_name: str):
+        """Handle user changing playlist filter in FilterBar.
+        
+        Args:
+            playlist_name: Selected playlist name (or "All Playlists")
+        """
+        if playlist_name == "All Playlists" or not playlist_name:
+            # Clear playlist filter
+            self.filter_store.clear()
+        else:
+            # User selected a playlist from FilterBar - need to fetch track IDs
+            # This triggers async load in controller (will be implemented in Step 6)
+            # For now, synchronous (freeze still occurs)
+            logger.debug(f"FilterBar playlist changed to: {playlist_name}")
+            # Delegate to controller which will fetch track IDs and publish to FilterStore
+            if hasattr(self, '_controller'):
+                self._controller.set_playlist_filter(playlist_name)
+    
+    def _on_filterbar_artist_changed(self, artist_name: str):
+        """Handle user changing artist filter in FilterBar.
+        
+        Args:
+            artist_name: Selected artist name (or "All Artists")
+        """
+        if artist_name == "All Artists" or not artist_name:
+            # Clear artist filter (but keep playlist if set)
+            # If playlist is active, don't clear it; if artist/album was active, clear it
+            current_state = self.filter_store.state
+            if current_state.active_dimension in ("artist", "album"):
+                self.filter_store.clear()
+        else:
+            # Set artist filter (clears playlist filter per one-dimension rule)
+            logger.debug(f"FilterBar artist changed to: {artist_name}")
+            self.filter_store.set_artist(artist_name)
+    
+    def _on_filterbar_album_changed(self, album_name: str):
+        """Handle user changing album filter in FilterBar.
+        
+        Args:
+            album_name: Selected album name (or "All Albums")
+        """
+        if album_name == "All Albums" or not album_name:
+            # Clear album filter (but keep artist if set)
+            current_state = self.filter_store.state
+            if current_state.active_dimension == "artist" and current_state.artist_name:
+                # Keep artist-only filter
+                self.filter_store.set_artist(current_state.artist_name)
+            else:
+                self.filter_store.clear()
+        else:
+            # Need artist context to set album filter
+            # Get current artist selection from FilterBar
+            artist_name = self.unified_tracks_view.filter_bar.get_artist_filter()
+            if artist_name and artist_name != "All Artists":
+                logger.debug(f"FilterBar album changed to: {album_name} (artist: {artist_name})")
+                self.filter_store.set_album(album_name, artist_name)
+            else:
+                # No artist selected - album filter alone not supported (need artist context)
+                logger.warning(f"Album filter '{album_name}' requires artist selection - ignoring")
     
     def _on_track_selection_changed(self, selected, deselected):
         """Handle track selection change.

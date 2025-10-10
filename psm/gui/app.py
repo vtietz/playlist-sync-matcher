@@ -99,6 +99,9 @@ def main() -> int:
         # Create controller (wires everything together and loads data)
         controller = MainController(window, facade, executor, facade_factory)
         
+        # Store controller reference in window (for FilterBar -> Controller communication)
+        window.set_controller(controller)
+        
         # Show window
         window.show()
         

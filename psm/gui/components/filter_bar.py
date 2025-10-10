@@ -10,7 +10,7 @@ from typing import Optional, List
 from PySide6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel, QComboBox
 )
-from PySide6.QtCore import Signal, Qt
+from PySide6.QtCore import Signal, Qt, QSignalBlocker
 import logging
 
 from .debounced_search_field import DebouncedSearchField
@@ -58,6 +58,16 @@ class FilterBar(QWidget):
         self.track_status_combo = QComboBox()
         self.track_status_combo.addItems(["All Tracks", "Matched", "Unmatched"])
         self.track_status_combo.currentIndexChanged.connect(self._on_filter_changed)
+        
+        self.playlist_combo = QComboBox()
+        self.playlist_combo.addItem("All Playlists")
+        self.playlist_combo.currentIndexChanged.connect(self._on_filter_changed)
+        # Load filter options when user clicks the dropdown
+        original_playlist_showPopup = self.playlist_combo.showPopup
+        def playlist_showPopup():
+            self.filter_options_needed.emit()
+            original_playlist_showPopup()
+        self.playlist_combo.showPopup = playlist_showPopup
         
         self.artist_combo = QComboBox()
         self.artist_combo.addItem("All Artists")
@@ -112,6 +122,9 @@ class FilterBar(QWidget):
         # First row: Status and metadata filters
         row1_layout = QHBoxLayout()
         row1_layout.setSpacing(10)
+        
+        row1_layout.addWidget(QLabel("Playlist:"))
+        row1_layout.addWidget(self.playlist_combo)
         
         row1_layout.addWidget(QLabel("Artist:"))
         row1_layout.addWidget(self.artist_combo)
@@ -168,6 +181,15 @@ class FilterBar(QWidget):
         """
         return self.search_field.text().strip()
     
+    def get_playlist_filter(self) -> Optional[str]:
+        """Get selected playlist filter.
+        
+        Returns:
+            Playlist name or None if "All Playlists" selected
+        """
+        text = self.playlist_combo.currentText()
+        return None if text == "All Playlists" else text
+    
     def get_artist_filter(self) -> Optional[str]:
         """Get selected artist filter.
         
@@ -220,6 +242,7 @@ class FilterBar(QWidget):
     
     def populate_filter_options(
         self,
+        playlists: List[str],
         artists: List[str],
         albums: List[str],
         years: List[int]
@@ -227,16 +250,22 @@ class FilterBar(QWidget):
         """Populate filter dropdown options from data.
         
         Args:
+            playlists: List of unique playlist names
             artists: List of unique artist names
             albums: List of unique album names
             years: List of unique years
         """
         # Store current selections
+        current_playlist = self.playlist_combo.currentText()
         current_artist = self.artist_combo.currentText()
         current_album = self.album_combo.currentText()
         current_year = self.year_combo.currentText()
         
         # Clear and repopulate
+        self.playlist_combo.clear()
+        self.playlist_combo.addItem("All Playlists")
+        self.playlist_combo.addItems(sorted(playlists))
+        
         self.artist_combo.clear()
         self.artist_combo.addItem("All Artists")
         self.artist_combo.addItems(sorted(artists))
@@ -251,6 +280,10 @@ class FilterBar(QWidget):
         self.year_combo.addItems([str(y) for y in sorted(years, reverse=True)])
         
         # Restore selections if they still exist
+        playlist_idx = self.playlist_combo.findText(current_playlist)
+        if playlist_idx >= 0:
+            self.playlist_combo.setCurrentIndex(playlist_idx)
+        
         artist_idx = self.artist_combo.findText(current_artist)
         if artist_idx >= 0:
             self.artist_combo.setCurrentIndex(artist_idx)
@@ -266,9 +299,82 @@ class FilterBar(QWidget):
     def clear_filters(self):
         """Reset all filters to default state."""
         self.track_status_combo.setCurrentIndex(0)
+        self.playlist_combo.setCurrentIndex(0)
         self.artist_combo.setCurrentIndex(0)
         self.album_combo.setCurrentIndex(0)
         self.year_combo.setCurrentIndex(0)
         self.confidence_combo.setCurrentIndex(0)
         self.quality_combo.setCurrentIndex(0)
         self.search_field.clear()
+    
+    def set_playlist_filter(self, playlist_name: Optional[str]):
+        """Programmatically set playlist filter (for bidirectional sync).
+        
+        Idempotent: No-op if current selection already matches target.
+        Uses QSignalBlocker to prevent re-emission loops.
+        
+        Args:
+            playlist_name: Playlist name to select, or None to clear
+        """
+        target_text = playlist_name if playlist_name else "All Playlists"
+        
+        # Idempotency check - avoid redundant updates
+        if self.playlist_combo.currentText() == target_text:
+            return
+        
+        # Block signals during programmatic update
+        with QSignalBlocker(self.playlist_combo):
+            if playlist_name:
+                idx = self.playlist_combo.findText(playlist_name)
+                if idx >= 0:
+                    self.playlist_combo.setCurrentIndex(idx)
+            else:
+                self.playlist_combo.setCurrentIndex(0)
+    
+    def set_artist_filter(self, artist_name: Optional[str]):
+        """Programmatically set artist filter (for bidirectional sync).
+        
+        Idempotent: No-op if current selection already matches target.
+        Uses QSignalBlocker to prevent re-emission loops.
+        
+        Args:
+            artist_name: Artist name to select, or None to clear
+        """
+        target_text = artist_name if artist_name else "All Artists"
+        
+        # Idempotency check - avoid redundant updates
+        if self.artist_combo.currentText() == target_text:
+            return
+        
+        # Block signals during programmatic update
+        with QSignalBlocker(self.artist_combo):
+            if artist_name:
+                idx = self.artist_combo.findText(artist_name)
+                if idx >= 0:
+                    self.artist_combo.setCurrentIndex(idx)
+            else:
+                self.artist_combo.setCurrentIndex(0)
+    
+    def set_album_filter(self, album_name: Optional[str]):
+        """Programmatically set album filter (for bidirectional sync).
+        
+        Idempotent: No-op if current selection already matches target.
+        Uses QSignalBlocker to prevent re-emission loops.
+        
+        Args:
+            album_name: Album name to select, or None to clear
+        """
+        target_text = album_name if album_name else "All Albums"
+        
+        # Idempotency check - avoid redundant updates
+        if self.album_combo.currentText() == target_text:
+            return
+        
+        # Block signals during programmatic update
+        with QSignalBlocker(self.album_combo):
+            if album_name:
+                idx = self.album_combo.findText(album_name)
+                if idx >= 0:
+                    self.album_combo.setCurrentIndex(idx)
+            else:
+                self.album_combo.setCurrentIndex(0)

@@ -348,6 +348,29 @@ class DataFacade:
         """
         return self.db.get_track_ids_for_playlist(playlist_name, provider=self._provider)
     
+    def get_artist_for_album(self, album_name: str) -> Optional[str]:
+        """Get the primary artist name for a given album.
+        
+        Args:
+            album_name: Album name to look up
+            
+        Returns:
+            Artist name for this album, or None if not found.
+            If album has multiple artists, returns the most common one.
+        """
+        rows = self.db.conn.execute("""
+            SELECT artist, COUNT(*) as track_count
+            FROM tracks
+            WHERE album = ? AND provider = ? AND artist IS NOT NULL
+            GROUP BY artist
+            ORDER BY track_count DESC
+            LIMIT 1
+        """, (album_name, self._provider)).fetchall()
+        
+        if rows:
+            return rows[0]['artist']
+        return None
+    
     def get_unique_owners(self) -> List[str]:
         """Get list of unique playlist owners.
         
