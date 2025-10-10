@@ -344,9 +344,9 @@ class MainController(QObject):
                 # No sort indicator and no pending sort - apply default
                 view.tracks_table.sortByColumn(0, Qt.AscendingOrder)  # Sort by Track name A-Z
             
-            # Resize columns if dataset is small enough
-            if total_count <= 1000:
-                view.resize_columns_to_contents()
+            # Disabled: Don't auto-resize columns - preserve user's column widths
+            # if total_count <= 1000:
+            #     view.resize_columns_to_contents()
             
             # Clear execution status
             self.window.set_execution_status(False)

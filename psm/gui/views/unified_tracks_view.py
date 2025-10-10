@@ -345,11 +345,18 @@ class UnifiedTracksView(QWidget):
         Only performs resize for small datasets to avoid performance hit.
         For large datasets, relies on initial column widths and user resizing.
         """
-        # Gate resizing for large datasets (> 1000 rows visible)
+        # Disabled: Don't auto-resize columns - preserve user's column widths
+        # Performance: Gate resizing for large datasets (> 1000 rows visible)
         if self.proxy_model.rowCount() > 1000:
             logger.debug(f"Skipping resizeColumnsToContents for {self.proxy_model.rowCount()} rows (performance)")
             return
         
+        # Disabled: Auto-resize interferes with saved column widths
+        # User column widths are now preserved and restored from settings
+        logger.debug(f"Skipping resizeColumnsToContents - preserving user column widths")
+        return
+        
+        # DISABLED CODE BELOW - kept for reference
         # Only resize if we have data, otherwise keep initial widths
         if self.proxy_model.rowCount() > 0:
             self.tracks_table.resizeColumnsToContents()

@@ -114,10 +114,8 @@ class ModelCoordinator(QObject):
         if self._playlists_table_view is None:
             return
         
-        # Resize columns to fit content
-        self._playlists_table_view.resizeColumnsToContents()
-        
-        # Restore preferred column widths (resizeColumnsToContents might make them too wide)
+        # Don't auto-resize columns - preserve user's column widths
+        # Only set minimum widths if columns are too narrow
         self._playlists_table_view.setColumnWidth(0, max(250, self._playlists_table_view.columnWidth(0)))
         self._playlists_table_view.setColumnWidth(1, max(120, self._playlists_table_view.columnWidth(1)))
         
@@ -222,5 +220,5 @@ class ModelCoordinator(QObject):
         if self._unified_tracks_view is None:
             return
         
-        # Resize columns to fit content
-        self._unified_tracks_view.resize_columns_to_contents()
+        # Disabled: Don't auto-resize columns - preserve user's column widths
+        # self._unified_tracks_view.resize_columns_to_contents()

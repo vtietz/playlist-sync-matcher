@@ -162,6 +162,11 @@ class MainWindow(QMainWindow):
         main_splitter.setStretchFactor(0, 1)
         main_splitter.setStretchFactor(1, 2)
         
+        # Set explicit size constraints to allow flexible resizing
+        # This allows the splitter to resize beyond the table's "preferred" width
+        main_splitter.setCollapsible(0, False)  # Left panel shouldn't collapse completely
+        main_splitter.setCollapsible(1, False)  # Right panel shouldn't collapse completely
+        
         # Store reference for later size adjustments
         self.main_splitter = main_splitter
         
@@ -250,6 +255,10 @@ class MainWindow(QMainWindow):
         # Create tab widget
         tab_widget = QTabWidget()
         tab_widget.setObjectName("rightTabs")
+        
+        # Set minimum width to allow more flexible splitter resizing
+        # This overrides Qt's calculated minimum based on table columns
+        tab_widget.setMinimumWidth(200)
         
         # Tab 1: Tracks
         tracks_tab = self._create_tracks_tab()
