@@ -498,7 +498,8 @@ class DataFacade:
         """Get all albums with aggregated statistics.
         
         Returns:
-            List of dicts with album, artist, track_count, playlist_count, coverage, relevance.
+            List of dicts with album, artist, album_id, artist_id, track_count, 
+            playlist_count, coverage, relevance.
             Coverage format: "75% (75/100)" (percentage of matched tracks).
             Relevance = track_count * (100 - coverage%) / 100 (high tracks + low coverage = high relevance)
         """
@@ -506,6 +507,8 @@ class DataFacade:
             SELECT 
                 t.album,
                 t.artist,
+                MAX(t.album_id) as album_id,
+                MAX(t.artist_id) as artist_id,
                 COUNT(DISTINCT t.id) as track_count,
                 COUNT(DISTINCT pt.playlist_id) as playlist_count,
                 COUNT(DISTINCT CASE WHEN m.track_id IS NOT NULL THEN t.id END) as matched_count
@@ -532,6 +535,8 @@ class DataFacade:
             results.append({
                 'album': row['album'],
                 'artist': row['artist'],
+                'album_id': row['album_id'],
+                'artist_id': row['artist_id'],
                 'track_count': track_count,
                 'playlist_count': row['playlist_count'],
                 'coverage': coverage,
@@ -544,13 +549,15 @@ class DataFacade:
         """Get all artists with aggregated statistics.
         
         Returns:
-            List of dicts with artist, track_count, album_count, playlist_count, coverage, relevance.
+            List of dicts with artist, artist_id, track_count, album_count, 
+            playlist_count, coverage, relevance.
             Coverage format: "75% (75/100)" (percentage of matched tracks).
             Relevance = track_count * (100 - coverage%) / 100 (high tracks + low coverage = high relevance)
         """
         rows = self.db.conn.execute("""
             SELECT 
                 t.artist,
+                MAX(t.artist_id) as artist_id,
                 COUNT(DISTINCT t.id) as track_count,
                 COUNT(DISTINCT t.album) as album_count,
                 COUNT(DISTINCT pt.playlist_id) as playlist_count,
@@ -576,6 +583,7 @@ class DataFacade:
             
             results.append({
                 'artist': row['artist'],
+                'artist_id': row['artist_id'],
                 'track_count': track_count,
                 'album_count': row['album_count'],
                 'playlist_count': row['playlist_count'],

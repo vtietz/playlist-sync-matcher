@@ -151,22 +151,78 @@ class MainWindow(QMainWindow):
         toolbar.setMovable(False)
         self.addToolBar(toolbar)
         
-        # General library/system actions
-        self.btn_scan = QPushButton("Scan Library")
-        self.btn_build = QPushButton("Build")
-        self.btn_analyze = QPushButton("Analyze Quality")
-        self.btn_report = QPushButton("Generate Reports")
-        self.btn_open_reports = QPushButton("Open Reports")
+        # Left side: Build and workflow step buttons
+        self.btn_build = QPushButton("▶️  Build (all steps)")
+        self.btn_build.setToolTip("Run all steps: Pull, Scan, Match, Report, Export")
+        self.btn_build.setStyleSheet("""
+            QPushButton {
+                background-color: #1a73e8;
+                color: white;
+                padding: 8px 16px;
+                font-weight: bold;
+                border-radius: 4px;
+                border: none;
+            }
+            QPushButton:hover {
+                background-color: #1557b0;
+            }
+            QPushButton:disabled {
+                background-color: #e0e0e0;
+                color: #9e9e9e;
+            }
+        """)
         
-        # Watch mode toggle
-        self.btn_watch = QPushButton("Start Watch Mode")
-        self.btn_watch.setCheckable(True)
+        # Individual step buttons in darker blue
+        self.btn_pull = QPushButton("⬇️  Pull")
+        self.btn_pull.setToolTip("Pull playlists from Spotify")
         
-        # Add to toolbar
-        toolbar.addWidget(self.btn_scan)
+        self.btn_scan = QPushButton("🔍  Scan")
+        self.btn_scan.setToolTip("Scan local music library")
+        
+        self.btn_match = QPushButton("🎯  Match")
+        self.btn_match.setToolTip("Match Spotify tracks with local files")
+        
+        self.btn_report = QPushButton("📊  Report")
+        self.btn_report.setToolTip("Generate matching reports")
+        
+        self.btn_export = QPushButton("💾  Export")
+        self.btn_export.setToolTip("Export playlists to M3U files")
+        
+        # Style for individual step buttons (darker blue, same as Scan)
+        step_button_style = """
+            QPushButton {
+                background-color: #0d47a1;
+                color: white;
+                padding: 6px 12px;
+                font-weight: normal;
+                border-radius: 4px;
+                border: none;
+            }
+            QPushButton:hover {
+                background-color: #0a3777;
+            }
+            QPushButton:disabled {
+                background-color: #e0e0e0;
+                color: #9e9e9e;
+            }
+        """
+        self.btn_pull.setStyleSheet(step_button_style)
+        self.btn_scan.setStyleSheet(step_button_style)
+        self.btn_match.setStyleSheet(step_button_style)
+        self.btn_report.setStyleSheet(step_button_style)
+        self.btn_export.setStyleSheet(step_button_style)
+        
+        # Open Reports button (keep original style)
+        self.btn_open_reports = QPushButton("📁  Open Reports")
+        self.btn_open_reports.setToolTip("Open reports folder")
+        
+        # Add left-side buttons to toolbar
         toolbar.addWidget(self.btn_build)
-        toolbar.addWidget(self.btn_analyze)
+        toolbar.addWidget(self.btn_pull)
+        toolbar.addWidget(self.btn_scan)
+        toolbar.addWidget(self.btn_match)
         toolbar.addWidget(self.btn_report)
+        toolbar.addWidget(self.btn_export)
         toolbar.addWidget(self.btn_open_reports)
         
         # Add spacer to push Watch Mode button to the right
@@ -174,13 +230,20 @@ class MainWindow(QMainWindow):
         spacer.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         toolbar.addWidget(spacer)
         
+        # Right side: Watch Mode
+        self.btn_watch = QPushButton("👁️  Watch Mode")
+        self.btn_watch.setCheckable(True)
+        self.btn_watch.setToolTip("Toggle Watch Mode - automatically rebuild when files change")
+        
         toolbar.addWidget(self.btn_watch)
         
         # Connect signals
-        self.btn_scan.clicked.connect(self.on_scan_clicked.emit)
         self.btn_build.clicked.connect(self.on_build_clicked.emit)
-        self.btn_analyze.clicked.connect(self.on_analyze_clicked.emit)
+        self.btn_pull.clicked.connect(self.on_pull_clicked.emit)
+        self.btn_scan.clicked.connect(self.on_scan_clicked.emit)
+        self.btn_match.clicked.connect(self.on_match_clicked.emit)
         self.btn_report.clicked.connect(self.on_report_clicked.emit)
+        self.btn_export.clicked.connect(self.on_export_clicked.emit)
         self.btn_open_reports.clicked.connect(self.on_open_reports_clicked.emit)
         self.btn_watch.toggled.connect(self._on_watch_button_toggled)
     
@@ -225,19 +288,15 @@ class MainWindow(QMainWindow):
         # Store reference to table view for external access
         self.playlists_table_view = playlists_tab.table_view
         
-        # Store reference to buttons for external access
-        self.btn_pull = playlists_tab.btn_pull
-        self.btn_match = playlists_tab.btn_match
-        self.btn_export = playlists_tab.btn_export
+        # Store reference to "selected playlist" buttons for external access
+        # Note: "All" buttons (Pull, Match, Export) are now in the main toolbar
         self.btn_pull_one = playlists_tab.btn_pull_one
         self.btn_match_one = playlists_tab.btn_match_one
         self.btn_export_one = playlists_tab.btn_export_one
         
         # Connect tab signals to MainWindow signals
         playlists_tab.selection_changed.connect(self._on_playlist_selection_changed)
-        playlists_tab.pull_all_clicked.connect(self.on_pull_clicked.emit)
-        playlists_tab.match_all_clicked.connect(self.on_match_clicked.emit)
-        playlists_tab.export_all_clicked.connect(self.on_export_clicked.emit)
+        # Note: Pull All, Match All, Export All are handled by toolbar buttons directly
         playlists_tab.pull_one_clicked.connect(self.on_pull_one_clicked.emit)
         playlists_tab.match_one_clicked.connect(self.on_match_one_clicked.emit)
         playlists_tab.export_one_clicked.connect(self.on_export_one_clicked.emit)
@@ -581,18 +640,15 @@ class MainWindow(QMainWindow):
         self._is_running = not enabled
         logger.debug(f"enable_actions called: enabled={enabled}, _is_running={self._is_running}")
         
-        # Toolbar buttons
-        self.btn_scan.setEnabled(enabled)
+        # Toolbar buttons - all workflow buttons
         self.btn_build.setEnabled(enabled)
-        self.btn_analyze.setEnabled(enabled)
+        self.btn_pull.setEnabled(enabled)
+        self.btn_scan.setEnabled(enabled)
+        self.btn_match.setEnabled(enabled)
         self.btn_report.setEnabled(enabled)
+        self.btn_export.setEnabled(enabled)
         self.btn_watch.setEnabled(enabled)
         # Note: btn_open_reports stays enabled (no CLI execution)
-        
-        # Playlist action buttons
-        self.btn_pull.setEnabled(enabled)
-        self.btn_match.setEnabled(enabled)
-        self.btn_export.setEnabled(enabled)
         
         # Per-playlist actions only if playlist selected
         if enabled and self._selected_playlist_id:
@@ -868,7 +924,7 @@ class MainWindow(QMainWindow):
             playlists_widths.append(playlists_header.sectionSize(col))
         self.settings.setValue("playlistsColumnWidths", playlists_widths)
         self.settings.setValue("playlistsSortColumn", playlists_header.sortIndicatorSection())
-        self.settings.setValue("playlistsSortOrder", int(playlists_header.sortIndicatorOrder()))
+        self.settings.setValue("playlistsSortOrder", playlists_header.sortIndicatorOrder().value)
         
         # Save unified tracks table column widths and sort state
         tracks_header = self.unified_tracks_view.tracks_table.horizontalHeader()
@@ -877,7 +933,7 @@ class MainWindow(QMainWindow):
             tracks_widths.append(tracks_header.sectionSize(col))
         self.settings.setValue("tracksColumnWidths", tracks_widths)
         self.settings.setValue("tracksSortColumn", tracks_header.sortIndicatorSection())
-        self.settings.setValue("tracksSortOrder", int(tracks_header.sortIndicatorOrder()))
+        self.settings.setValue("tracksSortOrder", tracks_header.sortIndicatorOrder().value)
         
         # Save albums table column widths and sort state
         if hasattr(self, 'albums_view'):
@@ -887,7 +943,7 @@ class MainWindow(QMainWindow):
                 albums_widths.append(albums_header.sectionSize(col))
             self.settings.setValue("albumsColumnWidths", albums_widths)
             self.settings.setValue("albumsSortColumn", albums_header.sortIndicatorSection())
-            self.settings.setValue("albumsSortOrder", int(albums_header.sortIndicatorOrder()))
+            self.settings.setValue("albumsSortOrder", albums_header.sortIndicatorOrder().value)
         
         # Save artists table column widths and sort state
         if hasattr(self, 'artists_view'):
@@ -897,7 +953,7 @@ class MainWindow(QMainWindow):
                 artists_widths.append(artists_header.sectionSize(col))
             self.settings.setValue("artistsColumnWidths", artists_widths)
             self.settings.setValue("artistsSortColumn", artists_header.sortIndicatorSection())
-            self.settings.setValue("artistsSortOrder", int(artists_header.sortIndicatorOrder()))
+            self.settings.setValue("artistsSortOrder", artists_header.sortIndicatorOrder().value)
         
         logger.info("Window state saved")
     

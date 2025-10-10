@@ -173,6 +173,11 @@ class AlbumsView(QWidget):
         # Enable mouse tracking for hover effects
         self.table.setMouseTracking(True)
         
+        # Set up link delegates for clickable album and artist names
+        link_delegate = LinkDelegate(provider="spotify", parent=self.table)
+        self.table.setItemDelegateForColumn(0, link_delegate)  # Album
+        self.table.setItemDelegateForColumn(1, link_delegate)  # Artist
+        
         # Connect selection signal
         selection_model = self.table.selectionModel()
         if selection_model:

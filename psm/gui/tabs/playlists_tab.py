@@ -24,9 +24,6 @@ class PlaylistsTab(QWidget):
     
     Signals:
         selection_changed(QItemSelection, QItemSelection): Emitted when playlist selection changes (selected, deselected)
-        pull_all_clicked: Pull all playlists
-        match_all_clicked: Match all playlists
-        export_all_clicked: Export all playlists
         pull_one_clicked: Pull selected playlist
         match_one_clicked: Match selected playlist
         export_one_clicked: Export selected playlist
@@ -34,9 +31,6 @@ class PlaylistsTab(QWidget):
     
     # Signals
     selection_changed = Signal(QItemSelection, QItemSelection)  # selected, deselected
-    pull_all_clicked = Signal()
-    match_all_clicked = Signal()
-    export_all_clicked = Signal()
     pull_one_clicked = Signal()
     match_one_clicked = Signal()
     export_one_clicked = Signal()
@@ -130,20 +124,12 @@ class PlaylistsTab(QWidget):
         buttons_layout = QHBoxLayout()
         buttons_layout.setSpacing(5)
         
-        # Global playlist actions
-        self.btn_pull = QPushButton("Pull All")
-        self.btn_match = QPushButton("Match All")
-        self.btn_export = QPushButton("Export All")
-        
         # Per-playlist actions
         self.btn_pull_one = QPushButton("Pull Selected")
         self.btn_match_one = QPushButton("Match Selected")
         self.btn_export_one = QPushButton("Export Selected")
         
         # Add buttons to layout
-        buttons_layout.addWidget(self.btn_pull)
-        buttons_layout.addWidget(self.btn_match)
-        buttons_layout.addWidget(self.btn_export)
         buttons_layout.addStretch()
         buttons_layout.addWidget(self.btn_pull_one)
         buttons_layout.addWidget(self.btn_match_one)
@@ -153,10 +139,6 @@ class PlaylistsTab(QWidget):
         self.enable_playlist_actions(False)
         
         # Connect signals
-        self.btn_pull.clicked.connect(self.pull_all_clicked.emit)
-        self.btn_match.clicked.connect(self.match_all_clicked.emit)
-        self.btn_export.clicked.connect(self.export_all_clicked.emit)
-        
         self.btn_pull_one.clicked.connect(self.pull_one_clicked.emit)
         self.btn_match_one.clicked.connect(self.match_one_clicked.emit)
         self.btn_export_one.clicked.connect(self.export_one_clicked.emit)

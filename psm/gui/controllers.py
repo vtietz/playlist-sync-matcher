@@ -748,7 +748,7 @@ class MainController(QObject):
         
         try:
             config = load_config()
-            reports_dir = Path(config['reports']['directory'])
+            reports_dir = Path(config['reports']['directory']).resolve()  # Convert to absolute path
             index_file = reports_dir / 'index.html'
             
             if not reports_dir.exists():
