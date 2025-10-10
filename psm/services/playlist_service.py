@@ -20,6 +20,7 @@ from ..db import Database, DatabaseInterface
 from ..utils.normalization import normalize_title_artist
 from ..match.matching_engine import MatchingEngine
 from ..export.playlists import export_strict, export_mirrored, export_placeholders, sanitize_filename
+from .export_service import _resolve_export_dir
 
 logger = logging.getLogger(__name__)
 
@@ -209,17 +210,18 @@ def export_single_playlist(
     playlist_id: str,
     export_config: Dict[str, Any],
     organize_by_owner: bool = False,
-    current_user_id: str | None = None
+    current_user_id: str | None = None,
+    library_paths: list[str] | None = None
 ) -> SinglePlaylistResult:
     """Export a single playlist to M3U file.
     
     Args:
         db: Database instance
         playlist_id: Spotify playlist ID to export
-        export_config: Export configuration (mode, directory, placeholder_extension)
+        export_config: Export configuration (mode, directory, placeholder_extension, path_format, use_library_roots)
         organize_by_owner: Organize playlists by owner
         current_user_id: Current user ID (for owner organization)
-        verbose: Enable verbose logging
+        library_paths: Library root paths from config (for path reconstruction)
         
     Returns:
         SinglePlaylistResult with export path
@@ -241,25 +243,24 @@ def export_single_playlist(
     export_dir = Path(export_config['directory'])
     mode = export_config.get('mode', 'strict')
     placeholder_ext = export_config.get('placeholder_extension', '.missing')
+    path_format = export_config.get('path_format', 'absolute')
+    use_library_roots = export_config.get('use_library_roots', True)
+    
+    # Prepare library roots for path reconstruction (if enabled)
+    library_roots_param = library_paths if (use_library_roots and library_paths) else None
     
     # Get current user ID from metadata if not provided
     if organize_by_owner and current_user_id is None:
         current_user_id = db.get_meta('current_user_id')
     
-    # Determine target directory
-    owner_id = pl.owner_id
-    owner_name = pl.owner_name
-    
-    if organize_by_owner:
-        if owner_id and owner_id == current_user_id:
-            target_dir = export_dir / 'my_playlists'
-        elif owner_name:
-            folder_name = sanitize_filename(owner_name)
-            target_dir = export_dir / folder_name
-        else:
-            target_dir = export_dir / 'other'
-    else:
-        target_dir = export_dir
+    # Determine target directory using consistent resolution logic
+    target_dir = _resolve_export_dir(
+        export_dir,
+        organize_by_owner,
+        pl.owner_id,
+        pl.owner_name,
+        current_user_id
+    )
     
     # Fetch tracks with local paths using repository method (provider-aware, best match only)
     provider = 'spotify'  # TODO: Make configurable when adding multi-provider support
@@ -267,21 +268,18 @@ def export_single_playlist(
     tracks = [dict(r) | {'position': r['position']} for r in track_rows]
     playlist_meta = {'name': pl.name, 'id': playlist_id}
     
-    # Dispatch to export function based on mode
+    # Dispatch to export function based on mode (with path format and library roots)
     if mode == 'strict':
-        export_strict(playlist_meta, tracks, target_dir)
+        actual_path = export_strict(playlist_meta, tracks, target_dir, path_format, library_roots_param)
     elif mode == 'mirrored':
-        export_mirrored(playlist_meta, tracks, target_dir)
+        actual_path = export_mirrored(playlist_meta, tracks, target_dir, path_format, library_roots_param)
     elif mode == 'placeholders':
-        export_placeholders(playlist_meta, tracks, target_dir, placeholder_extension=placeholder_ext)
+        actual_path = export_placeholders(playlist_meta, tracks, target_dir, placeholder_ext, path_format, library_roots_param)
     else:
         logger.warning(f"Unknown export mode '{mode}', defaulting to strict")
-        export_strict(playlist_meta, tracks, target_dir)
+        actual_path = export_strict(playlist_meta, tracks, target_dir, path_format, library_roots_param)
     
-    # Ensure directory exists (export_* helpers may create, but defensive here)
-    target_dir.mkdir(parents=True, exist_ok=True)
-    safe_name = sanitize_filename(pl.name)
-    result.exported_file = str(target_dir / f"{safe_name}.m3u")
+    result.exported_file = str(actual_path)
     result.tracks_processed = len(tracks)
     result.duration_seconds = time.time() - start
     
@@ -326,7 +324,15 @@ def build_single_playlist(
     # Export
     organize_by_owner = config['export'].get('organize_by_owner', False)
     current_user_id = db.get_meta('current_user_id') if organize_by_owner else None
-    export_result = export_single_playlist(db, playlist_id, config['export'], organize_by_owner, current_user_id)
+    library_paths = config.get('library', {}).get('paths', [])
+    export_result = export_single_playlist(
+        db, 
+        playlist_id, 
+        config['export'], 
+        organize_by_owner, 
+        current_user_id, 
+        library_paths
+    )
     result.exported_file = export_result.exported_file
     
     result.duration_seconds = time.time() - start

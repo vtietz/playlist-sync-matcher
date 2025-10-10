@@ -58,9 +58,17 @@ def playlist_export(ctx: click.Context, playlist_id: str):
     """Export a single playlist to M3U file."""
     cfg = ctx.obj
     organize_by_owner = cfg['export'].get('organize_by_owner', False)
+    library_paths = cfg.get('library', {}).get('paths', [])
     with get_db(cfg) as db:
         current_user_id = db.get_meta('current_user_id') if organize_by_owner else None
-        result = export_single_playlist(db=db, playlist_id=playlist_id, export_config=cfg['export'], organize_by_owner=organize_by_owner, current_user_id=current_user_id)
+        result = export_single_playlist(
+            db=db, 
+            playlist_id=playlist_id, 
+            export_config=cfg['export'], 
+            organize_by_owner=organize_by_owner, 
+            current_user_id=current_user_id, 
+            library_paths=library_paths
+        )
     click.echo(f"Exported playlist '{result.playlist_name}' ({result.playlist_id})")
     click.echo(f"File: {result.exported_file}")
     logger.debug(f"Duration: {result.duration_seconds:.2f}s")
