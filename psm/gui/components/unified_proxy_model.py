@@ -199,7 +199,7 @@ class UnifiedTracksProxyModel(QSortFilterProxyModel):
     def filterAcceptsRow(self, source_row: int, source_parent) -> bool:
         """Determine if row passes all filter criteria.
         
-        Optimized to use UserRole for raw values and cached column indices.
+        Optimized with fast-path for "no filters active" and direct dict access.
         
         Args:
             source_row: Row index in source model
@@ -213,98 +213,90 @@ class UnifiedTracksProxyModel(QSortFilterProxyModel):
             return True
         
         try:
-            # Early exit: Filter by playlist (check track ID via get_row_data)
+            # FAST PATH: If no filters are active, accept immediately
+            # This avoids ALL expensive data() calls when showing "All Songs"
+            if (self._playlist_track_ids is None and
+                self._status_filter == "all" and
+                not self._artist_filter and
+                not self._album_filter and
+                self._year_filter is None and
+                not self._confidence_filter and
+                not self._quality_filter and
+                not self._search_text):
+                return True
+            
+            # Get row data once (direct dict access - much faster than repeated data() calls)
+            row_data = None
+            if hasattr(source_model, 'get_row_data'):
+                row_data = source_model.get_row_data(source_row)
+                if not row_data:
+                    return True  # If no data, show the row
+            
+            # Early exit: Filter by playlist (check track ID)
             if self._playlist_track_ids is not None:
-                # Use get_row_data to access the 'id' field directly (no header lookup needed)
-                if hasattr(source_model, 'get_row_data'):
-                    row_data = source_model.get_row_data(source_row)
-                    track_id = row_data.get('id') if row_data else None
-                    if track_id not in self._playlist_track_ids:
-                        return False
+                track_id = row_data.get('id') if row_data else None
+                if track_id not in self._playlist_track_ids:
+                    return False
         
-            # Get cached column indices for other filters
-            cols = self._get_column_indices(source_model)
+            # Early exit: Filter by match status
+            if self._status_filter != "all" and row_data:
+                matched = row_data.get('matched', False)
+                if self._status_filter == "matched" and not matched:
+                    return False
+                elif self._status_filter == "unmatched" and matched:
+                    return False
             
-            # Early exit: Filter by match status (use UserRole for bool)
-            if self._status_filter != "all":
-                matched_col = cols.get('Matched')
-                if matched_col is not None:
-                    index = source_model.index(source_row, matched_col, source_parent)
-                    # Use UserRole to get boolean value
-                    matched = source_model.data(index, Qt.UserRole)
-                    if self._status_filter == "matched" and not matched:
-                        return False
-                    elif self._status_filter == "unmatched" and matched:
-                        return False
+            # Early exit: Filter by artist (exact match)
+            if self._artist_filter and row_data:
+                artist = row_data.get('artist', '')
+                if artist != self._artist_filter:
+                    return False
             
-            # Early exit: Filter by artist (use UserRole for case-insensitive)
-            if self._artist_filter:
-                artist_col = cols.get('Artist')
-                if artist_col is not None:
-                    index = source_model.index(source_row, artist_col, source_parent)
-                    # Use DisplayRole for exact match
-                    artist = source_model.data(index, Qt.DisplayRole) or ''
-                    if artist != self._artist_filter:
-                        return False
+            # Early exit: Filter by album (exact match)
+            if self._album_filter and row_data:
+                album = row_data.get('album', '')
+                if album != self._album_filter:
+                    return False
             
-            # Early exit: Filter by album (use UserRole for case-insensitive)
-            if self._album_filter:
-                album_col = cols.get('Album')
-                if album_col is not None:
-                    index = source_model.index(source_row, album_col, source_parent)
-                    # Use DisplayRole for exact match
-                    album = source_model.data(index, Qt.DisplayRole) or ''
-                    if album != self._album_filter:
-                        return False
+            # Early exit: Filter by year
+            if self._year_filter is not None and row_data:
+                year_value = row_data.get('year')
+                if year_value is None or year_value != self._year_filter:
+                    return False
             
-            # Early exit: Filter by year (use UserRole for int comparison)
-            if self._year_filter is not None:
-                year_col = cols.get('Year')
-                if year_col is not None:
-                    index = source_model.index(source_row, year_col, source_parent)
-                    # Use UserRole to get raw int value
-                    year_value = source_model.data(index, Qt.UserRole)
-                    # UserRole returns empty string for None, so check both
-                    if year_value == "" or year_value is None:
-                        return False
-                    if year_value != self._year_filter:
-                        return False
+            # Early exit: Filter by confidence
+            if self._confidence_filter and row_data:
+                # Extract confidence from method field
+                method = row_data.get('method', '')
+                confidence = ''
+                if method and '-' in method:
+                    confidence = method.split('-')[0].strip()
+                if confidence != self._confidence_filter:
+                    return False
             
-            # Early exit: Filter by confidence (use UserRole for exact match)
-            if self._confidence_filter:
-                confidence_col = cols.get('Confidence')
-                if confidence_col is not None:
-                    index = source_model.index(source_row, confidence_col, source_parent)
-                    # Use UserRole to get confidence level
-                    confidence = source_model.data(index, Qt.UserRole) or ''
-                    if confidence != self._confidence_filter:
-                        return False
+            # Early exit: Filter by quality
+            if self._quality_filter and row_data:
+                # Extract quality from method field
+                method = row_data.get('method', '')
+                quality = ''
+                if method and '-' in method:
+                    parts = method.split('-')
+                    if len(parts) > 1:
+                        quality = parts[1].strip()
+                if quality != self._quality_filter:
+                    return False
             
-            # Early exit: Filter by quality (use UserRole for exact match)
-            if self._quality_filter:
-                quality_col = cols.get('Quality')
-                if quality_col is not None:
-                    index = source_model.index(source_row, quality_col, source_parent)
-                    # Use UserRole to get quality level
-                    quality = source_model.data(index, Qt.UserRole) or ''
-                    if quality != self._quality_filter:
-                        return False
-            
-            # Early exit: Filter by search text (use UserRole for lowercase comparison)
-            if self._search_text:
+            # Early exit: Filter by search text
+            if self._search_text and row_data:
                 search_lower = self._search_text.lower()
                 
-                # Search across relevant columns (use DisplayRole for strings)
+                # Search across relevant fields (direct dict access)
                 found = False
-                for col_name in ['Track', 'Artist', 'Album', 'Playlists', 'Local File']:
-                    col_idx = cols.get(col_name)
-                    if col_idx is not None:
-                        index = source_model.index(source_row, col_idx, source_parent)
-                        # Use DisplayRole, convert to lowercase
-                        value = source_model.data(index, Qt.DisplayRole) or ''
-                        if search_lower in str(value).lower():
-                            found = True
-                            break
+                for field in ['name', 'artist', 'album', 'playlists', 'local_path']:
+                    value = row_data.get(field, '')
+                    if value and search_lower in str(value).lower():
+                        found = True
+                        break
                 
                 if not found:
                     return False

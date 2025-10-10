@@ -175,6 +175,7 @@ class PlaylistsModel(BaseTableModel):
             ('name', 'Name'),
             ('owner_name', 'Owner'),
             ('coverage', 'Coverage'),
+            ('relevance', 'Relevance'),
         ]
         super().__init__(columns, parent)
     
@@ -303,6 +304,7 @@ class UnifiedTracksModel(BaseTableModel):
     - Track, Artist, Album, Year (core metadata first)
     - Matched, Confidence, Quality (match status and quality indicators)
     - Local File (match info)
+    - Playlist Count (number of playlists containing this track)
     - Playlists (comma-separated list of playlists containing this track)
     
     Performance optimization:
@@ -320,6 +322,7 @@ class UnifiedTracksModel(BaseTableModel):
             ('confidence', 'Confidence'),
             ('quality', 'Quality'),
             ('local_path', 'Local File'),
+            ('playlist_count', '#PL'),
             ('playlists', 'Playlists'),
         ]
         super().__init__(columns, parent)
@@ -376,6 +379,77 @@ class UnifiedTracksModel(BaseTableModel):
                 row['playlists'] = self._playlists_cache[track_id]
         
         super().set_data(rows)
+    
+    # Streaming API for non-blocking large dataset loading
+    def load_data_async_start(self, total_count: Optional[int] = None):
+        """Start async data loading - clears model and prepares for chunked appends.
+        
+        For large datasets (>5k rows), use this instead of set_data() to avoid UI freezes.
+        Call load_data_async_append() repeatedly with chunks, then complete normally.
+        
+        Args:
+            total_count: Expected total rows (for progress tracking)
+        """
+        # Clear existing data
+        self.beginResetModel()
+        self.data_rows = []
+        self._is_streaming = True
+        self._cancelled = False
+        self._total_count = total_count
+        self.endResetModel()
+        logger.debug(f"UnifiedTracksModel: Started async loading (expecting {total_count} rows)")
+    
+    def load_data_async_append(self, chunk_rows: List[Dict[str, Any]]):
+        """Append a chunk of rows during async loading.
+        
+        Uses beginInsertRows/endInsertRows for incremental updates instead of model reset.
+        Restores cached playlists data for each row before insertion.
+        
+        Args:
+            chunk_rows: Chunk of rows to append
+        """
+        if self._cancelled:
+            logger.debug("UnifiedTracksModel: Append cancelled")
+            return
+        
+        if not chunk_rows:
+            return
+        
+        # Restore cached playlists for tracks we've already loaded
+        for row in chunk_rows:
+            track_id = row.get('id')
+            if track_id and track_id in self._playlists_cache:
+                row['playlists'] = self._playlists_cache[track_id]
+        
+        # Insert rows incrementally
+        start_row = len(self.data_rows)
+        end_row = start_row + len(chunk_rows) - 1
+        
+        self.beginInsertRows(QModelIndex(), start_row, end_row)
+        self.data_rows.extend(chunk_rows)
+        self.endInsertRows()
+        
+        logger.debug(f"UnifiedTracksModel: Appended {len(chunk_rows)} rows (total: {len(self.data_rows)})")
+    
+    def load_data_async_cancel(self):
+        """Cancel ongoing async loading.
+        
+        Sets flag to stop the streaming loop cleanly before next append.
+        """
+        self._cancelled = True
+        self._is_streaming = False
+        logger.debug("UnifiedTracksModel: Async loading cancelled")
+    
+    def load_data_async_complete(self):
+        """Complete async loading and clean up streaming state."""
+        self._is_streaming = False
+        self._cancelled = False
+        logger.debug(f"UnifiedTracksModel: Async loading complete ({len(self.data_rows)} rows)")
+    
+    @property
+    def is_streaming(self) -> bool:
+        """Check if currently streaming data."""
+        return getattr(self, '_is_streaming', False)
     
     def data(self, index, role=Qt.DisplayRole):
         """Get cell data with special formatting for matched, confidence, and quality columns."""
@@ -470,6 +544,7 @@ class AlbumsModel(BaseTableModel):
             ('track_count', 'Tracks'),
             ('playlist_count', 'Playlists'),
             ('coverage', 'Coverage'),  # Format: "75% (75/100)"
+            ('relevance', 'Relevance'),
         ]
         super().__init__(columns, parent)
 
@@ -484,5 +559,6 @@ class ArtistsModel(BaseTableModel):
             ('album_count', 'Albums'),
             ('playlist_count', 'Playlists'),
             ('coverage', 'Coverage'),  # Format: "75% (75/100)"
+            ('relevance', 'Relevance'),
         ]
         super().__init__(columns, parent)

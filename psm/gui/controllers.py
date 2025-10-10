@@ -1,7 +1,7 @@
 """Controllers wiring UI events to actions and data updates."""
 from __future__ import annotations
-from typing import TYPE_CHECKING, Optional, List, Dict
-from PySide6.QtCore import QObject, QTimer, QSignalBlocker
+from typing import TYPE_CHECKING, Optional, List, Dict, Any
+from PySide6.QtCore import QObject, QTimer, QSignalBlocker, Qt
 import logging
 
 from .services import CommandService
@@ -204,10 +204,17 @@ class MainController(QObject):
             
             # Update tracks
             if 'tracks' in results:
-                self.window.update_unified_tracks(
-                    results['tracks'],
-                    results.get('playlists', [])
-                )
+                # Use streaming for large datasets to avoid UI freeze
+                track_count = len(results['tracks'])
+                if track_count > 5000:
+                    logger.info(f"Using streaming mode for {track_count} tracks")
+                    self._load_tracks_streaming(results['tracks'], results.get('playlists', []))
+                else:
+                    logger.info(f"Using direct load for {track_count} tracks")
+                    self.window.update_unified_tracks(
+                        results['tracks'],
+                        results.get('playlists', [])
+                    )
             
             # Update filter options (no owners needed)
             if all(k in results for k in ['artists', 'albums', 'years']):
@@ -257,6 +264,100 @@ class MainController(QObject):
             # Clean up loader reference
             if self._active_loaders:
                 self._active_loaders.pop(0)
+    
+    def _load_tracks_streaming(self, tracks: List[Dict[str, Any]], playlists: List[Dict[str, Any]]):
+        """Load tracks using streaming API to avoid UI freeze on large datasets.
+        
+        Chunks data and appends incrementally with QTimer to keep UI responsive.
+        
+        Args:
+            tracks: List of all track dicts
+            playlists: List of playlists (for filter options, not used during streaming)
+        """
+        CHUNK_SIZE = 500  # Rows per chunk (reduced from 1000 for better responsiveness)
+        CHUNK_DELAY_MS = 16  # ~60fps yield between chunks (was 0)
+        
+        view = self.window.unified_tracks_view
+        model = self.window.unified_tracks_model
+        
+        # Pre-filter by playlist track_ids if active
+        filter_state = self.window.filter_store.state
+        if filter_state.active_dimension == 'playlist' and filter_state.track_ids:
+            logger.debug(f"Pre-filtering {len(tracks)} tracks by playlist filter ({len(filter_state.track_ids)} IDs)")
+            tracks = [row for row in tracks if row.get('id') in filter_state.track_ids]
+            logger.debug(f"After pre-filtering: {len(tracks)} tracks")
+        
+        total_count = len(tracks)
+        
+        # Disable sorting and dynamic filtering during streaming
+        view.tracks_table.setSortingEnabled(False)
+        proxy = view.proxy_model
+        proxy.setDynamicSortFilter(False)
+        
+        # Start streaming
+        model.load_data_async_start(total_count)
+        
+        # Set streaming flag on view to gate lazy playlist loading
+        view._is_streaming = True
+        
+        # Prepare chunked iterator
+        chunk_iterator = [tracks[i:i + CHUNK_SIZE] for i in range(0, len(tracks), CHUNK_SIZE)]
+        current_chunk_index = [0]  # Use list for closure mutation
+        
+        # Update status bar
+        self.window.set_execution_status(True, f"Loading tracks (0/{total_count})...")
+        
+        def append_next_chunk():
+            """Append next chunk via QTimer callback."""
+            if current_chunk_index[0] >= len(chunk_iterator):
+                # Streaming complete
+                _finalize_streaming()
+                return
+            
+            chunk = chunk_iterator[current_chunk_index[0]]
+            model.load_data_async_append(chunk)
+            
+            current_chunk_index[0] += 1
+            rows_loaded = min(current_chunk_index[0] * CHUNK_SIZE, total_count)
+            
+            # Update progress
+            self.window.set_execution_status(True, f"Loading tracks ({rows_loaded}/{total_count})...")
+            
+            # Schedule next chunk (yield to event loop for ~60fps)
+            QTimer.singleShot(CHUNK_DELAY_MS, append_next_chunk)
+        
+        def _finalize_streaming():
+            """Finalize streaming: re-enable sorting, trigger lazy load, etc."""
+            model.load_data_async_complete()
+            view._is_streaming = False
+            
+            # Re-enable sorting and apply last sort column
+            proxy.setDynamicSortFilter(True)
+            view.tracks_table.setSortingEnabled(True)
+            
+            # Apply sort: use pending (restored) sort if available, otherwise default to Track name A-Z
+            if hasattr(self.window, '_pending_tracks_sort') and self.window._pending_tracks_sort is not None:
+                sort_col, sort_order = self.window._pending_tracks_sort
+                view.tracks_table.sortByColumn(sort_col, sort_order)
+                self.window._pending_tracks_sort = None  # Clear after applying
+            elif view.tracks_table.horizontalHeader().sortIndicatorSection() == -1:
+                # No sort indicator and no pending sort - apply default
+                view.tracks_table.sortByColumn(0, Qt.AscendingOrder)  # Sort by Track name A-Z
+            
+            # Resize columns if dataset is small enough
+            if total_count <= 1000:
+                view.resize_columns_to_contents()
+            
+            # Clear execution status
+            self.window.set_execution_status(False)
+            
+            # Trigger lazy playlist loading for visible rows
+            QTimer.singleShot(100, view.trigger_lazy_playlist_load)
+            
+            logger.info(f"Streaming complete: {total_count} tracks loaded")
+        
+        # Start chunking
+        QTimer.singleShot(0, append_next_chunk)
     
     def _fetch_playlists_for_tracks(self, track_ids: List[str]) -> Dict[str, str]:
         """Fetch playlist names for given track IDs (used by lazy loading).

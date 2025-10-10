@@ -323,6 +323,47 @@ Key selectors:
 - **Maintainability**: Service layer changes don't affect GUI
 - **Consistency**: CLI and GUI always in sync
 
+### Button State Management Pattern
+
+**Problem**: Buttons should be disabled during command execution AND when their prerequisites aren't met (e.g., "Diagnose Selected Track" requires both: no command running AND a track selected).
+
+**Solution**: Centralized state flags with dedicated update methods.
+
+**Implementation** (see `main_window.py`):
+
+```python
+# 1. Define state flags in __init__
+self._is_running: bool = False          # True when CLI command executing
+self._has_track_selection: bool = False # True when track selected
+
+# 2. Create centralized update method
+def _update_track_actions_state(self):
+    """Single source of truth for track action button states."""
+    should_enable = not self._is_running and self._has_track_selection
+    self.btn_diagnose.setEnabled(should_enable)
+
+# 3. Update state flags and trigger update
+def enable_actions(self, enabled: bool):
+    self._is_running = not enabled
+    self._update_track_actions_state()  # Recalculate button states
+
+def _on_track_selection_changed(self, selected, deselected):
+    self._has_track_selection = has_selection
+    self.enable_track_actions(has_selection)  # Delegates to _update_track_actions_state
+```
+
+**Benefits**:
+- Single source of truth for button state logic
+- No race conditions (both flags checked in one place)
+- Easy to add new conditions (e.g., `_is_connected`)
+- Self-documenting (method name explains when buttons are enabled)
+
+**When adding new conditional buttons**:
+1. Add state flag(s) to `__init__`
+2. Create `_update_<feature>_actions_state()` method with combined logic
+3. Call update method whenever any flag changes
+4. Document prerequisites in method docstring
+
 ## Future Enhancements
 
 - [ ] PyInstaller spec for standalone executables
@@ -337,6 +378,14 @@ Key selectors:
 - [ ] Notifications (system tray on Windows/macOS)
 - [ ] Undo/redo for database operations
 - [ ] Export to multiple formats (M3U8, PLS, XSPF)
+
+## Performance Optimization
+
+For developers working with large datasets (50k+ tracks), see [`docs/gui-performance.md`](../../docs/gui-performance.md) which documents the performance optimization patterns used in this GUI:
+- Fast-path filter optimization (90% CPU reduction)
+- Direct data access patterns (avoiding Qt overhead)
+- Chunked async loading (60fps UI responsiveness)
+- Reusable patterns for any Qt table application
 
 ## License
 

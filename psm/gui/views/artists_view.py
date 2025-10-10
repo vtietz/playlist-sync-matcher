@@ -107,12 +107,6 @@ class ArtistsView(QWidget):
         filter_layout = QHBoxLayout()
         filter_layout.setSpacing(10)
         
-        # Clear button
-        self.clear_btn = QPushButton("✕ Clear Filter")
-        self.clear_btn.setMaximumWidth(120)
-        self.clear_btn.clicked.connect(self._on_clear_clicked)
-        filter_layout.addWidget(self.clear_btn)
-        
         # Search box
         filter_layout.addWidget(QLabel("Search:"))
         self.search_box = QLineEdit()
@@ -161,12 +155,14 @@ class ArtistsView(QWidget):
         # Column 1 = Tracks (narrow)
         # Column 2 = Albums (narrow)
         # Column 3 = Playlists (narrow)
-        # Column 4 = Coverage (medium, stretches)
+        # Column 4 = Coverage (medium)
+        # Column 5 = Relevance (narrow, stretches)
         self.table.setColumnWidth(0, 250)  # Artist
         self.table.setColumnWidth(1, 80)   # Tracks
         self.table.setColumnWidth(2, 80)   # Albums
         self.table.setColumnWidth(3, 80)   # Playlists
-        # Column 4 (Coverage) stretches automatically
+        self.table.setColumnWidth(4, 120)  # Coverage
+        # Column 5 (Relevance) stretches automatically
     
     def _on_search_changed(self, text: str):
         """Handle search text change."""

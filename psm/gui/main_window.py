@@ -68,8 +68,17 @@ class MainWindow(QMainWindow):
         # Track selected playlist
         self._selected_playlist_id: Optional[str] = None
         
-        # Track running state (for gating auto-diagnose and UI actions)
-        self._is_running: bool = False
+        # Centralized state flags for button enable/disable logic
+        # These flags are the single source of truth for UI state management
+        # When adding new conditional buttons, update the corresponding _update_*_state() method
+        self._is_running: bool = False          # True when a CLI command is executing
+        self._has_track_selection: bool = False  # True when a track is selected in tracks view
+        
+        # Pending sort states (restored from settings, applied after data loads)
+        self._pending_playlists_sort: Optional[tuple] = None  # (column, Qt.SortOrder)
+        self._pending_tracks_sort: Optional[tuple] = None
+        self._pending_albums_sort: Optional[tuple] = None
+        self._pending_artists_sort: Optional[tuple] = None
         
         # Create models
         self.playlists_model = PlaylistsModel(self)
@@ -105,6 +114,8 @@ class MainWindow(QMainWindow):
         
         # Main splitter: left (playlists) | right (tabs + detail)
         main_splitter = QSplitter(Qt.Horizontal)
+        main_splitter.setChildrenCollapsible(False)  # Prevent panels from collapsing completely
+        main_splitter.setHandleWidth(4)  # Make splitter handle more visible/grabbable
         
         # Left: Playlists master table
         playlists_widget = self._create_playlists_widget()
@@ -117,10 +128,6 @@ class MainWindow(QMainWindow):
         # Allow user to resize, but set reasonable constraints
         main_splitter.setStretchFactor(0, 1)
         main_splitter.setStretchFactor(1, 2)
-        
-        # Set collapsible to False so panels can't be completely hidden
-        main_splitter.setCollapsible(0, False)
-        main_splitter.setCollapsible(1, False)
         
         # Store reference for later size adjustments
         self.main_splitter = main_splitter
@@ -140,6 +147,7 @@ class MainWindow(QMainWindow):
     def _create_toolbar(self):
         """Create the action toolbar for general actions."""
         toolbar = QToolBar("Actions")
+        toolbar.setObjectName("actionsToolbar")  # Fix QMainWindow::saveState() warning
         toolbar.setMovable(False)
         self.addToolBar(toolbar)
         
@@ -186,13 +194,13 @@ class MainWindow(QMainWindow):
         playlists_tab = self._create_playlists_tab()
         tab_widget.addTab(playlists_tab, "Playlists")
         
-        # Tab 2: Albums
-        albums_tab = self._create_albums_tab()
-        tab_widget.addTab(albums_tab, "Albums")
-        
-        # Tab 3: Artists
+        # Tab 2: Artists (swapped order with Albums)
         artists_tab = self._create_artists_tab()
         tab_widget.addTab(artists_tab, "Artists")
+        
+        # Tab 3: Albums
+        albums_tab = self._create_albums_tab()
+        tab_widget.addTab(albums_tab, "Albums")
         
         return tab_widget
     
@@ -408,8 +416,14 @@ class MainWindow(QMainWindow):
         self.playlists_table_view.setColumnWidth(0, max(250, self.playlists_table_view.columnWidth(0)))
         self.playlists_table_view.setColumnWidth(1, max(120, self.playlists_table_view.columnWidth(1)))
         
-        # Default sort by name (column 0) alphabetically
-        self.playlists_table_view.sortByColumn(0, Qt.AscendingOrder)
+        # Apply sort: use pending (restored) sort if available, otherwise default to name ascending
+        if self._pending_playlists_sort is not None:
+            sort_col, sort_order = self._pending_playlists_sort
+            self.playlists_table_view.sortByColumn(sort_col, sort_order)
+            self._pending_playlists_sort = None  # Clear after applying
+        else:
+            # Default sort by name (column 0) alphabetically
+            self.playlists_table_view.sortByColumn(0, Qt.AscendingOrder)
         
         # No auto-selection - user can click to select/deselect
     
@@ -420,8 +434,15 @@ class MainWindow(QMainWindow):
             albums: List of album dicts with aggregated statistics
         """
         self.albums_model.set_data(albums)
-        # Default sort by playlist count (column 3) descending, then track count (column 2) descending
-        self.albums_view.table.sortByColumn(3, Qt.DescendingOrder)
+        
+        # Apply sort: use pending (restored) sort if available, otherwise default
+        if self._pending_albums_sort is not None:
+            sort_col, sort_order = self._pending_albums_sort
+            self.albums_view.table.sortByColumn(sort_col, sort_order)
+            self._pending_albums_sort = None  # Clear after applying
+        else:
+            # Default sort by playlist count (column 3) descending
+            self.albums_view.table.sortByColumn(3, Qt.DescendingOrder)
     
     def update_artists(self, artists: List[Dict[str, Any]]):
         """Update artists table.
@@ -430,8 +451,15 @@ class MainWindow(QMainWindow):
             artists: List of artist dicts with aggregated statistics
         """
         self.artists_model.set_data(artists)
-        # Default sort by playlist count (column 3) descending, then track count (column 1) descending
-        self.artists_view.table.sortByColumn(3, Qt.DescendingOrder)
+        
+        # Apply sort: use pending (restored) sort if available, otherwise default
+        if self._pending_artists_sort is not None:
+            sort_col, sort_order = self._pending_artists_sort
+            self.artists_view.table.sortByColumn(sort_col, sort_order)
+            self._pending_artists_sort = None  # Clear after applying
+        else:
+            # Default sort by playlist count (column 3) descending
+            self.artists_view.table.sortByColumn(3, Qt.DescendingOrder)
     
     def update_playlist_detail(self, tracks: List[Dict[str, Any]]):
         """Update playlist detail table.
@@ -549,6 +577,10 @@ class MainWindow(QMainWindow):
         Args:
             enabled: True to enable, False to disable
         """
+        # Update running state
+        self._is_running = not enabled
+        logger.debug(f"enable_actions called: enabled={enabled}, _is_running={self._is_running}")
+        
         # Toolbar buttons
         self.btn_scan.setEnabled(enabled)
         self.btn_build.setEnabled(enabled)
@@ -568,8 +600,8 @@ class MainWindow(QMainWindow):
         else:
             self.enable_playlist_actions(False)
         
-        # Per-track actions
-        self.enable_track_actions(enabled)
+        # Per-track actions - use centralized update
+        self._update_track_actions_state()
     
     def enable_playlist_actions(self, enabled: bool):
         """Enable/disable per-playlist action buttons.
@@ -589,12 +621,32 @@ class MainWindow(QMainWindow):
                 self.btn_export_one.setEnabled(enabled)
     
     def enable_track_actions(self, enabled: bool):
-        """Enable/disable per-track action buttons.
+        """Enable/disable per-track action buttons (DEPRECATED - use _update_track_actions_state).
+        
+        This method is deprecated in favor of centralized state management.
+        Use _update_track_actions_state() which considers both running state and selection.
         
         Args:
             enabled: True to enable, False to disable
         """
-        self.btn_diagnose.setEnabled(enabled)
+        # Legacy method kept for compatibility, but now delegates to state-based update
+        # This is called from _on_track_selection_changed with has_selection as argument
+        logger.debug(f"enable_track_actions called: enabled={enabled}")
+        self._has_track_selection = enabled
+        self._update_track_actions_state()
+    
+    def _update_track_actions_state(self):
+        """Update track action button states based on centralized state.
+        
+        Track actions should only be enabled when:
+        1. No action is running (not _is_running)
+        2. AND a track is selected (_has_track_selection)
+        
+        This is the single source of truth for track action button states.
+        """
+        should_enable = not self._is_running and self._has_track_selection
+        logger.debug(f"Updating track actions: _is_running={self._is_running}, _has_track_selection={self._has_track_selection}, should_enable={should_enable}")
+        self.btn_diagnose.setEnabled(should_enable)
     
     def set_watch_mode(self, enabled: bool):
         """Set watch mode state.
@@ -801,7 +853,7 @@ class MainWindow(QMainWindow):
         super().closeEvent(event)
     
     def _save_window_state(self):
-        """Save window geometry, splitter positions, and column widths."""
+        """Save window geometry, splitter positions, column widths, and sort states."""
         # Save window geometry and state
         self.settings.setValue("geometry", self.saveGeometry())
         self.settings.setValue("windowState", self.saveState())
@@ -809,24 +861,48 @@ class MainWindow(QMainWindow):
         # Save main splitter position
         self.settings.setValue("mainSplitter", self.main_splitter.saveState())
         
-        # Save playlists table column widths
+        # Save playlists table column widths and sort state
         playlists_header = self.playlists_table_view.horizontalHeader()
         playlists_widths = []
         for col in range(playlists_header.count()):
             playlists_widths.append(playlists_header.sectionSize(col))
         self.settings.setValue("playlistsColumnWidths", playlists_widths)
+        self.settings.setValue("playlistsSortColumn", playlists_header.sortIndicatorSection())
+        self.settings.setValue("playlistsSortOrder", int(playlists_header.sortIndicatorOrder()))
         
-        # Save unified tracks table column widths
+        # Save unified tracks table column widths and sort state
         tracks_header = self.unified_tracks_view.tracks_table.horizontalHeader()
         tracks_widths = []
         for col in range(tracks_header.count()):
             tracks_widths.append(tracks_header.sectionSize(col))
         self.settings.setValue("tracksColumnWidths", tracks_widths)
+        self.settings.setValue("tracksSortColumn", tracks_header.sortIndicatorSection())
+        self.settings.setValue("tracksSortOrder", int(tracks_header.sortIndicatorOrder()))
+        
+        # Save albums table column widths and sort state
+        if hasattr(self, 'albums_view'):
+            albums_header = self.albums_view.table.horizontalHeader()
+            albums_widths = []
+            for col in range(albums_header.count()):
+                albums_widths.append(albums_header.sectionSize(col))
+            self.settings.setValue("albumsColumnWidths", albums_widths)
+            self.settings.setValue("albumsSortColumn", albums_header.sortIndicatorSection())
+            self.settings.setValue("albumsSortOrder", int(albums_header.sortIndicatorOrder()))
+        
+        # Save artists table column widths and sort state
+        if hasattr(self, 'artists_view'):
+            artists_header = self.artists_view.table.horizontalHeader()
+            artists_widths = []
+            for col in range(artists_header.count()):
+                artists_widths.append(artists_header.sectionSize(col))
+            self.settings.setValue("artistsColumnWidths", artists_widths)
+            self.settings.setValue("artistsSortColumn", artists_header.sortIndicatorSection())
+            self.settings.setValue("artistsSortOrder", int(artists_header.sortIndicatorOrder()))
         
         logger.info("Window state saved")
     
     def _restore_window_state(self):
-        """Restore window geometry, splitter positions, and column widths."""
+        """Restore window geometry, splitter positions, column widths, and sort states."""
         # Restore window geometry and state
         geometry = self.settings.value("geometry")
         if geometry:
@@ -841,7 +917,7 @@ class MainWindow(QMainWindow):
         if splitter_state:
             self.main_splitter.restoreState(splitter_state)
         
-        # Restore playlists table column widths
+        # Restore playlists table column widths and sort state
         playlists_widths = self.settings.value("playlistsColumnWidths")
         if playlists_widths:
             playlists_header = self.playlists_table_view.horizontalHeader()
@@ -849,6 +925,13 @@ class MainWindow(QMainWindow):
                 if col < playlists_header.count():
                     # Convert to int (QSettings may return strings)
                     playlists_header.resizeSection(col, int(width))
+        
+        # Restore playlists sort state (must happen after data is loaded)
+        playlists_sort_col = self.settings.value("playlistsSortColumn")
+        playlists_sort_order = self.settings.value("playlistsSortOrder")
+        if playlists_sort_col is not None and playlists_sort_order is not None:
+            # Store for later application (after data load)
+            self._pending_playlists_sort = (int(playlists_sort_col), Qt.SortOrder(int(playlists_sort_order)))
         
         # Restore unified tracks table column widths
         tracks_widths = self.settings.value("tracksColumnWidths")
@@ -858,5 +941,39 @@ class MainWindow(QMainWindow):
                 if col < tracks_header.count():
                     # Convert to int (QSettings may return strings)
                     tracks_header.resizeSection(col, int(width))
+        
+        # Restore tracks sort state (stored for application after data load)
+        tracks_sort_col = self.settings.value("tracksSortColumn")
+        tracks_sort_order = self.settings.value("tracksSortOrder")
+        if tracks_sort_col is not None and tracks_sort_order is not None:
+            self._pending_tracks_sort = (int(tracks_sort_col), Qt.SortOrder(int(tracks_sort_order)))
+        
+        # Restore albums table column widths and sort state
+        albums_widths = self.settings.value("albumsColumnWidths")
+        if albums_widths and hasattr(self, 'albums_view'):
+            albums_header = self.albums_view.table.horizontalHeader()
+            for col, width in enumerate(albums_widths):
+                if col < albums_header.count():
+                    # Convert to int (QSettings may return strings)
+                    albums_header.resizeSection(col, int(width))
+        
+        albums_sort_col = self.settings.value("albumsSortColumn")
+        albums_sort_order = self.settings.value("albumsSortOrder")
+        if albums_sort_col is not None and albums_sort_order is not None:
+            self._pending_albums_sort = (int(albums_sort_col), Qt.SortOrder(int(albums_sort_order)))
+        
+        # Restore artists table column widths and sort state
+        artists_widths = self.settings.value("artistsColumnWidths")
+        if artists_widths and hasattr(self, 'artists_view'):
+            artists_header = self.artists_view.table.horizontalHeader()
+            for col, width in enumerate(artists_widths):
+                if col < artists_header.count():
+                    # Convert to int (QSettings may return strings)
+                    artists_header.resizeSection(col, int(width))
+        
+        artists_sort_col = self.settings.value("artistsSortColumn")
+        artists_sort_order = self.settings.value("artistsSortOrder")
+        if artists_sort_col is not None and artists_sort_order is not None:
+            self._pending_artists_sort = (int(artists_sort_col), Qt.SortOrder(int(artists_sort_order)))
         
         logger.info("Window state restored")

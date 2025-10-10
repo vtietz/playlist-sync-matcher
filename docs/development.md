@@ -44,6 +44,7 @@ git push origin vX.Y.Z
 - Return data from services (no prints) for testability.
 - Provider additions: follow `docs/providers.md` and minimal interface.
 - Maintain consistent defaults across `config.py` and docs.
+- GUI performance: See [`gui-performance.md`](gui-performance.md) for optimization patterns when handling large datasets in Qt table views.
 
 ## Adding Dependencies
 - Update `requirements.txt`.

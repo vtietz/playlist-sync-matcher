@@ -118,15 +118,9 @@ class AlbumsView(QWidget):
         layout.setContentsMargins(5, 5, 5, 5)
         layout.setSpacing(5)
         
-        # Filter bar
+        # Filter bar - Artist filter on first line
         filter_layout = QHBoxLayout()
         filter_layout.setSpacing(10)
-        
-        # Clear button
-        self.clear_btn = QPushButton("✕ Clear Filter")
-        self.clear_btn.setMaximumWidth(120)
-        self.clear_btn.clicked.connect(self._on_clear_clicked)
-        filter_layout.addWidget(self.clear_btn)
         
         # Artist filter
         filter_layout.addWidget(QLabel("Artist:"))
@@ -136,15 +130,22 @@ class AlbumsView(QWidget):
         self.artist_combo.addItem("All Artists", "")
         self.artist_combo.currentIndexChanged.connect(self._on_artist_filter_changed)
         filter_layout.addWidget(self.artist_combo)
+        filter_layout.addStretch(1)  # Push to left
+        
+        layout.addLayout(filter_layout)
+        
+        # Search bar on second line
+        search_layout = QHBoxLayout()
+        search_layout.setSpacing(10)
         
         # Search box
-        filter_layout.addWidget(QLabel("Search:"))
+        search_layout.addWidget(QLabel("Search:"))
         self.search_box = QLineEdit()
         self.search_box.setPlaceholderText("Search artist or album...")
         self.search_box.textChanged.connect(self._on_search_changed)
-        filter_layout.addWidget(self.search_box, stretch=1)
+        search_layout.addWidget(self.search_box, stretch=1)
         
-        layout.addLayout(filter_layout)
+        layout.addLayout(search_layout)
         
         # Table view
         self.table = QTableView()
@@ -185,12 +186,14 @@ class AlbumsView(QWidget):
         # Column 1 = Artist (medium)
         # Column 2 = Tracks (narrow)
         # Column 3 = Playlists (narrow)
-        # Column 4 = Coverage (medium, stretches)
+        # Column 4 = Coverage (medium)
+        # Column 5 = Relevance (narrow, stretches)
         self.table.setColumnWidth(0, 250)  # Album
         self.table.setColumnWidth(1, 200)  # Artist
         self.table.setColumnWidth(2, 80)   # Tracks
         self.table.setColumnWidth(3, 80)   # Playlists
-        # Column 4 (Coverage) stretches automatically
+        self.table.setColumnWidth(4, 120)  # Coverage
+        # Column 5 (Relevance) stretches automatically
     
     def _on_artist_filter_changed(self, index: int):
         """Handle artist filter selection change."""

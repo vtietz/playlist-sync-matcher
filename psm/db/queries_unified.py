@@ -30,7 +30,7 @@ def list_unified_tracks_min(
         offset: Row offset (for paging)
         
     Returns:
-        List of dicts with: id, name, artist, album, year, matched (bool), local_path
+        List of dicts with: id, name, artist, album, year, matched (bool), local_path, playlist_count
     """
     # Build ORDER BY clause
     order_by = ""
@@ -45,7 +45,7 @@ def list_unified_tracks_min(
     if limit is not None:
         limit_clause = f"LIMIT {int(limit)} OFFSET {int(offset)}"
     
-    # Main query: one row per track with EXISTS check for matches
+    # Main query: one row per track with EXISTS check for matches and playlist count
     # Use window function or subquery to get best local_path per track
     query = f"""
     SELECT 
@@ -64,7 +64,8 @@ def list_unified_tracks_min(
         lf.artist as file_artist,
         lf.album as file_album,
         lf.year as file_year,
-        lf.bitrate_kbps
+        lf.bitrate_kbps,
+        COALESCE(pl_count.count, 0) as playlist_count
     FROM tracks t
     LEFT JOIN (
         -- Get best match per track (highest score)
@@ -84,6 +85,12 @@ def list_unified_tracks_min(
             AND m1.score = m2.max_score
     ) m ON t.id = m.track_id AND t.provider = m.provider
     LEFT JOIN library_files lf ON m.file_id = lf.id
+    LEFT JOIN (
+        -- Count playlists per track
+        SELECT track_id, provider, COUNT(DISTINCT playlist_id) as count
+        FROM playlist_tracks
+        GROUP BY track_id, provider
+    ) pl_count ON t.id = pl_count.track_id AND t.provider = pl_count.provider
     WHERE t.provider = ?
     {order_by}
     {limit_clause}
@@ -118,6 +125,7 @@ def list_unified_tracks_min(
             'method': row[10],  # Match method string
             'missing_metadata_count': missing_count,  # For quality calculation
             'bitrate_kbps': row[15],  # For quality calculation
+            'playlist_count': row[16],  # Number of playlists containing this track
         })
     
     return results

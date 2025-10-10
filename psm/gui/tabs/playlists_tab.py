@@ -105,10 +105,11 @@ class PlaylistsTab(QWidget):
         header.setSectionResizeMode(QHeaderView.Interactive)
         
         # Set intelligent column widths
-        # Columns: Name, Owner, Coverage
+        # Columns: Name, Owner, Coverage, Relevance
         table.setColumnWidth(0, 250)  # Name
         table.setColumnWidth(1, 120)  # Owner
         table.setColumnWidth(2, 120)  # Coverage
+        table.setColumnWidth(3, 80)   # Relevance
         
         # Apply link delegate to Name column
         link_delegate = LinkDelegate(provider="spotify", parent=table)

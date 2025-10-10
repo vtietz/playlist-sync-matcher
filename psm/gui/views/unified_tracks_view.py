@@ -320,10 +320,10 @@ class UnifiedTracksView(QWidget):
         
         Column strategy:
         - Text fields (Track, Artist, Album, Local File, Playlists): More space
-        - Short fields (Year, Matched, Confidence, Quality): Less space
+        - Short fields (Year, Matched, Confidence, Quality, #PL): Less space
         """
         # Column indices from UnifiedTracksModel:
-        # 0: Track, 1: Artist, 2: Album, 3: Year, 4: Matched, 5: Confidence, 6: Quality, 7: Local File, 8: Playlists
+        # 0: Track, 1: Artist, 2: Album, 3: Year, 4: Matched, 5: Confidence, 6: Quality, 7: Local File, 8: #PL, 9: Playlists
         header = self.tracks_table.horizontalHeader()
         
         # Set initial widths (in pixels)
@@ -336,7 +336,8 @@ class UnifiedTracksView(QWidget):
         header.resizeSection(5, 95)   # Confidence - small-medium (CERTAIN/HIGH/etc)
         header.resizeSection(6, 95)   # Quality - small-medium (EXCELLENT/GOOD/etc)
         header.resizeSection(7, 350)  # Local File - large (file paths)
-        # Column 8 (Playlists) stretches to fill remaining space
+        header.resizeSection(8, 50)   # #PL - very small (number)
+        # Column 9 (Playlists) stretches to fill remaining space
     
     def resize_columns_to_contents(self):
         """Resize table columns to fit contents (with performance gating).
@@ -395,6 +396,10 @@ class UnifiedTracksView(QWidget):
     
     def _load_visible_playlists(self):
         """Load playlist names for currently visible rows (lazy loading)."""
+        # Skip if currently streaming data
+        if getattr(self, '_is_streaming', False):
+            return
+        
         if not self._playlist_fetch_callback:
             return
         

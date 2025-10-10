@@ -28,23 +28,73 @@ class DataFacade:
     def list_playlists(self) -> List[Dict[str, Any]]:
         """Get all playlists with track counts and match statistics.
         
+        Includes a special virtual "❤️ Liked Songs" playlist at the top.
+        
         Returns:
             List of dicts with id, name, owner_id, owner_name, track_count,
-            matched_count, unmatched_count, coverage (percentage).
+            matched_count, unmatched_count, coverage (percentage), relevance.
+            Relevance = track_count * (100 - coverage%) / 100 (high tracks + low coverage = high relevance)
         """
         # Use SQL aggregation for performance (single query instead of N+1)
-        return self.db.get_playlist_coverage(provider=self._provider)
+        playlists = self.db.get_playlist_coverage(provider=self._provider)
+        
+        # Add relevance score to each playlist
+        for playlist in playlists:
+            track_count = playlist.get('track_count', 0)
+            coverage_pct = playlist.get('coverage', 0)
+            # Relevance: high track count + low coverage = high relevance
+            relevance = track_count * (100 - coverage_pct) / 100
+            playlist['relevance'] = round(relevance, 1)
+        
+        # Create virtual "Liked Songs" playlist entry
+        # Get liked songs stats from database
+        liked_track_count = self.db.count_liked_tracks(provider=self._provider)
+        
+        if liked_track_count > 0:
+            # Count matched liked tracks
+            liked_tracks_data = self.db.get_liked_tracks_with_local_paths(provider=self._provider)
+            matched_count = sum(1 for t in liked_tracks_data if t.get('local_path'))
+            unmatched_count = liked_track_count - matched_count
+            coverage_pct = int((matched_count / liked_track_count * 100)) if liked_track_count > 0 else 0
+            relevance = liked_track_count * (100 - coverage_pct) / 100
+            
+            # Get current user info for owner
+            user = self.db.get_meta('spotify_user_id') or 'You'
+            
+            liked_playlist = {
+                'id': '__LIKED_SONGS__',  # Special ID to identify virtual playlist
+                'name': ' ❤️ Liked Songs',  # Leading space ensures it sorts to the top
+                'owner_id': user,
+                'owner_name': user,
+                'track_count': liked_track_count,
+                'matched_count': matched_count,
+                'unmatched_count': unmatched_count,
+                'coverage': coverage_pct,
+                'relevance': round(relevance, 1),
+            }
+            
+            # Insert at the beginning of the list
+            playlists.insert(0, liked_playlist)
+        
+        return playlists
     
     def get_playlist_detail(self, playlist_id: str) -> List[Dict[str, Any]]:
         """Get tracks in a playlist with best-match local paths.
         
+        Handles both regular playlists and the special "❤️ Liked Songs" virtual playlist.
+        
         Args:
-            playlist_id: Playlist ID to retrieve
+            playlist_id: Playlist ID to retrieve (or '__LIKED_SONGS__' for liked songs)
             
         Returns:
             List of dicts with position, track_id, name, artist, album, 
             duration_ms, local_path (best match only, provider-aware)
         """
+        # Handle virtual Liked Songs playlist
+        if playlist_id == '__LIKED_SONGS__':
+            return self.db.get_liked_tracks_with_local_paths(provider=self._provider)
+        
+        # Regular playlist
         return self.db.get_playlist_tracks_with_local_paths(
             playlist_id, 
             provider=self._provider
@@ -53,12 +103,32 @@ class DataFacade:
     def get_playlist_by_id(self, playlist_id: str) -> Optional[PlaylistRow]:
         """Get playlist metadata by ID.
         
+        Handles both regular playlists and the special "❤️ Liked Songs" virtual playlist.
+        
         Args:
-            playlist_id: Playlist ID
+            playlist_id: Playlist ID (or '__LIKED_SONGS__' for liked songs)
             
         Returns:
             PlaylistRow or None if not found
         """
+        # Handle virtual Liked Songs playlist
+        if playlist_id == '__LIKED_SONGS__':
+            from psm.db.models import PlaylistRow
+            liked_count = self.db.count_liked_tracks(provider=self._provider)
+            user = self.db.get_meta('spotify_user_id') or 'You'
+            
+            # Create a PlaylistRow-like object for Liked Songs
+            return PlaylistRow(
+                id='__LIKED_SONGS__',
+                provider=self._provider,
+                name='❤️ Liked Songs',
+                snapshot_id=None,
+                owner_id=user,
+                owner_name=user,
+                track_count=liked_count
+            )
+        
+        # Regular playlist
         return self.db.get_playlist_by_id(playlist_id, provider=self._provider)
     
     def list_unmatched_tracks(self) -> List[Dict[str, Any]]:
@@ -340,12 +410,24 @@ class DataFacade:
     def get_track_ids_for_playlist(self, playlist_name: str) -> set:
         """Get set of track IDs that belong to a specific playlist.
         
+        Handles both regular playlists and the special " ❤️ Liked Songs" virtual playlist.
+        
         Args:
-            playlist_name: Name of playlist to filter by
+            playlist_name: Name of playlist to filter by (or ' ❤️ Liked Songs')
             
         Returns:
             Set of track IDs in the playlist
         """
+        # Handle virtual Liked Songs playlist (with leading space for sorting)
+        if playlist_name == ' ❤️ Liked Songs':
+            # Get all liked track IDs
+            cursor = self.db.conn.execute(
+                "SELECT track_id FROM liked_tracks WHERE provider = ?",
+                (self._provider,)
+            )
+            return {row[0] for row in cursor.fetchall()}
+        
+        # Regular playlist
         return self.db.get_track_ids_for_playlist(playlist_name, provider=self._provider)
     
     def get_artist_for_album(self, album_name: str) -> Optional[str]:
@@ -416,8 +498,9 @@ class DataFacade:
         """Get all albums with aggregated statistics.
         
         Returns:
-            List of dicts with album, artist, track_count, playlist_count, coverage.
+            List of dicts with album, artist, track_count, playlist_count, coverage, relevance.
             Coverage format: "75% (75/100)" (percentage of matched tracks).
+            Relevance = track_count * (100 - coverage%) / 100 (high tracks + low coverage = high relevance)
         """
         rows = self.db.conn.execute("""
             SELECT 
@@ -443,12 +526,16 @@ class DataFacade:
             percentage = int((matched_count / track_count * 100)) if track_count > 0 else 0
             coverage = f"{percentage}% ({matched_count}/{track_count})"
             
+            # Relevance: high track count + low coverage = high relevance
+            relevance = track_count * (100 - percentage) / 100
+            
             results.append({
                 'album': row['album'],
                 'artist': row['artist'],
                 'track_count': track_count,
                 'playlist_count': row['playlist_count'],
                 'coverage': coverage,
+                'relevance': round(relevance, 1),
             })
         
         return results
@@ -457,8 +544,9 @@ class DataFacade:
         """Get all artists with aggregated statistics.
         
         Returns:
-            List of dicts with artist, track_count, album_count, playlist_count, coverage.
+            List of dicts with artist, track_count, album_count, playlist_count, coverage, relevance.
             Coverage format: "75% (75/100)" (percentage of matched tracks).
+            Relevance = track_count * (100 - coverage%) / 100 (high tracks + low coverage = high relevance)
         """
         rows = self.db.conn.execute("""
             SELECT 
@@ -483,12 +571,16 @@ class DataFacade:
             percentage = int((matched_count / track_count * 100)) if track_count > 0 else 0
             coverage = f"{percentage}% ({matched_count}/{track_count})"
             
+            # Relevance: high track count + low coverage = high relevance
+            relevance = track_count * (100 - percentage) / 100
+            
             results.append({
                 'artist': row['artist'],
                 'track_count': track_count,
                 'album_count': row['album_count'],
                 'playlist_count': row['playlist_count'],
                 'coverage': coverage,
+                'relevance': round(relevance, 1),
             })
         
         return results

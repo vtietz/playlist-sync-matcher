@@ -117,7 +117,9 @@ python -m psm.cli gui   # Direct Python invocation
 - All actions execute actual CLI commands as subprocesses (CLI parity)
 - Live progress parsing from CLI stdout
 
-**Documentation**: See [`psm/gui/README.md`](psm/gui/README.md) for detailed usage, keyboard shortcuts, and architecture.
+**Documentation**: 
+- [`psm/gui/README.md`](psm/gui/README.md) - Detailed usage, keyboard shortcuts, and architecture
+- [`docs/gui-performance.md`](docs/gui-performance.md) - Performance optimization patterns for large datasets
 
 ## Getting Started
 
