@@ -309,6 +309,42 @@ class TestMatchRepository:
         
         assert counts['score:CERTAIN:isrc'] == 1
         assert counts['score:HIGH:fuzzy'] == 2
+    
+    def test_get_match_confidence_tier_counts(self, db: Database):
+        """Test get_match_confidence_tier_counts robustly extracts tiers."""
+        # Setup data
+        db.upsert_track({'id': 't1', 'name': 'S1', 'artist': 'A', 'album': 'X',
+                        'year': 2020, 'isrc': None, 'duration_ms': 180000, 'normalized': 's1'},
+                       provider='spotify')
+        db.upsert_track({'id': 't2', 'name': 'S2', 'artist': 'B', 'album': 'Y',
+                        'year': 2021, 'isrc': None, 'duration_ms': 200000, 'normalized': 's2'},
+                       provider='spotify')
+        db.upsert_track({'id': 't3', 'name': 'S3', 'artist': 'C', 'album': 'Z',
+                        'year': 2022, 'isrc': None, 'duration_ms': 220000, 'normalized': 's3'},
+                       provider='spotify')
+        db.upsert_track({'id': 't4', 'name': 'S4', 'artist': 'D', 'album': 'W',
+                        'year': 2023, 'isrc': None, 'duration_ms': 240000, 'normalized': 's4'},
+                       provider='spotify')
+        
+        for i in range(4):
+            db.add_library_file({'path': f'/f{i}.mp3', 'title': f'F{i}', 'artist': 'A', 'album': 'X',
+                                'year': 2020, 'duration': 180.0, 'normalized': f's{i}',
+                                'size': 1000, 'mtime': 0.0, 'partial_hash': 'a'})
+        
+        # Add matches with different tiers and formats
+        db.add_match('t1', 1, 0.98, 'score:CERTAIN:isrc', provider='spotify')
+        db.add_match('t2', 2, 0.85, 'score:HIGH:fuzzy', provider='spotify')
+        db.add_match('t3', 3, 0.85, 'score:HIGH:title_match', provider='spotify')
+        db.add_match('t4', 4, 0.70, 'score:MEDIUM', provider='spotify')  # No details
+        db.commit()
+        
+        tier_counts = db.get_match_confidence_tier_counts()
+        
+        # Should group by tier, not full method string
+        # Both 'score:HIGH:fuzzy' and 'score:HIGH:title_match' should be grouped as 'HIGH'
+        assert tier_counts.get('CERTAIN', 0) == 1
+        assert tier_counts.get('HIGH', 0) == 2  # Both HIGH methods combined
+        assert tier_counts.get('MEDIUM', 0) == 1
 
 
 class TestStatisticsRepository:

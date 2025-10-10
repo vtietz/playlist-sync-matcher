@@ -165,6 +165,18 @@ class DatabaseInterface(ABC):
         ...
     
     @abstractmethod
+    def get_match_confidence_tier_counts(self) -> Dict[str, int]:
+        """Get count of matches grouped by confidence tier (extracted from method string).
+        
+        This method robustly parses the method column (format: "score:TIER" or "score:TIER:details")
+        and groups by the confidence tier (CERTAIN, HIGH, MEDIUM, LOW).
+        
+        Returns:
+            Dict mapping confidence tier to count (e.g., {'CERTAIN': 10, 'HIGH': 5})
+        """
+        ...
+    
+    @abstractmethod
     def get_playlist_occurrence_counts(self, track_ids: List[str]) -> Dict[str, int]:
         """Get count of playlists each track appears in.
         

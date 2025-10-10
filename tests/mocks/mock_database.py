@@ -366,6 +366,20 @@ class MockDatabase(DatabaseInterface):
             counts[method] = counts.get(method, 0) + 1
         return counts
     
+    def get_match_confidence_tier_counts(self) -> Dict[str, int]:
+        """Get count of matches grouped by confidence tier (extracted from method)."""
+        counts: Dict[str, int] = {}
+        for m in self.matches:
+            method = m.get('method', 'UNKNOWN')
+            # Extract tier from "score:TIER" or "score:TIER:details" format
+            if method.startswith('score:'):
+                parts = method.split(':')
+                tier = parts[1] if len(parts) > 1 else 'UNKNOWN'
+            else:
+                tier = method
+            counts[tier] = counts.get(tier, 0) + 1
+        return counts
+    
     def get_playlist_occurrence_counts(self, track_ids: List[str]) -> Dict[str, int]:
         """Get count of playlists each track appears in."""
         counts: Dict[str, int] = {tid: 0 for tid in track_ids}

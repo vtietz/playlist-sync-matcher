@@ -446,6 +446,35 @@ class Database(DatabaseInterface):
         rows = self.conn.execute(sql).fetchall()
         return {row[0]: row[1] for row in rows}
     
+    def get_match_confidence_tier_counts(self) -> Dict[str, int]:
+        """Get count of matches grouped by confidence tier (robustly extracted from method).
+        
+        Parses method column format: "score:TIER" or "score:TIER:details"
+        to extract the confidence tier (CERTAIN, HIGH, MEDIUM, LOW).
+        """
+        sql = """
+        SELECT 
+            CASE
+                -- Extract tier from "score:TIER" or "score:TIER:details" format
+                WHEN method LIKE 'score:%' THEN 
+                    SUBSTR(
+                        method,
+                        7,  -- Start after "score:"
+                        CASE 
+                            WHEN INSTR(SUBSTR(method, 7), ':') > 0 
+                            THEN INSTR(SUBSTR(method, 7), ':') - 1  -- Stop before next ':'
+                            ELSE LENGTH(method) - 6  -- Or end of string
+                        END
+                    )
+                ELSE method  -- Fallback for non-standard formats
+            END as confidence_tier,
+            COUNT(*) as count
+        FROM matches
+        GROUP BY confidence_tier
+        """
+        rows = self.conn.execute(sql).fetchall()
+        return {row[0]: row[1] for row in rows}
+    
     def get_playlist_occurrence_counts(self, track_ids: List[str]) -> Dict[str, int]:
         """Get count of playlists each track appears in."""
         if not track_ids:

@@ -205,14 +205,14 @@ class MatchingEngine:
         if total_matches == 0:
             return "none"
         
-        # Get match confidence counts using repository method
-        method_counts = self.db.get_match_confidence_counts()
+        # Get match confidence tier counts using robust SQL aggregation
+        tier_counts = self.db.get_match_confidence_tier_counts()
         
-        # Count by confidence tier (methods are like "score:HIGH:...")
-        certain = sum(count for method, count in method_counts.items() if 'CERTAIN' in method)
-        high = sum(count for method, count in method_counts.items() if 'HIGH' in method)
-        medium = sum(count for method, count in method_counts.items() if 'MEDIUM' in method)
-        low = sum(count for method, count in method_counts.items() if 'LOW' in method)
+        # Extract counts for each tier (no more brittle string matching!)
+        certain = tier_counts.get('certain', tier_counts.get('CERTAIN', 0))
+        high = tier_counts.get('high', tier_counts.get('HIGH', 0))
+        medium = tier_counts.get('medium', tier_counts.get('MEDIUM', 0))
+        low = tier_counts.get('low', tier_counts.get('LOW', 0))
         
         parts = []
         if certain > 0:
