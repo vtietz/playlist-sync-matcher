@@ -50,7 +50,7 @@ def test_unmatched_albums_display(tmp_path: Path):
 
     result = run_matching(db, config={})
     assert result.matched == 0
-    assert result.unmatched == 0  # zero library files
+    assert result.unmatched == 6  # 6 Spotify tracks with no library files to match
 
     db.close()
     print("\n✓ Unmatched album scenario executed (no library files)")

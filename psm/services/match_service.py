@@ -103,32 +103,6 @@ def run_matching(
     return result
 
 
-def _duration_prefilter_single(track: Dict[str, Any], files: List[Dict[str, Any]], dur_tol: float) -> List[Dict[str, Any]]:
-    """Return candidate files passing relaxed duration tolerance for a single track.
-
-    We intentionally allow a minimum ±4s window or (dur_tol * 2) to avoid
-    over-pruning when metadata rounding causes off-by-seconds inconsistencies.
-    If a library file lacks duration metadata it is retained (can't exclude).
-    """
-    if track.get('duration_ms') is None:
-        return files
-    target_sec = track['duration_ms'] / 1000.0
-    window = max(4, dur_tol * 2)
-    return [f for f in files if f.get('duration') is None or abs(f.get('duration') - target_sec) <= window]
-
-
-def build_duration_candidate_map(tracks: List[Dict[str, Any]], files: List[Dict[str, Any]], dur_tol: float) -> Dict[str, List[int]]:
-    """Utility exposed for tests replacing legacy DurationFilterStrategy.
-
-    Returns mapping track_id -> list of file ids passing duration filter.
-    """
-    result: Dict[str, List[int]] = {}
-    for t in tracks:
-        candidates = _duration_prefilter_single(t, files, dur_tol)
-        result[t['id']] = [c['id'] for c in candidates]
-    return result
-
-
 def _show_unmatched_diagnostics(db: Database, top_tracks: int = 20, top_albums: int = 10):
     """Show unmatched track and album diagnostics in INFO mode.
     

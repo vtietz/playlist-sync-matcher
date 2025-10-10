@@ -53,7 +53,7 @@ def test_unmatched_sorted_by_popularity(tmp_path: Path):
     result = run_matching(db, config={})
     # All tracks unmatched (no library files)
     assert result.matched == 0
-    assert result.unmatched == 0  # library_files is zero so unmatched count is 0
+    assert result.unmatched == 4  # 4 Spotify tracks with no library files to match
 
     # Close DB
     db.close()
