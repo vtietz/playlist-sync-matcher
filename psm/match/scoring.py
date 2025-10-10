@@ -19,6 +19,7 @@ pre-normalized columns if needed.
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional, List, Dict, Any, Tuple
+import re
 from rapidfuzz import fuzz
 from ..utils.normalization import normalize_token
 
@@ -57,6 +58,40 @@ class CandidateEvaluation:
 
 @dataclass
 class ScoringConfig:
+    """Configuration for scoring engine weights, thresholds, and penalties.
+    
+    Scoring Scenarios Analysis:
+    
+    1. Perfect Match (CERTAIN = 100+):
+       - Title exact (45) + Artist exact (30) + Album exact (18) + Year (6) + Duration tight (6) = 105
+       - OR: Title exact + Artist exact + ISRC (15) + Duration = 96 (below threshold!)
+       
+    2. Strong Match without Album/Year (HIGH = 90+):
+       - Title exact (45) + Artist exact (30) + Duration tight (6) = 81
+       - Minus: Album missing local (8) + Album missing remote (5) + Year missing (8) = -21
+       - Total: 81 - 21 = 60 (falls to LOW, below MEDIUM!)
+       
+    3. Strong Match with missing metadata requires ISRC:
+       - Title exact (45) + Artist exact (30) + ISRC (15) + Duration (6) = 96 (HIGH)
+       - Minus: Album penalties (13) + Year penalties (8) = -21
+       - Total: 96 - 21 = 75 (REJECTED if below min_accept=65, but reaches LOW 65-78)
+       
+    4. Fuzzy title but strong artist + duration:
+       - Title fuzzy max (30) + Artist exact (30) + Duration (6) = 66 (LOW)
+       - With album: +18 = 84 (HIGH)
+       
+    Observation: Current thresholds are too strict for files with missing album/year
+    but strong title/artist/duration matches. This is common for:
+    - Singles (no album)
+    - Compilations (year mismatch)
+    - User-ripped files (incomplete metadata)
+    
+    Recommended adjustments:
+    - Lower confidence_certain_threshold: 100 → 95 (allows ISRC path without all metadata)
+    - Lower confidence_high_threshold: 90 → 82 (allows exact title+artist+duration)
+    - Reduce penalty_complete_metadata_missing: 20 → 15 (less harsh on singles)
+    - OR: Add bonus for strong core match (title+artist+duration all exact)
+    """
     # fuzzy thresholds
     min_title_ratio: int = 88
     strong_title_ratio: int = 96
@@ -82,10 +117,10 @@ class ScoringConfig:
     penalty_album_missing_remote: float = 5
     penalty_year_missing: float = 4
     penalty_variant_mismatch: float = 6
-    penalty_complete_metadata_missing: float = 20.0
-    # confidence thresholds
-    confidence_certain_threshold: float = 100.0
-    confidence_high_threshold: float = 90.0
+    penalty_complete_metadata_missing: float = 15.0  # Reduced from 20 (less harsh on singles)
+    # confidence thresholds (adjusted for real-world metadata gaps)
+    confidence_certain_threshold: float = 95.0  # Lowered from 100 (allows ISRC matches)
+    confidence_high_threshold: float = 82.0  # Lowered from 90 (allows title+artist+duration)
     confidence_medium_threshold: float = 78.0
     # acceptance
     min_accept_score: float = 65
@@ -97,6 +132,38 @@ def _canonical_artist(artist: str) -> str:
 
 def _canonical_title(title: str) -> str:
     return normalize_token(title)
+
+# --- Variant Detection -----------------------------------------------------
+
+# Compile regex patterns for variant detection (performance optimization)
+_VARIANT_PATTERN = re.compile(
+    r'''
+    (?:                                  # Non-capturing group for alternatives
+        \b(?:live|remix|acoustic|edit|mix|version|demo|remaster(?:ed)?|instrumental|radio|explicit|clean|deluxe|bonus|extended|unplugged)\b |  # Word boundary keywords
+        \((?:live|remix|acoustic|edit|mix|version|demo|remaster(?:ed)?|instrumental|radio|explicit|clean|deluxe|bonus|extended|unplugged)\b[^\)]*\) |  # Parenthesized variants
+        \[(?:live|remix|acoustic|edit|mix|version|demo|remaster(?:ed)?|instrumental|radio|explicit|clean|deluxe|bonus|extended|unplugged)\b[^\]]*\]     # Bracketed variants
+    )
+    ''',
+    re.IGNORECASE | re.VERBOSE
+)
+
+def _has_variant(title: str) -> bool:
+    """Check if title contains variant keywords using regex.
+    
+    Handles multiple contexts:
+    - Word boundary matches: "Live at..."
+    - Parenthesized: "(Live 2023)", "(Remastered)"
+    - Bracketed: "[Radio Edit]", "[2024 Remaster]"
+    
+    Args:
+        title: Track title to check
+        
+    Returns:
+        True if variant keyword detected, False otherwise
+    """
+    if not title:
+        return False
+    return bool(_VARIANT_PATTERN.search(title))
 
 # --- Core Scoring Logic ----------------------------------------------------
 
@@ -252,18 +319,10 @@ def evaluate_pair(remote: Dict[str, Any], local: Dict[str, Any], cfg: ScoringCon
         matched_isrc = True
         notes.append("isrc_match")
 
-    # Variant penalty: if one has keywords and other not (check raw titles before normalization)
-    variant_keywords = {"live", "remix", "acoustic", "edit"}
-    def has_variant(s: str) -> bool:
-        """Check if title contains variant keywords (case-insensitive word match)."""
-        if not s:
-            return False
-        words = s.lower().split()
-        return any(k in words for k in variant_keywords)
-    
-    # Use original titles, not normalized (normalization might strip these keywords)
+    # Variant penalty: detect if one has variant markers and other doesn't
+    # Use original titles (before normalization which may strip these keywords)
     if r_title and l_title:
-        if has_variant(r_title) != has_variant(l_title):
+        if _has_variant(r_title) != _has_variant(l_title):
             raw_score -= cfg.penalty_variant_mismatch
             notes.append("penalty_variant_mismatch")
 

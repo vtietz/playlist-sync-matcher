@@ -28,6 +28,7 @@
 * **Test Behavior, Not Logging**: Tests should verify functional correctness (database state, file existence) rather than checking for specific log messages, which may not be captured by test runners.
 * **Backward Compatibility**: When refactoring, ensure all existing tests pass. Add new tests for new functionality.
 * **All Tests Must Pass**: Run full test suite after any changes. Never leave tests failing.
+* **Finally remove all backward compatibility code**: If a feature or code path is deprecated, remove it entirely rather than leaving it commented out or behind flags.
 
 ## Code Quality
 * **Remove Unused Code**: Delete unused imports, variables, and helper functions after refactoring. Don't leave dead code.

@@ -91,15 +91,15 @@ class CandidateSelector:
         strings to quickly estimate match quality. This is much faster than
         fuzzy matching and helps prioritize the most promising candidates.
         
-        Performance: Uses precomputed 'normalized_tokens' from files if available,
-        otherwise falls back to computing token sets on-demand.
+        Performance: Uses precomputed 'normalized_tokens' from files (computed
+        during file loading in MatchingEngine._normalize_file_dict()).
         
         If the candidate pool is already smaller than max_candidates, returns
         all candidates without sorting (optimization).
         
         Args:
             track: Track dict with 'normalized' field (space-separated tokens)
-            files: List of file dicts with 'normalized' or 'normalized_tokens' field
+            files: List of file dicts with 'normalized_tokens' field (set[str])
             max_candidates: Maximum number of candidates to return
         
         Returns:
@@ -116,12 +116,8 @@ class CandidateSelector:
         # Score each file using Jaccard similarity
         scored_files: List[Tuple[float, Dict[str, Any]]] = []
         for f in files:
-            # Use precomputed tokens if available (hot path optimization)
-            file_tokens = f.get('normalized_tokens')
-            if file_tokens is None:
-                # Fallback: compute on-demand for backward compatibility
-                file_tokens = set((f.get('normalized') or '').split())
-            
+            # Use precomputed tokens from file dict
+            file_tokens = f['normalized_tokens']
             similarity = self._jaccard_similarity(track_tokens, file_tokens)
             scored_files.append((similarity, f))
         

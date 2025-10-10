@@ -4,6 +4,17 @@ import pytest
 from psm.match.candidate_selector import CandidateSelector
 
 
+def _make_file(file_dict):
+    """Helper to add normalized_tokens to file dicts for testing.
+    
+    Mimics the behavior of MatchingEngine._normalize_file_dict().
+    """
+    if 'normalized' in file_dict and 'normalized_tokens' not in file_dict:
+        normalized_str = file_dict.get('normalized') or ''
+        file_dict['normalized_tokens'] = set(normalized_str.split())
+    return file_dict
+
+
 class TestDurationPrefilter:
     """Test duration-based prefiltering."""
     
@@ -138,7 +149,7 @@ class TestTokenPrescore:
         
         track = {'normalized': 'artist album title'}
         files = [
-            {'id': i, 'normalized': f'artist album title {i}'}
+            _make_file({'id': i, 'normalized': f'artist album title {i}'})
             for i in range(100)
         ]
         
@@ -152,10 +163,10 @@ class TestTokenPrescore:
         
         track = {'normalized': 'pink floyd dark side moon'}
         files = [
-            {'id': 1, 'normalized': 'pink floyd dark side moon'},  # Perfect match (1.0)
-            {'id': 2, 'normalized': 'pink floyd dark side'},       # 4/5 = 0.8
-            {'id': 3, 'normalized': 'pink floyd'},                 # 2/5 = 0.4
-            {'id': 4, 'normalized': 'beatles abbey road'},         # 0/7 = 0.0
+            _make_file({'id': 1, 'normalized': 'pink floyd dark side moon'}),  # Perfect match (1.0)
+            _make_file({'id': 2, 'normalized': 'pink floyd dark side'}),       # 4/5 = 0.8
+            _make_file({'id': 3, 'normalized': 'pink floyd'}),                 # 2/5 = 0.4
+            _make_file({'id': 4, 'normalized': 'beatles abbey road'}),         # 0/7 = 0.0
         ]
         
         result = selector.token_prescore(track, files, max_candidates=3)
@@ -170,9 +181,9 @@ class TestTokenPrescore:
         
         track = {'normalized': ''}
         files = [
-            {'id': 1, 'normalized': ''},
-            {'id': 2, 'normalized': 'some tokens'},
-            {'id': 3, 'normalized': None},
+            _make_file({'id': 1, 'normalized': ''}),
+            _make_file({'id': 2, 'normalized': 'some tokens'}),
+            _make_file({'id': 3, 'normalized': None}),
         ]
         
         # Should not crash
@@ -185,11 +196,11 @@ class TestTokenPrescore:
         
         track = {'normalized': 'a b c d'}
         files = [
-            {'id': 1, 'normalized': 'a b'},          # 2/4 = 0.5
-            {'id': 2, 'normalized': 'a b c'},        # 3/4 = 0.75
-            {'id': 3, 'normalized': 'a b c d'},      # 4/4 = 1.0
-            {'id': 4, 'normalized': 'a'},            # 1/4 = 0.25
-            {'id': 5, 'normalized': 'x y z'},        # 0/7 = 0.0
+            _make_file({'id': 1, 'normalized': 'a b'}),          # 2/4 = 0.5
+            _make_file({'id': 2, 'normalized': 'a b c'}),        # 3/4 = 0.75
+            _make_file({'id': 3, 'normalized': 'a b c d'}),      # 4/4 = 1.0
+            _make_file({'id': 4, 'normalized': 'a'}),            # 1/4 = 0.25
+            _make_file({'id': 5, 'normalized': 'x y z'}),        # 0/7 = 0.0
         ]
         
         # Use max_candidates < len(files) to force sorting
@@ -263,11 +274,11 @@ class TestCandidateSelectorIntegration:
         }
         
         files = [
-            {'id': 1, 'duration': 240, 'normalized': 'led zeppelin stairway heaven'},  # Perfect
-            {'id': 2, 'duration': 242, 'normalized': 'led zeppelin stairway heaven'},  # Close
-            {'id': 3, 'duration': 180, 'normalized': 'led zeppelin'},                  # Duration fail
-            {'id': 4, 'duration': 240, 'normalized': 'pink floyd'},                    # Token fail
-            {'id': 5, 'duration': 300, 'normalized': 'led zeppelin stairway heaven'},  # Duration fail
+            _make_file({'id': 1, 'duration': 240, 'normalized': 'led zeppelin stairway heaven'}),  # Perfect
+            _make_file({'id': 2, 'duration': 242, 'normalized': 'led zeppelin stairway heaven'}),  # Close
+            _make_file({'id': 3, 'duration': 180, 'normalized': 'led zeppelin'}),                  # Duration fail
+            _make_file({'id': 4, 'duration': 240, 'normalized': 'pink floyd'}),                    # Token fail
+            _make_file({'id': 5, 'duration': 300, 'normalized': 'led zeppelin stairway heaven'}),  # Duration fail
         ]
         
         # Stage 1: Duration filter
