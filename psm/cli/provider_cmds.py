@@ -67,6 +67,11 @@ def pull(ctx: click.Context, force_auth: bool, force_refresh: bool):
             db.set_meta('last_pull_changed_tracks', changed_ids_str)
             db.commit()
             click.echo(f"  → {len(result.changed_track_ids)} track(s) added/updated")
+        
+        # Set write signal for GUI auto-refresh
+        import time
+        db.set_meta('last_write_epoch', str(time.time()))
+        db.set_meta('last_write_source', 'pull')
     
     click.echo(f"\n[summary] Provider={provider} | Playlists: {result.playlist_count} | Unique playlist tracks: {result.unique_playlist_tracks} | Liked tracks: {result.liked_tracks} | Total tracks: {result.total_tracks}")
     logger.debug(f"Completed in {result.duration_seconds:.2f}s")

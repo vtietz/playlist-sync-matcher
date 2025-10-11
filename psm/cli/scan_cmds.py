@@ -144,6 +144,9 @@ def scan(ctx: click.Context, since: str | None, deep: bool, paths: tuple, watch:
             import time
             db.set_meta('last_scan_time', str(time.time()))
             db.set_meta('library_last_modified', str(time.time()))
+            # Set write signal for GUI auto-refresh
+            db.set_meta('last_write_epoch', str(time.time()))
+            db.set_meta('last_write_source', 'scan')
         
         # Print summary
         from ..utils.logging_helpers import format_summary
@@ -166,6 +169,9 @@ def scan(ctx: click.Context, since: str | None, deep: bool, paths: tuple, watch:
             import time
             db.set_meta('last_scan_time', str(time.time()))
             db.set_meta('library_last_modified', str(time.time()))
+            # Set write signal for GUI auto-refresh
+            db.set_meta('last_write_epoch', str(time.time()))
+            db.set_meta('last_write_source', 'scan')
     
     click.echo('Scan complete')
 

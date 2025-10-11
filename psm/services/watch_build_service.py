@@ -116,6 +116,11 @@ def _handle_library_changes(
                 _generate_reports(db, watch_config.config, affected_playlist_ids=affected_playlist_ids)
             else:
                 progress.step(4, 4, "Reports skipped")
+            
+            # Set write signal for GUI auto-refresh
+            import time
+            db.set_meta('last_write_epoch', str(time.time()))
+            db.set_meta('last_write_source', 'watch:library')
         
         progress.complete("Incremental rebuild")
     except Exception as e:
@@ -191,6 +196,11 @@ def _handle_database_changes(watch_config: WatchBuildConfig) -> float:
                     _generate_reports(db, watch_config.config)  # Full rebuild
             else:
                 progress.step(3, 3, "Reports skipped")
+            
+            # Set write signal for GUI auto-refresh
+            import time
+            db.set_meta('last_write_epoch', str(time.time()))
+            db.set_meta('last_write_source', 'watch:database')
         
         progress.complete("Database sync")
     except Exception as e:

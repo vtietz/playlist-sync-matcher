@@ -111,6 +111,11 @@ def run_matching(
     # Show unmatched diagnostics (INFO mode) - moved from DEBUG
     _show_unmatched_diagnostics(db, top_unmatched_tracks, top_unmatched_albums)
     
+    # Set write signal for GUI auto-refresh
+    db.set_meta('last_write_epoch', str(time.time()))
+    db.set_meta('last_write_source', 'match')
+    logger.debug("Write signal updated: match operation completed")
+    
     return result
 
 

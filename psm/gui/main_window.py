@@ -44,6 +44,7 @@ class MainWindow(QMainWindow):
     on_export_clicked = Signal()
     on_report_clicked = Signal()
     on_open_reports_clicked = Signal()
+    on_refresh_clicked = Signal()  # NEW: Manual refresh
     on_build_clicked = Signal()
     on_analyze_clicked = Signal()
     on_diagnose_clicked = Signal(str)  # track_id
@@ -211,6 +212,7 @@ class MainWindow(QMainWindow):
         self.toolbar.reportClicked.connect(self.on_report_clicked.emit)
         self.toolbar.exportClicked.connect(self.on_export_clicked.emit)
         self.toolbar.openReportsClicked.connect(self.on_open_reports_clicked.emit)
+        self.toolbar.refreshClicked.connect(self.on_refresh_clicked.emit)
         self.toolbar.watchToggled.connect(self._on_watch_button_toggled)
     
     def _create_playlists_widget(self) -> QWidget:

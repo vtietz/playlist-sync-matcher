@@ -2,10 +2,12 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING, Optional, List, Dict, Any
 from PySide6.QtCore import QObject, QTimer, QSignalBlocker, Qt
+from pathlib import Path
 import logging
 
 from .services import CommandService
 from .utils.async_loader import MultiAsyncLoader
+from .database_monitor import DatabaseChangeDetector
 
 if TYPE_CHECKING:
     from .main_window import MainWindow
@@ -51,6 +53,12 @@ class MainController(QObject):
         self._active_loaders: list[MultiAsyncLoader] = []
         self._filter_options_loaded = False  # Track if filter options are loaded
         
+        # Track watch mode state for auto-refresh logic
+        self._watch_mode_active = False
+        
+        # Set up database change detection
+        self._db_monitor = self._setup_db_monitor()
+        
         # Connect UI signals to handlers
         self._connect_signals()
         
@@ -64,6 +72,106 @@ class MainController(QObject):
         
         # Initial data load - use async to avoid blocking UI
         QTimer.singleShot(0, self.refresh_all_async)
+    
+    def _setup_db_monitor(self) -> Optional[DatabaseChangeDetector]:
+        """Set up automatic database change detection.
+        
+        Returns:
+            DatabaseChangeDetector instance, or None if setup failed
+        """
+        try:
+            # Get DB path from active connection
+            db_obj = self.facade.db
+            if hasattr(db_obj, 'path') and db_obj.path:
+                db_path = Path(db_obj.path).resolve()
+            else:
+                # Fallback to config
+                from psm.config import load_config
+                config = load_config()
+                db_path = Path(config['database']['path']).resolve()
+            
+            # Create detector with callback
+            monitor = DatabaseChangeDetector(
+                db_path=db_path,
+                get_write_epoch=lambda: self.facade.db.get_meta('last_write_epoch') or '0',
+                on_change_detected=self._on_external_db_change,
+                check_interval=2000,  # 2 seconds
+                debounce_seconds=1.5
+            )
+            
+            return monitor
+        
+        except Exception as e:
+            logger.warning(f"Could not set up database monitor: {e}")
+            return None
+    
+    def _on_external_db_change(self):
+        """Callback when external database change is detected."""
+        watch_status = " [watch mode]" if self._watch_mode_active else ""
+        
+        # Try to get write source for better logging
+        try:
+            write_source = self.facade.db.get_meta('last_write_source') or 'unknown'
+            self.window.append_log(f"🔄 Database changed externally ({write_source}), auto-refreshing...{watch_status}")
+        except Exception:
+            self.window.append_log(f"🔄 Database changed externally, auto-refreshing...{watch_status}")
+        
+        # Trigger fast refresh
+        self.refresh_tracks_only_async()
+        """Set up automatic database change detection via write-epoch polling.
+        
+        Uses a write-only change signal (last_write_epoch meta key) to detect real
+        database modifications, avoiding false triggers from read-only operations.
+        Falls back to WAL-aware mtime checking if write epoch is unavailable.
+        
+        Polling interval: 2 seconds (same as watch mode)
+        """
+        try:
+            # Prefer actual DB path from the open connection to avoid mismatch
+            # between CLI/watch-mode writes and GUI polling
+            db_obj = self.facade.db
+            if hasattr(db_obj, 'path') and db_obj.path:
+                self._db_path = Path(db_obj.path).resolve()
+            else:
+                # Fallback to config if DB doesn't expose path
+                from psm.config import load_config
+                config = load_config()
+                self._db_path = Path(config['database']['path']).resolve()
+            
+            self._db_wal_path = Path(str(self._db_path) + "-wal")
+            
+            # Initialize write epoch tracking (primary detection method)
+            try:
+                self._last_write_epoch = self.facade.db.get_meta('last_write_epoch') or '0'
+            except Exception:
+                self._last_write_epoch = '0'
+            
+            # Get initial mtime from both DB and WAL files (fallback detection)
+            db_mtime = self._db_path.stat().st_mtime if self._db_path.exists() else 0
+            wal_mtime = self._db_wal_path.stat().st_mtime if self._db_wal_path.exists() else 0
+            self._last_db_mtime = max(db_mtime, wal_mtime)
+            
+            # Track last refresh time to avoid rapid re-triggers
+            self._last_refresh_at = 0
+            
+            # Create polling timer (check every 2 seconds)
+            self._db_poll_timer = QTimer(self)
+            self._db_poll_timer.timeout.connect(self._check_db_changes)
+            self._db_poll_timer.start(2000)  # 2 seconds
+            
+            logger.info(f"Auto-refresh enabled: write-epoch polling + WAL-aware fallback")
+            logger.info(f"  DB path: {self._db_path}")
+            logger.info(f"  Initial write epoch: {self._last_write_epoch}")
+            
+        except Exception as e:
+            logger.warning(f"Could not set up database polling: {e}")
+            # Graceful degradation - manual refresh still available
+            self._db_poll_timer = None
+            self._db_path = None
+            self._db_wal_path = None
+            self._last_db_mtime = 0
+            self._last_write_epoch = '0'
+            self._last_refresh_at = 0
     
     def _connect_signals(self):
         """Connect UI signals to controller methods."""
@@ -88,6 +196,7 @@ class MainController(QObject):
         self.window.on_export_clicked.connect(self._on_export)
         self.window.on_report_clicked.connect(self._on_report)
         self.window.on_open_reports_clicked.connect(self._on_open_reports)
+        self.window.on_refresh_clicked.connect(self._on_refresh)
         self.window.on_build_clicked.connect(self._on_build)
         self.window.on_analyze_clicked.connect(self._on_analyze)
         self.window.on_diagnose_clicked.connect(self._on_diagnose)
@@ -171,63 +280,38 @@ class MainController(QObject):
         # Start loading
         loader.start()
     
-    def _refresh_single_playlist(self, playlist_id: str):
-        """Refresh data for a single playlist without reloading all tracks.
+    def refresh_tracks_only_async(self):
+        """Fast refresh path for track changes only (e.g., from external matching).
         
-        This is much faster than refresh_all_async() for single-playlist operations.
-        Only updates the changed tracks in the model without a full reload.
+        This method only reloads tracks and counts, skipping playlists/albums/artists.
+        Much faster than refresh_all_async() when metadata hasn't changed.
         """
-        logger.info(f"Partial refresh for playlist: {playlist_id}")
+        logger.info("Fast refresh: tracks only (async)...")
         
-        # Get the playlist
-        playlist = self.db.get_playlist_by_id(playlist_id)
-        if not playlist:
-            logger.warning(f"Playlist {playlist_id} not found for refresh")
-            return
+        # Cancel any running loaders first
+        if self._active_loaders:
+            logger.info("Cancelling previous loader...")
+            for loader in self._active_loaders:
+                loader.stop()
+                loader.wait()
+            self._active_loaders.clear()
         
-        # Get current filter state
-        current_filter = self.window.filter_store.state
-        was_filtering_this_playlist = (current_filter.playlist_name == playlist.name)
+        # Define minimal loading functions
+        load_funcs = {
+            'tracks': lambda: self.facade_factory().list_all_tracks_unified_fast(),
+            'counts': lambda: self.facade_factory().get_counts(),
+        }
         
-        logger.debug(f"Refreshing playlist '{playlist.name}', currently filtered: {was_filtering_this_playlist}")
+        # Create async loader
+        loader = MultiAsyncLoader(load_funcs)
+        loader.all_finished.connect(self._on_tracks_only_loaded)
+        loader.error.connect(self._on_data_load_error)
         
-        # Get the playlist's track IDs
-        playlist_track_ids = self.db.get_playlist_track_ids(playlist_id)
-        logger.debug(f"Reloading {len(playlist_track_ids)} tracks for playlist '{playlist.name}'")
+        # Track loader to prevent garbage collection
+        self._active_loaders.append(loader)
         
-        # Reload these tracks from DB to get updated match status
-        updated_tracks_data = []
-        for track_id in playlist_track_ids:
-            track = self.db.get_track_by_id(track_id)
-            if track:
-                # Convert to dict format expected by model
-                track_data = {
-                    'id': track.id,
-                    'title': track.title,
-                    'artist': track.artist,
-                    'album': track.album,
-                    'year': track.year,
-                    'file_path': track.file_path,
-                    'spotify_track_id': track.spotify_track_id,
-                    'spotify_uri': track.spotify_uri,
-                    'match_score': track.match_score,
-                    'match_method': track.match_method,
-                    'playlists': [],  # Will be populated by coordinator
-                }
-                updated_tracks_data.append(track_data)
-        
-        logger.info(f"Loaded {len(updated_tracks_data)} updated tracks for playlist '{playlist.name}'")
-        
-        # Update model's internal data for these tracks
-        # The coordinator handles merging playlist info
-        self.window.model_coordinator.update_unified_tracks(updated_tracks_data, [playlist])
-        
-        # If we were filtering this playlist, reapply the filter to refresh the view
-        if was_filtering_this_playlist:
-            logger.debug(f"Reapplying playlist filter for '{playlist.name}' after partial refresh")
-            self.set_playlist_filter(playlist.name)
-        
-        logger.info(f"✓ Partial refresh complete for playlist: {playlist.name}")
+        # Start loading
+        loader.start()
     
     def _on_item_loaded(self, key: str, data):
         """Handle individual item loaded.
@@ -328,10 +412,62 @@ class MainController(QObject):
             # Trigger lazy playlist loading for visible rows
             QTimer.singleShot(100, self.window.unified_tracks_view.trigger_lazy_playlist_load)
             
+            # Update database change tracking after refresh
+            if self._db_monitor:
+                self._db_monitor.update_tracking()
+            
         except Exception as e:
             logger.error(f"Error updating UI with loaded data: {e}", exc_info=True)
             self.window.append_log(f"Error updating UI: {e}")
             self.window.unified_tracks_view.hide_loading()
+        
+        finally:
+            # Clean up loader reference
+            if self._active_loaders:
+                self._active_loaders.pop(0)
+    
+    def _on_tracks_only_loaded(self, results: dict):
+        """Handle tracks-only data loaded successfully (fast refresh).
+        
+        This is called after refresh_tracks_only_async() completes.
+        Only updates tracks and counts without reloading playlists/albums/artists.
+        
+        Args:
+            results: Dict with 'tracks' and 'counts' keys
+        """
+        logger.info("Tracks-only data loaded successfully")
+        
+        try:
+            # Update tracks
+            if 'tracks' in results:
+                track_count = len(results['tracks'])
+                logger.info(f"Updating {track_count} tracks")
+                
+                # Use streaming for very large datasets
+                if track_count > 5000:
+                    logger.info(f"Using streaming mode for {track_count} tracks")
+                    # Get current playlists from window state (no need to reload)
+                    playlists = self.window.playlists_model.data_rows
+                    self._load_tracks_streaming(results['tracks'], playlists)
+                else:
+                    logger.info(f"Using direct load for {track_count} tracks")
+                    # Get current playlists from window state
+                    playlists = self.window.playlists_model.data_rows
+                    self.window.update_unified_tracks(results['tracks'], playlists)
+            
+            # Update counts
+            if 'counts' in results:
+                self.window.update_status_counts(results['counts'])
+            
+            self.window.append_log("Tracks refreshed")
+            
+            # Update database change tracking after refresh
+            if self._db_monitor:
+                self._db_monitor.update_tracking()
+            
+        except Exception as e:
+            logger.error(f"Error updating tracks: {e}", exc_info=True)
+            self.window.append_log(f"Error updating tracks: {e}")
         
         finally:
             # Clean up loader reference
@@ -692,6 +828,10 @@ class MainController(QObject):
         
         logger.info(f"set_playlist_filter_async called with: {playlist_name}")
         
+        # Suppress auto-refresh during playlist loading (prevents false triggers)
+        if self._db_monitor:
+            self._db_monitor.set_suppression(True)
+        
         # Cancel any previous playlist filter loaders
         # (Allow other loaders to continue - only cancel playlist filtering)
         for loader in self._active_loaders[:]:  # Copy list to avoid modification during iteration
@@ -721,6 +861,12 @@ class MainController(QObject):
             self.window.filter_store.set_playlist(playlist_name, set(track_ids))
             logger.debug(f"Published to FilterStore: {playlist_name}")
             
+            # Set ignore window to prevent false refresh from WAL checkpoint
+            # (Read operations can trigger WAL checkpoint, updating mtime without real writes)
+            if self._db_monitor:
+                self._db_monitor.set_ignore_window(2.5)
+                self._db_monitor.set_suppression(False)
+            
             # Clean up loader
             if loader in self._active_loaders:
                 self._active_loaders.remove(loader)
@@ -728,6 +874,11 @@ class MainController(QObject):
         def on_error(error_msg):
             """Handle loading error."""
             logger.error(f"Failed to load playlist tracks: {error_msg}")
+            
+            # Re-enable auto-refresh
+            if self._db_monitor:
+                self._db_monitor.set_suppression(False)
+            
             # Clean up loader
             if loader in self._active_loaders:
                 self._active_loaders.remove(loader)
@@ -755,23 +906,40 @@ class MainController(QObject):
         self.set_playlist_filter_async(playlist_name)
     # Action handlers
     
-    def _execute_command(self, args: list, success_message: str, refresh_after: bool = True):
+    def _execute_command(self, args: list, success_message: str, refresh_after: bool = True, fast_refresh: bool = False):
         """Execute a CLI command using CommandService.
         
         Args:
             args: Command arguments
             success_message: Message to show on success
             refresh_after: Whether to refresh data after successful execution (default: True)
+            fast_refresh: Use fast tracks-only refresh instead of full refresh (default: False)
         """
         # Clear log before execution
         self.window.clear_logs()
+        
+        # Choose refresh method
+        if refresh_after:
+            refresh_callback = self.refresh_tracks_only_async if fast_refresh else self.refresh_all_async
+        else:
+            refresh_callback = None
+        
+        # Wrap callback to clear suppression flag after command completes
+        def on_success():
+            # Clear suppression flag (in case it was set for read-only ops)
+            if self._db_monitor:
+                self._db_monitor.set_suppression(False)
+            
+            # Call the actual refresh callback if needed
+            if refresh_callback:
+                refresh_callback()
         
         # Execute via command service with standardized lifecycle
         self.command_service.execute(
             args=args,
             on_log=self.window.append_log,
             on_execution_status=self.window.set_execution_status,
-            on_success=self.refresh_all_async if refresh_after else None,  # Conditional refresh
+            on_success=on_success,  # Use wrapper that clears suppression flag
             success_message=success_message
         )
     
@@ -782,35 +950,71 @@ class MainController(QObject):
         self.window.append_log("\n⚠ Command cancelled by user")
     
     def _on_pull(self):
-        """Handle pull all playlists."""
-        self._execute_command(['pull'], "✓ Pull completed")
+        """Handle pull all playlists.
+        
+        Pull updates playlist structure (adds/removes playlists, changes track lists),
+        so requires full refresh to reload playlists + tracks + counts.
+        """
+        self._execute_command(['pull'], "✓ Pull completed")  # Full refresh
     
     def _on_scan(self):
-        """Handle library scan."""
-        self._execute_command(['scan'], "✓ Scan completed")
+        """Handle library scan.
+        
+        Scan updates track metadata and may add new tracks. Uses fast refresh
+        since playlists themselves don't change (tracks-only update is sufficient).
+        """
+        self._execute_command(['scan'], "✓ Scan completed", fast_refresh=True)
     
     def _on_match(self):
-        """Handle match all tracks."""
-        self._execute_command(['match'], "✓ Match completed")
+        """Handle match all tracks.
+        
+        Match only updates match scores/methods, so uses fast tracks-only refresh.
+        """
+        self._execute_command(['match'], "✓ Match completed", fast_refresh=True)
     
     def _on_export(self):
-        """Handle export all playlists."""
-        self._execute_command(['export'], "✓ Export completed")
+        """Handle export all playlists.
+        
+        Export writes M3U files but doesn't change the database,
+        so no refresh is needed.
+        """
+        self._execute_command(['export'], "✓ Export completed", refresh_after=False)
     
     def _on_report(self):
-        """Handle generate reports."""
-        self._execute_command(['report'], "✓ Reports generated")
+        """Handle generate reports.
+        
+        Report generates HTML files but doesn't change the database,
+        so no refresh is needed.
+        """
+        self._execute_command(['report'], "✓ Reports generated", refresh_after=False)
     
     def _on_analyze(self):
-        """Handle analyze library quality (read-only - no refresh needed)."""
+        """Handle analyze library quality (read-only - no refresh needed).
+        
+        Suppresses auto-refresh polling during execution since analyze
+        only reads data and should not trigger UI updates. Uses both
+        suppression flag and ignore window for defense-in-depth.
+        """
+        # Set ignore window to cover the operation plus brief aftermath
+        if self._db_monitor:
+            self._db_monitor.set_ignore_window(2.5)
+            self._db_monitor.set_suppression(True)
         self._execute_command(['analyze'], "✓ Library quality analysis completed", refresh_after=False)
     
     def _on_diagnose(self, track_id: str):
         """Handle diagnose specific track (read-only - no refresh needed).
         
+        Suppresses auto-refresh polling during execution since diagnose
+        only reads data and should not trigger UI updates. Uses both
+        suppression flag and ignore window for defense-in-depth.
+        
         Args:
             track_id: ID of the track to diagnose
         """
+        # Set ignore window to cover the operation plus brief aftermath
+        if self._db_monitor:
+            self._db_monitor.set_ignore_window(2.5)
+            self._db_monitor.set_suppression(True)
         self._execute_command(['diagnose', track_id], f"✓ Diagnosis completed for track {track_id}", refresh_after=False)
     
     def _on_open_reports(self):
@@ -849,6 +1053,16 @@ class MainController(QObject):
             logger.exception("Failed to open reports")
             self.window.append_log(f"✗ Error opening reports: {e}")
     
+    def _on_refresh(self):
+        """Handle manual refresh button - reload all data from database.
+        
+        This is useful when the user has run CLI commands externally
+        and wants to see the updated data in the GUI.
+        """
+        logger.info("Manual refresh requested")
+        self.window.append_log("🔄 Refreshing data from database...")
+        self.refresh_all_async()
+    
     def _on_build(self):
         """Handle build (scan + match + export)."""
         self._execute_command(['build'], "✓ Build completed")
@@ -859,14 +1073,12 @@ class MainController(QObject):
         logger.debug(f"Pull one clicked - selected playlist ID: {playlist_id}")
         if playlist_id:
             logger.info(f"Executing: playlist pull {playlist_id}")
-            # Use partial refresh after single playlist operations
+            # Use fast tracks-only refresh after single playlist operations
             self._execute_command(
                 ['playlist', 'pull', playlist_id], 
                 f"✓ Pulled playlist {playlist_id}",
-                refresh_after=False  # Don't auto-refresh
+                fast_refresh=True
             )
-            # Manually trigger partial refresh for just this playlist
-            QTimer.singleShot(100, lambda: self._refresh_single_playlist(playlist_id))
         else:
             logger.warning("Pull one clicked but no playlist selected")
             self.window.append_log("⚠ No playlist selected")
@@ -877,14 +1089,12 @@ class MainController(QObject):
         logger.debug(f"Match one clicked - selected playlist ID: {playlist_id}")
         if playlist_id:
             logger.info(f"Executing: playlist match {playlist_id}")
-            # Use partial refresh after single playlist operations
+            # Use fast tracks-only refresh after single playlist operations
             self._execute_command(
                 ['playlist', 'match', playlist_id], 
                 f"✓ Matched playlist {playlist_id}",
-                refresh_after=False  # Don't auto-refresh
+                fast_refresh=True
             )
-            # Manually trigger partial refresh for just this playlist
-            QTimer.singleShot(100, lambda: self._refresh_single_playlist(playlist_id))
         else:
             logger.warning("Match one clicked but no playlist selected")
             self.window.append_log("⚠ No playlist selected")
@@ -913,19 +1123,45 @@ class MainController(QObject):
         """
         if enabled:
             logger.info("Starting watch mode...")
+            self._watch_mode_active = True  # Allow auto-refresh during watch mode
+            if self._db_monitor:
+                self._db_monitor.set_watch_mode(True)
+            
             self.window.clear_logs()
             self.window.set_execution_status(True, "Watch mode")
             self.window.enable_actions(False)
             self.window.set_watch_mode(True)  # Update button label immediately
             
             def on_log(line: str):
+                """Handle log output from watch mode.
+                
+                Detects completion markers and triggers fast refresh to show updates.
+                """
                 self.window.append_log(line)
+                
+                # Event-driven refresh: detect watch mode completion markers
+                # This ensures GUI updates even if mtime polling misses brief WAL changes
+                completion_markers = [
+                    'Incremental rebuild',  # Watch mode rebuild completed
+                    'Database sync',         # DB sync operation
+                    '✓ Match completed',     # Match operation finished
+                    '✓ Build completed',     # Build step finished
+                    'changes detected',      # File change detected (debounced trigger)
+                ]
+                
+                if any(marker in line for marker in completion_markers):
+                    # Schedule fast refresh after short delay to let DB writes finish
+                    logger.debug(f"Watch completion marker detected: {line.strip()}")
+                    QTimer.singleShot(250, self.refresh_tracks_only_async)
             
             def on_progress(current: int, total: int, message: str):
                 # Ignore progress updates in watch mode - just keep showing "Running: Watch mode"
                 pass
             
             def on_finished(exit_code: int):
+                self._watch_mode_active = False  # Disable watch mode flag
+                if self._db_monitor:
+                    self._db_monitor.set_watch_mode(False)
                 self.window.set_watch_mode(False)
                 self.window.enable_actions(True)
                 self.window.set_execution_status(False)  # Set to Ready
@@ -933,6 +1169,9 @@ class MainController(QObject):
                 self.refresh_all_async()  # Async refresh after watch mode stops
             
             def on_error(error: str):
+                self._watch_mode_active = False  # Disable watch mode flag
+                if self._db_monitor:
+                    self._db_monitor.set_watch_mode(False)
                 self.window.set_watch_mode(False)
                 self.window.enable_actions(True)
                 self.window.set_execution_status(False)  # Set to Ready
@@ -947,4 +1186,7 @@ class MainController(QObject):
             )
         else:
             logger.info("Stopping watch mode...")
+            self._watch_mode_active = False  # Disable watch mode flag
+            if self._db_monitor:
+                self._db_monitor.set_watch_mode(False)
             self.executor.stop_current()
