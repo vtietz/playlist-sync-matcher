@@ -53,6 +53,9 @@ class DataRefreshController(QObject):
         self._active_loaders: List[MultiAsyncLoader] = []
         self._filter_options_loaded = False
         
+        # Track active streaming service (prevent garbage collection)
+        self._active_streaming_service = None
+        
         # Set up lazy playlist loading callback
         self.window.unified_tracks_view.set_playlist_fetch_callback(
             self._fetch_playlists_for_tracks
@@ -186,10 +189,13 @@ class DataRefreshController(QObject):
                 self.window.update_artists(results['artists_data'])
             
             # Update tracks
+            is_streaming = False  # Track if we're using streaming mode
             if 'tracks' in results:
                 # Use streaming for large datasets to avoid UI freeze
                 track_count = len(results['tracks'])
-                if track_count > 5000:
+                is_streaming = track_count > 5000
+                
+                if is_streaming:
                     logger.info(f"Using streaming mode for {track_count} tracks")
                     self._load_tracks_streaming(results['tracks'], results.get('playlists', []))
                 else:
@@ -215,8 +221,10 @@ class DataRefreshController(QObject):
                 self.window.update_status_counts(results['counts'])
             
             # Clear execution status and hide loading overlay
-            self.window.set_execution_status(False)
-            self.window.unified_tracks_view.hide_loading()
+            # NOTE: Don't clear if streaming - let streaming service handle it via on_complete callback
+            if not is_streaming:
+                self.window.set_execution_status(False)
+                self.window.unified_tracks_view.hide_loading()
             self.window.append_log("Data loaded successfully")
             
             # Reapply active playlist filter if a playlist was selected before the reload
@@ -332,20 +340,27 @@ class DataRefreshController(QObject):
             pending_sort = self.window._pending_tracks_sort
             self.window._pending_tracks_sort = None  # Clear after capturing
         
-        # Create streaming service instance
-        streaming_service = TrackStreamingService(
+        # Create streaming service instance and store reference to prevent garbage collection
+        self._active_streaming_service = TrackStreamingService(
             view=self.window.unified_tracks_view,
             model=self.window.unified_tracks_model,
             on_progress=lambda current, total, msg: self.window.set_execution_status(True, msg),
-            on_complete=lambda: self.window.set_execution_status(False)
+            on_complete=self._on_streaming_complete
         )
         
         # Start streaming with current filter state
-        streaming_service.start_streaming(
+        self._active_streaming_service.start_streaming(
             tracks=tracks,
             filter_state=self.window.filter_store.state,
             pending_sort=pending_sort
         )
+    
+    def _on_streaming_complete(self):
+        """Handle streaming completion - clear status and hide loading overlay."""
+        self.window.set_execution_status(False)
+        self.window.unified_tracks_view.hide_loading()
+        # Clear reference to streaming service
+        self._active_streaming_service = None
     
     def _fetch_playlists_for_tracks(self, track_ids: List[str]) -> Dict[str, str]:
         """Fetch playlist names for given track IDs (used by lazy loading).

@@ -12,7 +12,7 @@ from psm.cli.helpers import load_typed_config, get_db
 from .main_window import MainWindow
 from .data_facade import DataFacade
 from .runner import CliExecutor
-from .controllers import MainController
+from .controllers import MainOrchestrator
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +97,7 @@ def main() -> int:
         window = MainWindow()
         
         # Create controller (wires everything together and loads data)
-        controller = MainController(window, facade, executor, facade_factory)
+        controller = MainOrchestrator(window, facade, executor, facade_factory)
         
         # Store controller reference in window (for FilterBar -> Controller communication)
         window.set_controller(controller)
