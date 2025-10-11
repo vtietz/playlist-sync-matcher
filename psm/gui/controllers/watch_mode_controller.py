@@ -67,7 +67,7 @@ class WatchModeController(QObject):
                 self._db_monitor.set_command_running(True)  # Watch is a long-running command
             
             self.window.clear_logs()
-            self.window.set_execution_status(True, "Watch mode")
+            self.window.set_execution_status(True, "⌚ Watch mode active")  # Show watch indicator in status
             self.window.enable_actions(False)
             self.window.set_watch_mode(True)  # Update button label immediately
             

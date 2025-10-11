@@ -230,8 +230,10 @@ def export_playlists(
     result.playlist_count = len(playlists)
     
     # Export Liked Songs as virtual playlist (unless disabled in config)
+    # Skip Liked Songs during incremental/scoped exports (playlist_ids provided)
+    # to avoid unnecessary full exports - caller should trigger full export if Liked Songs affected
     provider = 'spotify'  # TODO: Make configurable when adding multi-provider support
-    if include_liked_songs:
+    if include_liked_songs and playlist_ids is None:
         liked_count = db.count_liked_tracks(provider=provider)
         if liked_count > 0:
             if logger.isEnabledFor(logging.DEBUG):

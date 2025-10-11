@@ -97,6 +97,9 @@ class MainOrchestrator(QObject):
         # Wire cross-controller dependencies
         self.data_refresh.set_selection_sync_controller(self.selection_sync)
         
+        # Wire watch mode controller to command controller for better messaging
+        self.command.set_watch_mode_controller(self.watch_mode)
+        
         # Initial data load - use async to avoid blocking UI
         QTimer.singleShot(0, self.data_refresh.refresh_all_async)
     

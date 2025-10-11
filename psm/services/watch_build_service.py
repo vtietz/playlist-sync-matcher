@@ -1,16 +1,7 @@
 """Watch build service: Orchestrate incremental rebuild on changes.
 
 This service handles watch mode for the build command, monitoring both
-library file changes and dat        click.echo(click.style("✓ Database sync complete", fg='green', bold=True))
-    except Exception as e:
-        click.echo(click.style(f"✗ Database sync failed: {e}", fg='red', bold=True))
-        logger.exception("Database sync error details:")
-    
-    click.echo("")
-    click.echo(click.style("Watching for changes...", fg='cyan'))
-    
-    # Return updated DB mtime to prevent false-positive database change detection
-    return watch_config.db_path.stat().st_mtime if watch_config.db_path.exists() else 0.0hanges, then triggering appropriate
+library file changes and database changes, then triggering appropriate
 incremental rebuilds.
 """
 
@@ -28,6 +19,7 @@ from ..services.export_service import export_playlists
 from ..reporting.generator import write_match_reports, write_index_page
 from ..services.watch_service import LibraryWatcher
 from ..utils import progress
+from ..utils.fs import normalize_library_path
 
 logger = logging.getLogger(__name__)
 
@@ -74,16 +66,16 @@ def _handle_library_changes(
             # Track which file IDs were affected
             file_ids_to_match = []
             
-            # Get file IDs for paths that were scanned (use resolved paths to match DB storage)
+            # Get file IDs for paths that were scanned (use normalized paths to match DB storage)
             for path in changed_file_paths:
-                # Normalize path to match database storage format (resolved absolute path)
+                # Normalize path to match database storage format
                 if not isinstance(path, Path):
                     path = Path(path)
-                resolved_path = str(path.resolve())
+                normalized_path = normalize_library_path(path)
                 
                 file_row = db.conn.execute(
                     "SELECT id FROM library_files WHERE path = ?",
-                    (resolved_path,)
+                    (normalized_path,)
                 ).fetchone()
                 if file_row:
                     file_ids_to_match.append(file_row['id'])
@@ -99,23 +91,54 @@ def _handle_library_changes(
             else:
                 progress.step(2, 4, "No files to match (all deleted)")
             
-            # 3. Export (only playlists containing newly matched tracks)
-            if not watch_config.skip_export and matched_track_ids:
-                progress.step(3, 4, "Exporting affected playlists")
-                # Find which playlists contain the newly matched tracks
-                affected_playlist_ids = db.get_playlists_containing_tracks(matched_track_ids)
-                _export_playlists(db, watch_config.config, playlist_ids=affected_playlist_ids)
-            else:
-                progress.step(3, 4, "Export skipped")
+            # 3. Determine affected playlists and export
+            affected_playlist_ids = []
+            has_liked_tracks = False
+            if matched_track_ids:
+                provider = watch_config.config.get('provider', 'spotify')
+                affected_playlist_ids = db.get_playlists_containing_tracks(matched_track_ids, provider=provider)
+                logger.debug(f"Affected playlists: {len(affected_playlist_ids)} - {affected_playlist_ids[:5] if len(affected_playlist_ids) > 5 else affected_playlist_ids}")
+                
+                # Check if any matched tracks are in Liked Songs
+                liked_track_ids = db.get_liked_track_ids(matched_track_ids, provider=provider)
+                has_liked_tracks = len(liked_track_ids) > 0
+                if has_liked_tracks:
+                    logger.debug(f"Matched tracks in Liked Songs: {len(liked_track_ids)}")
             
-            # 4. Regenerate reports (incrementally for affected playlists)
-            if not watch_config.skip_report and matched_track_ids:
-                progress.step(4, 4, "Updating reports (incremental)")
-                # Find which playlists contain the newly matched tracks
-                affected_playlist_ids = db.get_playlists_containing_tracks(matched_track_ids)
-                _generate_reports(db, watch_config.config, affected_playlist_ids=affected_playlist_ids)
+            if not watch_config.skip_export:
+                if affected_playlist_ids or has_liked_tracks:
+                    if affected_playlist_ids:
+                        progress.step(3, 4, f"Exporting {len(affected_playlist_ids)} affected playlist(s){' + Liked Songs' if has_liked_tracks else ''}")
+                        _export_playlists(db, watch_config.config, playlist_ids=affected_playlist_ids)
+                    else:
+                        # Only Liked Songs affected (no playlists)
+                        progress.step(3, 4, "Exporting Liked Songs")
+                        _export_playlists(db, watch_config.config)  # Full export to include Liked Songs
+                elif matched_track_ids:
+                    progress.step(3, 4, "Export skipped (no affected playlists or liked tracks)")
+                    logger.info("No playlists or liked songs contain the matched tracks; skipping export")
+                else:
+                    progress.step(3, 4, "Export skipped (no matches)")
             else:
-                progress.step(4, 4, "Reports skipped")
+                progress.step(3, 4, "Export skipped (disabled)")
+            
+            # 4. Regenerate reports (incrementally for affected playlists, or full if only Liked Songs)
+            if not watch_config.skip_report:
+                if affected_playlist_ids or has_liked_tracks:
+                    if affected_playlist_ids:
+                        progress.step(4, 4, "Updating reports (incremental)")
+                        _generate_reports(db, watch_config.config, affected_playlist_ids=affected_playlist_ids)
+                    else:
+                        # Only Liked Songs affected - need full report to update Liked Songs section
+                        progress.step(4, 4, "Updating reports (Liked Songs)")
+                        _generate_reports(db, watch_config.config)  # Full report generation
+                elif matched_track_ids:
+                    progress.step(4, 4, "Reports skipped (no affected playlists or liked tracks)")
+                    logger.info("No playlists or liked songs contain the matched tracks; skipping report update")
+                else:
+                    progress.step(4, 4, "Reports skipped (no matches)")
+            else:
+                progress.step(4, 4, "Reports skipped (disabled)")
             
             # Set write signal for GUI auto-refresh
             import time
@@ -178,24 +201,57 @@ def _handle_database_changes(watch_config: WatchBuildConfig) -> float:
                 progress.status(f"✓ Matched {result.matched} tracks")
                 matched_track_ids = []  # Full rebuild, so regenerate all reports
             
+            # Determine affected playlists
+            affected_playlist_ids = []
+            has_liked_tracks = False
+            if matched_track_ids:
+                provider = watch_config.config.get('provider', 'spotify')
+                affected_playlist_ids = db.get_playlists_containing_tracks(matched_track_ids, provider=provider)
+                logger.debug(f"Affected playlists: {len(affected_playlist_ids)} - {affected_playlist_ids[:5] if len(affected_playlist_ids) > 5 else affected_playlist_ids}")
+                
+                # Check if any matched tracks are in Liked Songs
+                liked_track_ids = db.get_liked_track_ids(matched_track_ids, provider=provider)
+                has_liked_tracks = len(liked_track_ids) > 0
+                if has_liked_tracks:
+                    logger.debug(f"Matched tracks in Liked Songs: {len(liked_track_ids)}")
+            
             # Export
             if not watch_config.skip_export:
-                progress.step(2, 3, "Exporting playlists")
-                _export_playlists(db, watch_config.config)
+                if affected_playlist_ids or has_liked_tracks:
+                    if affected_playlist_ids:
+                        progress.step(2, 3, f"Exporting {len(affected_playlist_ids)} affected playlist(s){' + Liked Songs' if has_liked_tracks else ''}")
+                        _export_playlists(db, watch_config.config, playlist_ids=affected_playlist_ids)
+                    else:
+                        # Only Liked Songs affected (no playlists)
+                        progress.step(2, 3, "Exporting Liked Songs")
+                        _export_playlists(db, watch_config.config)  # Full export to include Liked Songs
+                elif matched_track_ids:
+                    # Full rebuild case
+                    progress.step(2, 3, "Exporting all playlists")
+                    _export_playlists(db, watch_config.config)
+                else:
+                    progress.step(2, 3, "Export skipped (no changes)")
             else:
-                progress.step(2, 3, "Export skipped")
+                progress.step(2, 3, "Export skipped (disabled)")
             
             # Reports (incremental if we know which tracks changed)
             if not watch_config.skip_report:
-                if matched_track_ids:
-                    progress.step(3, 3, "Updating reports (incremental)")
-                    affected_playlist_ids = db.get_playlists_containing_tracks(matched_track_ids)
-                    _generate_reports(db, watch_config.config, affected_playlist_ids=affected_playlist_ids)
-                else:
+                if affected_playlist_ids or has_liked_tracks:
+                    if affected_playlist_ids:
+                        progress.step(3, 3, "Updating reports (incremental)")
+                        _generate_reports(db, watch_config.config, affected_playlist_ids=affected_playlist_ids)
+                    else:
+                        # Only Liked Songs affected - need full report to update Liked Songs section
+                        progress.step(3, 3, "Updating reports (Liked Songs)")
+                        _generate_reports(db, watch_config.config)  # Full report generation
+                elif matched_track_ids:
+                    # Full rebuild case
                     progress.step(3, 3, "Regenerating all reports")
-                    _generate_reports(db, watch_config.config)  # Full rebuild
+                    _generate_reports(db, watch_config.config)
+                else:
+                    progress.step(3, 3, "Reports skipped (no changes)")
             else:
-                progress.step(3, 3, "Reports skipped")
+                progress.step(3, 3, "Reports skipped (disabled)")
             
             # Set write signal for GUI auto-refresh
             import time
@@ -214,10 +270,6 @@ def _handle_database_changes(watch_config: WatchBuildConfig) -> float:
     
     # Return updated DB mtime to prevent false-positive database change detection
     return watch_config.db_path.stat().st_mtime if watch_config.db_path.exists() else 0.0
-    click.echo(click.style("Watching for changes...", fg='cyan'))
-    
-    # Return updated database mtime
-    return watch_config.db_path.stat().st_mtime if watch_config.db_path.exists() else 0.0
 
 
 def _export_playlists(db: Database, config: Dict[str, Any], playlist_ids: List[str] | None = None) -> None:
@@ -228,6 +280,12 @@ def _export_playlists(db: Database, config: Dict[str, Any], playlist_ids: List[s
         config: Full configuration dict
         playlist_ids: Optional list of specific playlist IDs to export (None = export all)
     """
+    if playlist_ids is not None and len(playlist_ids) == 0:
+        # Empty list means no playlists to export
+        logger.info("Export skipped: no playlists affected")
+        click.echo(click.style("  ✓ Export skipped (no affected playlists)", fg='yellow'))
+        return
+    
     organize_by_owner = config['export'].get('organize_by_owner', False)
     current_user_id = db.get_meta('current_user_id') if organize_by_owner else None
     result = export_playlists(
@@ -237,7 +295,11 @@ def _export_playlists(db: Database, config: Dict[str, Any], playlist_ids: List[s
         current_user_id=current_user_id,
         playlist_ids=playlist_ids
     )
-    click.echo(click.style(f"  ✓ Exported {result.playlist_count} playlists", fg='green'))
+    
+    if playlist_ids:
+        click.echo(click.style(f"  ✓ Exported {result.playlist_count} affected playlist(s)", fg='green'))
+    else:
+        click.echo(click.style(f"  ✓ Exported {result.playlist_count} playlists", fg='green'))
 
 
 def _generate_reports(
@@ -254,6 +316,12 @@ def _generate_reports(
             If provided, only regenerates detail pages for these playlists.
             If None, regenerates all reports.
     """
+    if affected_playlist_ids is not None and len(affected_playlist_ids) == 0:
+        # Empty list means no playlists to update
+        logger.info("Report update skipped: no playlists affected")
+        click.echo(click.style("  ✓ Reports skipped (no affected playlists)", fg='yellow'))
+        return
+    
     out_dir = Path(config['reports']['directory'])
     write_match_reports(db, out_dir, affected_playlist_ids=affected_playlist_ids)
     write_index_page(out_dir, db)

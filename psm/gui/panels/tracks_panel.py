@@ -46,6 +46,7 @@ class TracksPanel(QWidget):
     # Signals
     track_selected = Signal(str)  # track_id
     diagnose_clicked = Signal(str)  # track_id
+    match_one_clicked = Signal(str)  # track_id - match a single selected track
     selection_changed = Signal()  # Emitted when selection changes (for parent to update state)
     
     def __init__(
@@ -95,11 +96,18 @@ class TracksPanel(QWidget):
         buttons_layout = QHBoxLayout()
         buttons_layout.setSpacing(5)
         
+        # Match Selected Track button
+        self.btn_match_one = QPushButton("Match Selected Track")
+        self.btn_match_one.setEnabled(False)  # Disabled until a track is selected
+        self.btn_match_one.clicked.connect(self._on_match_one_clicked)
+        self.btn_match_one.setToolTip("Match the selected track with local files")
+        
         # Track-specific action button
         self.btn_diagnose = QPushButton("Diagnose Selected Track")
         self.btn_diagnose.setEnabled(False)  # Disabled until a track is selected
         self.btn_diagnose.clicked.connect(self._on_diagnose_clicked)
         
+        buttons_layout.addWidget(self.btn_match_one)
         buttons_layout.addWidget(self.btn_diagnose)
         buttons_layout.addStretch()
         
@@ -128,6 +136,7 @@ class TracksPanel(QWidget):
             deselected: Deselected items
         """
         has_selection = len(selected.indexes()) > 0
+        self.btn_match_one.setEnabled(has_selection)
         self.btn_diagnose.setEnabled(has_selection)
         
         # Emit selection_changed signal for parent to update state
@@ -138,6 +147,12 @@ class TracksPanel(QWidget):
         track_id = self._get_selected_track_id()
         if track_id:
             self.diagnose_clicked.emit(track_id)
+    
+    def _on_match_one_clicked(self):
+        """Handle match one button click - emit signal with selected track ID."""
+        track_id = self._get_selected_track_id()
+        if track_id:
+            self.match_one_clicked.emit(track_id)
     
     def _get_selected_track_id(self) -> Optional[str]:
         """Get the track ID of the currently selected track.

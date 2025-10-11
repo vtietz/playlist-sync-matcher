@@ -5,7 +5,23 @@ from functools import lru_cache
 from typing import Tuple
 
 _feat_pattern = re.compile(r"\bfeat\.?|ft\.?|featuring", re.IGNORECASE)
-_paren_remaster_pattern = re.compile(r"\((?:remaster(?:ed)?\s*\d{2,4})\)", re.IGNORECASE)
+# Enhanced remaster pattern to catch more variants:
+# - "2011 Remaster", "(2011 Remaster)", "(Remastered 2011)", "- 2011 Remaster"
+# - "Remastered", "(Remaster)", "- Remaster", "Mono", "Stereo"
+_remaster_pattern = re.compile(
+    r"""
+    (?:
+        [\(\[\-\s]+                       # Leading paren, bracket, dash, or space
+        (?:
+            (?:19|20)\d{2}\s*remaster(?:ed)?  # Year + remaster/remastered
+            | remaster(?:ed)?(?:\s*(?:19|20)\d{2})?  # Remaster(ed) with optional year
+            | mono | stereo | mono\s*version | stereo\s*version
+        )
+        [\)\]]*                           # Optional closing paren/bracket
+    )
+    """,
+    re.IGNORECASE | re.VERBOSE
+)
 _version_pattern = re.compile(r"\b(radio|album|single|extended|live|acoustic|remix|mix|edit|version|demo|deluxe|bonus|explicit|clean|instrumental)\b", re.IGNORECASE)
 _punct_pattern = re.compile(r"[\s\-_.]+")
 
@@ -20,8 +36,8 @@ def normalize_token(s: str) -> str:
     s = "".join(c for c in s if not unicodedata.combining(c))
     # Remove featuring/feat/ft
     s = _feat_pattern.sub("", s)
-    # Remove remaster info
-    s = _paren_remaster_pattern.sub("", s)
+    # Remove remaster info (enhanced pattern)
+    s = _remaster_pattern.sub("", s)
     # Remove version descriptors (radio edit, live, etc.)
     s = _version_pattern.sub("", s)
     # Remove content inside brackets/parens (often variant info)

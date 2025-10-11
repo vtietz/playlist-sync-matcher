@@ -144,6 +144,27 @@ class MockDatabase(DatabaseInterface):
         if provider:
             return sum(1 for (_,prov) in self.playlists if prov == provider)
         return len(self.playlists)
+    
+    def get_playlists_containing_tracks(self, track_ids: List[str], provider: str | None = None) -> List[str]:
+        """Return distinct playlist IDs that contain any of the given track IDs."""
+        self.call_log.append('get_playlists_containing_tracks')
+        provider = provider or 'spotify'
+        if not track_ids:
+            return []
+        
+        track_id_set = set(track_ids)
+        affected_playlists = set()
+        
+        for (pid, prov), tracks in self.playlist_tracks.items():
+            if prov != provider:
+                continue
+            # Check if this playlist contains any of the track IDs
+            for (pos, tid, added_at) in tracks:
+                if tid in track_id_set:
+                    affected_playlists.add(pid)
+                    break
+        
+        return list(affected_playlists)
 
     # --- tracks / library ---
     def upsert_track(self, track: Dict[str, Any], provider: str | None = None):

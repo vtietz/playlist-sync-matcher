@@ -382,6 +382,25 @@ class DatabaseInterface(ABC):
             Set of track IDs in the playlist
         """
         ...
+    
+    @abstractmethod
+    def get_playlists_containing_tracks(
+        self,
+        track_ids: List[str],
+        provider: str | None = None
+    ) -> List[str]:
+        """Get playlist IDs that contain any of the given track IDs.
+        
+        Used in watch mode to determine which playlists are affected by track matches.
+        
+        Args:
+            track_ids: List of track IDs to check
+            provider: Provider name filter (required)
+            
+        Returns:
+            Sorted list of distinct playlist IDs containing at least one of the tracks
+        """
+        ...
 
     # --- Meta ---
     @abstractmethod

@@ -67,14 +67,58 @@ psm build --watch --debounce 5       # Use 5-second debounce (default: 2)
 2. When changes settle (debounce period), automatically runs:
    - `scan` (smart mode: only changed files by default)
    - `match` (smart mode: only unmatched tracks by default)
-   - `export` (regenerate M3U playlists)
-   - `report` (update all reports)
+   - `export` (regenerate M3U playlists **for affected playlists only**)
+   - `report` (update reports **for affected playlists only**)
 
 **Key differences from `scan --watch`:**
 - **Full pipeline**: Runs all steps (scan → match → export → report)
 - **Incremental by default**: Uses smart modes for efficiency
+- **Scoped exports**: Only regenerates M3U files for playlists affected by the changes (see "Affected Playlists" below)
 - **No Spotify re-pull**: Does NOT re-fetch playlists from Spotify (run `pull` manually when playlists change)
 - **End-to-end**: Your M3U playlists and reports stay in sync with library changes
+
+### Affected Playlists Logic
+
+When files change in your library, watch mode determines which playlists are affected by the changes:
+
+1. **Scan changed files**: Identify new/modified/deleted library files
+2. **Match changed files**: Find which Spotify tracks match the changed library files
+3. **Determine affected playlists**: Query which playlists contain the matched tracks
+4. **Check Liked Songs**: Also check if matched tracks are in your Liked Songs collection
+5. **Scoped rebuild**: Export and report only for affected playlists (and Liked Songs if applicable)
+
+**Example scenario:**
+
+```bash
+# You have 50 playlists in Spotify + Liked Songs
+# You add 1 new Pink Floyd album to your library
+# → Scan detects 10 new files
+# → Match finds 8 of them match tracks in playlist "Classic Rock"
+# → Export regenerates ONLY "Classic Rock.m3u" (not all 50 playlists)
+# → Report updates ONLY the Classic Rock report
+```
+
+**Liked Songs handling:**
+```bash
+# You add a song that's in your Liked Songs but no playlists
+# → Scan detects 1 new file
+# → Match finds it matches a track in Liked Songs
+# → Export regenerates "Liked Songs.m3u"
+# → Report updates to include the new Liked Songs match
+```
+
+**Benefits:**
+- **Fast rebuilds**: Only process playlists that actually changed
+- **Reduced I/O**: Don't rewrite unchanged M3U files
+- **Clearer feedback**: Logs show exactly which playlists were affected
+- **Liked Songs support**: Tracks only in Liked Songs are still exported/reported
+
+**Affected playlist determination:**
+1. Query playlists: `SELECT DISTINCT playlist_id FROM playlist_tracks WHERE track_id IN (...) AND provider = ?`
+2. Query Liked Songs: `SELECT track_id FROM liked_tracks WHERE track_id IN (...) AND provider = ?`
+3. If both empty → skip export/report (logged as "No affected playlists or liked tracks, skipping...")
+4. If only Liked Songs affected → full export/report (to include Liked Songs section)
+5. If playlists affected → scoped export/report for those specific playlists
 
 **Use cases:**
 - **Live library maintenance**: Keep playlists updated while organizing your music collection
@@ -95,9 +139,10 @@ psm build --watch
 ```
 
 **Performance notes:**
-- Uses smart scan mode (only changed files), so rebuilds are fast
+- Uses smart scan mode (only changed files), so scans are fast
+- Scoped export/report means only affected playlists are processed
 - Debouncing prevents excessive processing during batch operations
-- Typical rebuild time: 2-10 seconds for small changes, 30-60s for large batches
+- Typical rebuild time: 2-10 seconds for small changes affecting 1-5 playlists
 
 ---
 
@@ -308,6 +353,116 @@ library:
 4. **Path not in library config:**
    - Files must be under a configured `library.paths`
    - **Solution:** Add path to config
+
+### Path Normalization Issues
+
+**Symptoms:** Watch mode scans files but doesn't find matches, or shows "path not found" errors.
+
+**Possible causes:**
+
+1. **Drive letter case mismatch (Windows):**
+   - Library files stored as `c:\Music\file.mp3` but scanned as `C:\Music\file.mp3`
+   - **Solution:** Path normalization automatically uppercases drive letters (e.g., `C:\`) for consistency
+
+2. **UNC paths vs. mapped drives (Windows):**
+   - Same file accessed via `Z:\Music\file.mp3` and `\\server\share\Music\file.mp3`
+   - **Solution:** Stick to one format (mapped drives recommended for consistency)
+   - **Note:** Path normalization resolves symlinks but can't unify UNC/mapped drive references
+
+3. **Forward vs. backslashes (Windows):**
+   - Paths like `C:/Music/file.mp3` vs `C:\Music\file.mp3`
+   - **Solution:** Path normalization converts to backslashes on Windows
+
+4. **Symlink resolution:**
+   - Library path is a symlink to actual directory
+   - **Solution:** Path normalization resolves symlinks automatically to canonical paths
+
+**Debugging path issues:**
+
+```bash
+# Check what paths are in the database
+psm db query "SELECT DISTINCT path FROM library_files LIMIT 10"
+
+# Watch mode logs normalized paths during scan
+psm build --watch  # Check log output for path format
+```
+
+### Matching Issues with Remaster Variants
+
+**Symptoms:** New remastered versions of tracks don't match existing Spotify tracks, or duplicate matches appear.
+
+**Common remaster patterns handled:**
+- `Song Title - 2011 Remaster`
+- `Song Title (2011 Remaster)`
+- `Song Title (Remastered 2011)`
+- `Song Title - Mono`
+- `Song Title - Stereo Mix`
+- `Song Title [Remastered]`
+
+**Example:**
+```
+Library file: "Wish You Were Here - 2011 Remaster.mp3"
+Spotify track: "Wish You Were Here"
+→ Both normalized to "wish you were here" → HIGH confidence match
+```
+
+**If matches still fail:**
+
+1. **Check normalization in database:**
+   ```bash
+   psm db query "SELECT title, normalized FROM library_files WHERE title LIKE '%Remaster%' LIMIT 5"
+   ```
+
+2. **Verify fuzzy matching threshold:**
+   - Check `matching.fuzzy_threshold` in config (default: 0.70)
+   - Lower threshold = more lenient matching
+   - **Solution:** Adjust in config if too strict
+
+3. **Review match reports:**
+   ```bash
+   # Generate detailed match report
+   psm report
+   
+   # Check reports/playlists/<playlist>_matches.html
+   # Look for "unmatched" tracks with high title similarity
+   ```
+
+### GUI Watch Mode Restrictions
+
+**Symptoms:** Manual commands grayed out or show "Watch mode is active" message.
+
+**Expected behavior:**
+- When watch mode is active in the GUI, **write** commands are disabled to prevent conflicts
+- GUI shows: ⌚ **Watch mode active** in status area
+- Attempting to run write commands shows: _"⌚ Watch mode is active. Stop watch to run commands that modify data."_
+- **Read-only commands ARE allowed** during watch mode (see below)
+
+**Read-only commands allowed during watch mode:**
+- `diagnose <track_id>` - Diagnose why a track isn't matching (reads DB only)
+- `config get <key>` - View configuration settings
+- `db query <sql>` - Query the database (SELECT statements)
+- `--version` - Show version information
+- `--help` - Show help text
+
+**Commands blocked during watch mode:**
+- `pull` - Fetches from Spotify (writes to DB)
+- `scan` - Scans library (writes to DB)
+- `match` - Creates matches (writes to DB)
+- `export` - Writes M3U files
+- `report` - Writes HTML reports
+- `build` - Runs full pipeline (writes everything)
+
+**Why these restrictions exist:**
+- **Database lock conflicts**: SQLite is single-writer; concurrent writes cause lock errors
+- **Race conditions**: Watch mode's incremental state could be corrupted by concurrent full scans
+- **Resource contention**: Running multiple heavy operations simultaneously degrades performance
+
+**Solution:**
+- Stop watch mode via GUI stop button or Ctrl+C (if running via CLI)
+- Run the write command
+- Restart watch mode if desired
+
+**💡 Tip:** Use read-only commands like `diagnose` to troubleshoot matching issues while watch mode is running!
 
 ### High CPU Usage
 

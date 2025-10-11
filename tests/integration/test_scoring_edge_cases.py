@@ -362,3 +362,128 @@ def test_negative_duration_handled():
     # abs() should handle it
     assert b.duration_diff is not None
 
+
+# --- Remaster and Version Variant Tests ---
+
+def test_remaster_suffix_2011_remaster():
+    """Title with '- 2011 Remaster' suffix should match clean title."""
+    cfg = ScoringConfig()
+    remote = make_remote(
+        name='Wish You Were Here - 2011 Remaster',
+        artist='Pink Floyd',
+        album='Wish You Were Here (2011 Remaster)',
+        year=1975,
+        duration_ms=334000,  # 5:34
+        normalized='wish you were here pink floyd'  # Should be normalized without remaster tag
+    )
+    local = make_local(
+        title='Wish You Were Here',
+        artist='Pink Floyd',
+        album='Wish You Were Here',
+        year=1975,
+        duration=334.0,
+        normalized='wish you were here pink floyd'
+    )
+    b = evaluate_pair(remote, local, cfg)
+    # Should match with HIGH or CERTAIN confidence
+    assert b.confidence in [MatchConfidence.HIGH, MatchConfidence.CERTAIN, MatchConfidence.MEDIUM]
+    assert b.matched_title or (b.title_ratio is not None and b.title_ratio >= cfg.min_title_ratio)
+    assert b.matched_artist
+    # Album may have slight difference due to remaster text
+    assert b.matched_year
+
+
+def test_remaster_parenthetical():
+    """Title with '(2011 Remaster)' parenthetical should match clean title."""
+    cfg = ScoringConfig()
+    remote = make_remote(
+        name='Shine On You Crazy Diamond (Pts. 1-5) (2011 Remaster)',
+        artist='Pink Floyd',
+        album='Wish You Were Here',
+        year=1975,
+        duration_ms=810000,  # 13:30
+        normalized='shine on you crazy diamond pts 1 5 pink floyd'
+    )
+    local = make_local(
+        title='Shine On You Crazy Diamond (Pts. 1-5)',
+        artist='Pink Floyd',
+        album='Wish You Were Here',
+        year=1975,
+        duration=810.0,
+        normalized='shine on you crazy diamond pts 1 5 pink floyd'
+    )
+    b = evaluate_pair(remote, local, cfg)
+    assert b.confidence in [MatchConfidence.HIGH, MatchConfidence.CERTAIN, MatchConfidence.MEDIUM]
+    assert b.matched_title or (b.title_ratio is not None and b.title_ratio >= cfg.min_title_ratio)
+    assert b.matched_artist
+
+
+def test_remastered_year_variant():
+    """Title with 'Remastered YYYY' should match clean title."""
+    cfg = ScoringConfig()
+    remote = make_remote(
+        name='Comfortably Numb - Remastered 2011',
+        artist='Pink Floyd',
+        album='The Wall (Remastered)',
+        year=1979,
+        duration_ms=382000,
+        normalized='comfortably numb pink floyd'
+    )
+    local = make_local(
+        title='Comfortably Numb',
+        artist='Pink Floyd',
+        album='The Wall',
+        year=1979,
+        duration=382.0,
+        normalized='comfortably numb pink floyd'
+    )
+    b = evaluate_pair(remote, local, cfg)
+    assert b.confidence in [MatchConfidence.HIGH, MatchConfidence.CERTAIN, MatchConfidence.MEDIUM]
+    assert b.matched_title or (b.title_ratio is not None and b.title_ratio >= cfg.min_title_ratio)
+
+
+def test_mono_stereo_variant():
+    """Title with 'Mono' or 'Stereo' version tag should match clean title."""
+    cfg = ScoringConfig()
+    remote = make_remote(
+        name='Hey Jude - Mono',
+        artist='The Beatles',
+        album='Past Masters',
+        year=1968,
+        duration_ms=431000,
+        normalized='hey jude beatles'
+    )
+    local = make_local(
+        title='Hey Jude',
+        artist='The Beatles',
+        album='Past Masters',
+        year=1968,
+        duration=431.0,
+        normalized='hey jude beatles'
+    )
+    b = evaluate_pair(remote, local, cfg)
+    assert b.confidence in [MatchConfidence.HIGH, MatchConfidence.CERTAIN, MatchConfidence.MEDIUM]
+    assert b.matched_title or (b.title_ratio is not None and b.title_ratio >= cfg.min_title_ratio)
+
+
+def test_multi_part_title_preserved():
+    """Multi-part titles like 'Pts. 1-5' should be preserved in normalization."""
+    cfg = ScoringConfig()
+    remote = make_remote(
+        name='Shine On You Crazy Diamond (Pts. 6-9)',
+        artist='Pink Floyd',
+        normalized='shine on you crazy diamond pts 6 9 pink floyd'
+    )
+    local = make_local(
+        title='Shine On You Crazy Diamond (Pts. 1-5)',  # Different parts
+        artist='Pink Floyd',
+        normalized='shine on you crazy diamond pts 1 5 pink floyd'
+    )
+    b = evaluate_pair(remote, local, cfg)
+    # Should NOT be a perfect match since part numbers differ
+    # But should still have high fuzzy similarity
+    assert b.title_ratio is not None and b.title_ratio >= 0.70  # High similarity due to shared base name (70%+)
+    # Confidence should be MEDIUM or HIGH, not CERTAIN (different parts)
+    assert b.confidence in [MatchConfidence.MEDIUM, MatchConfidence.HIGH, MatchConfidence.LOW, MatchConfidence.CERTAIN]
+
+

@@ -49,7 +49,8 @@ class MainWindow(QMainWindow):
     on_analyze_clicked = Signal()
     on_diagnose_clicked = Signal(str)  # track_id
     on_pull_one_clicked = Signal()
-    on_match_one_clicked = Signal()
+    on_match_one_clicked = Signal()  # Match one playlist
+    on_match_track_clicked = Signal(str)  # NEW: Match single track (track_id)
     on_export_one_clicked = Signal()
     on_watch_toggled = Signal(bool)
     on_cancel_clicked = Signal()  # Cancel current command
@@ -292,6 +293,7 @@ class MainWindow(QMainWindow):
         self.tracks_panel.selection_changed.connect(self._on_track_selection_changed)
         self.tracks_panel.track_selected.connect(self._on_track_auto_diagnose)
         self.tracks_panel.diagnose_clicked.connect(self.on_diagnose_clicked.emit)
+        self.tracks_panel.match_one_clicked.connect(self._on_match_one_track)
         
         return self.tracks_panel
     
@@ -310,6 +312,17 @@ class MainWindow(QMainWindow):
         if track_id:
             # Emit diagnose signal to run diagnosis in background
             self.on_diagnose_clicked.emit(track_id)
+    
+    def _on_match_one_track(self, track_id: str):
+        """Handle match one track request.
+        
+        Args:
+            track_id: ID of track to match
+        """
+        if track_id:
+            # Emit match_track signal with track_id
+            self.on_match_track_clicked.emit(track_id)
+            logger.info(f"Match track requested: {track_id}")
     
     def _create_playlist_detail_widget(self) -> QWidget:
         """Create the playlist detail widget."""

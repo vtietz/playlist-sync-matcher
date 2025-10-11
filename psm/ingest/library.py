@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Iterable, Dict, Any, List
 from dataclasses import dataclass
 import mutagen
-from ..utils.fs import iter_music_files
+from ..utils.fs import iter_music_files, normalize_library_path
 from ..utils.hashing import partial_hash
 from ..utils.normalization import normalize_title_artist
 from ..utils.logging_helpers import log_progress, format_summary
@@ -209,7 +209,8 @@ def _process_single_file(
     Helper function used by both full and incremental scans.
     Updates result object in-place.
     """
-    path_str = str(p.resolve())
+    # Use normalized path for consistent database storage
+    path_str = normalize_library_path(p)
     
     try:
         st = p.stat()

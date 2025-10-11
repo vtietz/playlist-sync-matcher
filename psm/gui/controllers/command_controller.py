@@ -54,11 +54,20 @@ class CommandController(QObject):
         # Initialize command service for standardized execution
         self.command_service = CommandService(
             executor=executor,
-            enable_actions=window.enable_actions
+            enable_actions=window.enable_actions,
+            watch_mode_controller=None  # Will be set later via set_watch_mode_controller()
         )
         
         # Connect action buttons
         self._connect_signals()
+    
+    def set_watch_mode_controller(self, watch_mode_controller):
+        """Set watch mode controller for detecting watch state.
+        
+        Args:
+            watch_mode_controller: WatchModeController instance
+        """
+        self.command_service.watch_mode_controller = watch_mode_controller
     
     def _connect_signals(self):
         """Connect action button signals."""
@@ -78,6 +87,9 @@ class CommandController(QObject):
         self.window.on_pull_one_clicked.connect(self._on_pull_one)
         self.window.on_match_one_clicked.connect(self._on_match_one)
         self.window.on_export_one_clicked.connect(self._on_export_one)
+        
+        # Per-track actions
+        self.window.on_match_track_clicked.connect(self._on_match_track)
         
         # Cancel command
         self.window.on_cancel_clicked.connect(self._on_cancel)
@@ -310,3 +322,67 @@ class CommandController(QObject):
         else:
             logger.warning("Export one clicked but no playlist selected")
             self.window.append_log("⚠ No playlist selected")
+    
+    def _on_match_track(self, track_id: str):
+        """Handle match single track.
+        
+        Args:
+            track_id: ID of track to match
+        """
+        logger.debug(f"Match track clicked - track ID: {track_id}")
+        if track_id:
+            logger.info(f"Matching single track: {track_id}")
+            # Use async task to match this specific track
+            self._match_specific_track_async(track_id)
+        else:
+            logger.warning("Match track clicked but no track ID provided")
+            self.window.append_log("⚠ No track selected")
+    
+    def _match_specific_track_async(self, track_id: str):
+        """Match a specific track asynchronously.
+        
+        Args:
+            track_id: ID of track to match
+        """
+        from PySide6.QtCore import QTimer
+        from ...services.match_service import match_changed_tracks
+        from ...config import load_config
+        from ...cli.helpers import get_db
+        
+        # Clear log and show progress
+        self.window.append_log(f"Matching track {track_id}...")
+        
+        # Disable actions during matching
+        self.command_service.enable_actions(False)
+        
+        def do_match():
+            """Perform the matching operation in background."""
+            try:
+                # Load config and database
+                cfg = load_config()
+                
+                with get_db(cfg) as db:
+                    # Match just this one track
+                    matched_count = match_changed_tracks(db, cfg, track_ids=[track_id])
+                    
+                    # Show result
+                    if matched_count > 0:
+                        self.window.append_log(f"✓ Matched track successfully")
+                        logger.info(f"Matched 1 track")
+                    else:
+                        self.window.append_log(f"⚠ No match found for track")
+                        logger.warning(f"No match found for track {track_id}")
+                
+            except Exception as e:
+                logger.error(f"Error matching track: {e}", exc_info=True)
+                self.window.append_log(f"✗ Error matching track: {e}")
+            finally:
+                # Re-enable actions
+                self.command_service.enable_actions(True)
+                
+                # Fast refresh to update UI
+                if self._data_refresh:
+                    QTimer.singleShot(100, self._data_refresh.refresh_tracks_only_async)
+        
+        # Execute in thread pool
+        self.command_service.executor.submit(do_match)

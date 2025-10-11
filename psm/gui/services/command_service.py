@@ -35,6 +35,7 @@ class CommandService:
     
     This service:
     - Enforces single command execution (reentrancy protection)
+    - Allows read-only commands during watch mode (diagnose, config get, etc.)
     - Provides consistent pre/post execution hooks
     - Normalizes error messages for common issues
     - Delegates actual subprocess execution to CliExecutor
@@ -48,20 +49,48 @@ class CommandService:
         )
     """
     
+    # Commands that are read-only and safe to run during watch mode
+    READ_ONLY_COMMANDS = {
+        'diagnose',      # Track matching diagnostics (reads DB only)
+        'config',        # Configuration viewing/editing
+        'db',            # Database queries (if using query subcommand)
+        '--version',     # Version info
+        '--help',        # Help text
+    }
+    
     def __init__(
         self,
         executor,  # CliExecutor instance
-        enable_actions: Callable[[bool], None]
+        enable_actions: Callable[[bool], None],
+        watch_mode_controller = None  # Optional WatchModeController for state checking
     ):
         """Initialize command service.
         
         Args:
             executor: CliExecutor instance for running commands
             enable_actions: Callback to enable/disable UI actions
+            watch_mode_controller: Optional watch mode controller to check if watch is active
         """
         self.executor = executor
         self.enable_actions = enable_actions
+        self.watch_mode_controller = watch_mode_controller
         self._log_buffer = []  # Buffer to capture log output for error detection
+    
+    def _is_read_only_command(self, args: list[str]) -> bool:
+        """Check if command is read-only and safe during watch mode.
+        
+        Args:
+            args: Command arguments (e.g., ['diagnose', 'track_id'])
+            
+        Returns:
+            True if command is read-only, False otherwise
+        """
+        if not args:
+            return False
+        
+        # Check first argument against whitelist
+        command = args[0]
+        return command in self.READ_ONLY_COMMANDS
     
     def execute(
         self,
@@ -80,10 +109,25 @@ class CommandService:
             on_success: Optional callback invoked after successful execution
             success_message: Message to log on success
         """
-        # Guard against overlapping commands
+        # Check if this is a read-only command that can run during watch mode
+        is_read_only = self._is_read_only_command(args)
+        
+        # Guard against overlapping commands (but allow read-only during watch mode)
         if self.executor.is_running():
-            on_log("\n⚠ Another command is already running. Please wait...")
-            return
+            # Check if watch mode is active
+            if self.watch_mode_controller and self.watch_mode_controller.is_active:
+                # Allow read-only commands during watch mode
+                if is_read_only:
+                    on_log(f"\n💡 Running read-only command '{args[0]}' while watch mode is active...")
+                    # Don't return - allow execution to proceed
+                else:
+                    on_log("\n⌚ Watch mode is active. Stop watch to run commands that modify data.")
+                    on_log(f"💡 Tip: Read-only commands like 'diagnose' can run during watch mode.")
+                    return
+            else:
+                # Another command (not watch mode) is running
+                on_log("\n⚠ Another command is already running. Please wait...")
+                return
         
         # Clear log buffer for new command
         self._log_buffer.clear()

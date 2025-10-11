@@ -428,6 +428,45 @@ class TestPlaylistRepository:
         assert len(playlists) == 2
         assert all(isinstance(p, PlaylistRow) for p in playlists)
         assert playlists[0].name == 'Playlist A'  # Sorted by name
+    
+    def test_get_playlists_containing_tracks_returns_distinct_ids(self, db: Database):
+        """Test get_playlists_containing_tracks returns distinct playlist IDs for given tracks."""
+        # Create playlists
+        db.upsert_playlist('p1', 'Rock Classics', 's1', provider='spotify')
+        db.upsert_playlist('p2', 'Workout Mix', 's2', provider='spotify')
+        db.upsert_playlist('p3', 'Chill Vibes', 's3', provider='spotify')
+        
+        # Add tracks to playlists
+        # p1 contains t1, t2
+        # p2 contains t2, t3
+        # p3 contains t4 (not in our query)
+        db.replace_playlist_tracks('p1', [(0, 't1', None), (1, 't2', None)], provider='spotify')
+        db.replace_playlist_tracks('p2', [(0, 't2', None), (1, 't3', None)], provider='spotify')
+        db.replace_playlist_tracks('p3', [(0, 't4', None)], provider='spotify')
+        db.commit()
+        
+        # Query for playlists containing t1, t2, or t3
+        affected_playlists = db.get_playlists_containing_tracks(['t1', 't2', 't3'], provider='spotify')
+        
+        # Should return p1 and p2 (not p3)
+        assert set(affected_playlists) == {'p1', 'p2'}
+        assert len(affected_playlists) == 2
+        
+        # Test with single track
+        playlists_with_t1 = db.get_playlists_containing_tracks(['t1'], provider='spotify')
+        assert playlists_with_t1 == ['p1']
+        
+        # Test with track that appears in multiple playlists (t2 in p1 and p2)
+        playlists_with_t2 = db.get_playlists_containing_tracks(['t2'], provider='spotify')
+        assert set(playlists_with_t2) == {'p1', 'p2'}
+        
+        # Test with empty list
+        playlists_empty = db.get_playlists_containing_tracks([], provider='spotify')
+        assert playlists_empty == []
+        
+        # Test with non-existent track
+        playlists_none = db.get_playlists_containing_tracks(['t999'], provider='spotify')
+        assert playlists_none == []
 
 
 class TestDomainModelCompatibility:
