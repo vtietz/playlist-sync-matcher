@@ -48,26 +48,40 @@ All reports export as both CSV (for spreadsheets) and interactive HTML (for expl
 
 ## Installation
 
-### Option 1: Standalone Executable (Easiest)
+### Option 1: Standalone Executables (Easiest)
 No Python required! Download pre-built binaries from [Releases](https://github.com/vtietz/playlist-sync-matcher/releases):
+
+**Two versions available:**
+- **CLI (`psm-cli`)** – Command-line tool for automation and scripting (smaller, no GUI dependencies)
+- **GUI (`psm-gui`)** – Desktop application with visual interface (larger, includes tkinter)
 
 **Windows**:
 ```bash
-# Download playlist-sync-matcher-windows-amd64.exe
-# Rename to psm.exe for convenience
-psm.exe build     # Runs the sync pipeline (after setup below)
+# CLI version (for automation/scripting)
+# Download psm-cli-windows-amd64.exe
+psm-cli.exe --version
+psm-cli.exe build     # Runs the sync pipeline (after setup below)
+
+# GUI version (for interactive use)
+# Download psm-gui-windows-amd64.exe  
+psm-gui.exe           # Launches desktop application
 ```
 
 **Linux/Mac**:
 ```bash
-# Download appropriate binary
-chmod +x playlist-sync-matcher-linux-amd64
-./playlist-sync-matcher-linux-amd64 build     # After setup
+# CLI version (for automation/scripting)
+# Download psm-cli-linux-amd64 or psm-cli-macos-amd64
+chmod +x psm-cli-linux-amd64
+./psm-cli-linux-amd64 --version
+./psm-cli-linux-amd64 build
 
-# Or rename for convenience:
-mv playlist-sync-matcher-linux-amd64 psm
-./psm build
+# GUI version (for interactive use)
+# Download psm-gui-linux-amd64 or psm-gui-macos-amd64
+chmod +x psm-gui-linux-amd64
+./psm-gui-linux-amd64
 ```
+
+> **💡 Tip**: Rename executables for convenience (e.g., `mv psm-cli-linux-amd64 psm-cli`)
 
 ### Option 2: Python Source (Recommended for Development)
 Requires **Python 3.9+**. The scripts will automatically set up a virtual environment:
@@ -76,6 +90,9 @@ Requires **Python 3.9+**. The scripts will automatically set up a virtual enviro
 ```bash
 run.bat install   # Install dependencies (first time)
 run.bat build     # Run sync pipeline (after setup below)
+run.bat build-cli # Build CLI executable only
+run.bat build-gui # Build GUI executable only
+run.bat build-all # Build both executables
 ```
 
 **Linux/Mac**:
@@ -83,6 +100,9 @@ run.bat build     # Run sync pipeline (after setup below)
 chmod +x run.sh
 ./run.sh install  # Install dependencies (first time)
 ./run.sh build    # Run sync pipeline (after setup)
+./run.sh build-cli # Build CLI executable only
+./run.sh build-gui # Build GUI executable only
+./run.sh build-all # Build both executables
 ```
 
 > **First run**: The install script creates a `.venv` directory and installs all dependencies automatically.
@@ -215,7 +235,7 @@ xdg-open data/export/reports/index.html     # Linux
 
 ## Common Commands
 
-> **Note**: Replace `run.bat` with `./run.sh` on Linux/Mac, or use `psm` if using standalone executable.
+> **Note**: Replace `run.bat` with `./run.sh` on Linux/Mac, or use `psm-cli` if using standalone CLI executable, or launch `psm-gui` for the graphical interface.
 
 **Complete sync pipeline** (recommended for first-time and regular use):
 ```bash

@@ -10,6 +10,9 @@ IF /I "%~1"=="install" GOTO install
 
 IF /I "%~1"=="test" GOTO test
 IF /I "%~1"=="gui" GOTO gui
+IF /I "%~1"=="build-cli" GOTO build_cli
+IF /I "%~1"=="build-gui" GOTO build_gui
+IF /I "%~1"=="build-all" GOTO build_all
 IF /I "%~1"=="help" GOTO help
 IF /I "%~1"=="version" GOTO version
 IF /I "%~1"=="py" GOTO py
@@ -63,11 +66,41 @@ GOTO :EOF
 python -m psm.gui
 GOTO :EOF
 
+:build_cli
+ECHO Building CLI executable with PyInstaller...
+pyinstaller psm-cli.spec
+IF ERRORLEVEL 1 (
+  ECHO Error: CLI build failed!
+  GOTO :EOF
+)
+ECHO CLI build successful: dist\psm-cli.exe
+GOTO :EOF
+
+:build_gui
+ECHO Building GUI executable with PyInstaller...
+pyinstaller psm-gui.spec
+IF ERRORLEVEL 1 (
+  ECHO Error: GUI build failed!
+  GOTO :EOF
+)
+ECHO GUI build successful: dist\psm-gui.exe
+GOTO :EOF
+
+:build_all
+ECHO Building both CLI and GUI executables...
+CALL :build_cli
+CALL :build_gui
+ECHO All builds complete!
+GOTO :EOF
+
 :help
 ECHO Usage: run.bat [command]
 ECHO Commands:
 ECHO   pull ^| scan ^| match ^| export ^| report ^| report-albums ^| build
 ECHO   gui                   Launch desktop GUI
+ECHO   build-cli             Build CLI executable (dist\psm-cli.exe)
+ECHO   build-gui             Build GUI executable (dist\psm-gui.exe)
+ECHO   build-all             Build both CLI and GUI executables
 ECHO   install               Install or update dependencies
 ECHO   test [pytest args]    Run test suite (e.g. run.bat test -q tests\test_hashing.py)
 ECHO   version               Show CLI version

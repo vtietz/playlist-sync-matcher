@@ -7,21 +7,21 @@ on:
   workflow_dispatch:  # Allow manual trigger
 
 jobs:
-  build:
-    name: Build ${{ matrix.os }}
+  build-cli:
+    name: Build CLI - ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         include:
           - os: windows-latest
-            artifact_name: psm.exe
-            asset_name: playlist-sync-matcher-windows-amd64.exe
+            artifact_name: psm-cli.exe
+            asset_name: psm-cli-windows-amd64.exe
           - os: ubuntu-latest
-            artifact_name: psm
-            asset_name: playlist-sync-matcher-linux-amd64
+            artifact_name: psm-cli
+            asset_name: psm-cli-linux-amd64
           - os: macos-latest
-            artifact_name: psm
-            asset_name: playlist-sync-matcher-macos-amd64
+            artifact_name: psm-cli
+            asset_name: psm-cli-macos-amd64
 
     steps:
       - name: Checkout code
@@ -45,14 +45,71 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Build executable with PyInstaller (pinned version)
-        run: pyinstaller --name psm --onefile --console -m psm.cli
+      - name: Build CLI executable with PyInstaller
+        run: pyinstaller psm-cli.spec
 
-      - name: Test executable (smoke test)
+      - name: Test CLI executable (smoke test)
         run: dist/${{ matrix.artifact_name }} --version
         shell: bash
 
-      - name: Upload artifact
+      - name: Upload CLI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset_name }}
+          path: dist/${{ matrix.artifact_name }}
+
+  build-gui:
+    name: Build GUI - ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            artifact_name: psm-gui.exe
+            asset_name: psm-gui-windows-amd64.exe
+          - os: ubuntu-latest
+            artifact_name: psm-gui
+            asset_name: psm-gui-linux-amd64
+          - os: macos-latest
+            artifact_name: psm-gui
+            asset_name: psm-gui-macos-amd64
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-3.12-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-3.12-
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Build GUI executable with PyInstaller
+        run: pyinstaller psm-gui.spec
+
+      - name: Test GUI executable (smoke test - check file exists)
+        run: |
+          if [ ! -f "dist/${{ matrix.artifact_name }}" ]; then
+            echo "GUI executable not found!"
+            exit 1
+          fi
+          echo "GUI executable built successfully"
+        shell: bash
+
+      - name: Upload GUI artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.asset_name }}
@@ -60,7 +117,7 @@ jobs:
 
   release:
     name: Create Release
-    needs: build
+    needs: [build-cli, build-gui]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     
