@@ -165,7 +165,7 @@ def match_single_playlist(
     logger.debug(f"[playlist] Matching '{result.playlist_name}' ({playlist_id})")
     
     # Get track IDs for this specific playlist only
-    provider = 'spotify'  # TODO: Make configurable when adding multi-provider support
+    provider = config.get('provider', 'spotify')
     playlist_track_rows = db.get_playlist_tracks_with_local_paths(playlist_id, provider)
     playlist_track_ids = [row['track_id'] for row in playlist_track_rows if row.get('track_id')]
     
@@ -185,7 +185,7 @@ def match_single_playlist(
     }
     matching_cfg = MatchingConfig(**{**_DEFAULTS.get('matching', {}), **matching_config_dict})
     
-    engine = MatchingEngine(db, matching_cfg)  # type: ignore
+    engine = MatchingEngine(db, matching_cfg, provider=provider)  # type: ignore
     new_matches = engine.match_tracks(track_ids=playlist_track_ids)  # Match only this playlist's tracks
     
     db.commit()
@@ -211,7 +211,8 @@ def export_single_playlist(
     export_config: Dict[str, Any],
     organize_by_owner: bool = False,
     current_user_id: str | None = None,
-    library_paths: list[str] | None = None
+    library_paths: list[str] | None = None,
+    provider: str = 'spotify'
 ) -> SinglePlaylistResult:
     """Export a single playlist to M3U file.
     
@@ -222,6 +223,7 @@ def export_single_playlist(
         organize_by_owner: Organize playlists by owner
         current_user_id: Current user ID (for owner organization)
         library_paths: Library root paths from config (for path reconstruction)
+        provider: Provider name (default: 'spotify')
         
     Returns:
         SinglePlaylistResult with export path
@@ -231,7 +233,7 @@ def export_single_playlist(
     start = time.time()
     
     # Get playlist metadata
-    pl = db.get_playlist_by_id(playlist_id, provider='spotify')
+    pl = db.get_playlist_by_id(playlist_id, provider=provider)
     if not pl:
         raise ValueError(f"Playlist {playlist_id} not found in database")
     
@@ -263,7 +265,6 @@ def export_single_playlist(
     )
     
     # Fetch tracks with local paths using repository method (provider-aware, best match only)
-    provider = 'spotify'  # TODO: Make configurable when adding multi-provider support
     track_rows = db.get_playlist_tracks_with_local_paths(playlist_id, provider)
     tracks = [dict(r) | {'position': r['position']} for r in track_rows]
     playlist_meta = {'name': pl.name, 'id': playlist_id}
@@ -322,6 +323,7 @@ def build_single_playlist(
     result.tracks_matched = match_result.tracks_matched
     
     # Export
+    provider = config.get('provider', 'spotify')
     organize_by_owner = config['export'].get('organize_by_owner', False)
     current_user_id = db.get_meta('current_user_id') if organize_by_owner else None
     library_paths = config.get('library', {}).get('paths', [])
@@ -331,7 +333,8 @@ def build_single_playlist(
         config['export'], 
         organize_by_owner, 
         current_user_id, 
-        library_paths
+        library_paths,
+        provider
     )
     result.exported_file = export_result.exported_file
     

@@ -57,6 +57,7 @@ def playlist_match(ctx: click.Context, playlist_id: str):
 def playlist_export(ctx: click.Context, playlist_id: str):
     """Export a single playlist to M3U file."""
     cfg = ctx.obj
+    provider = cfg.get('provider', 'spotify')
     organize_by_owner = cfg['export'].get('organize_by_owner', False)
     library_paths = cfg.get('library', {}).get('paths', [])
     with get_db(cfg) as db:
@@ -67,7 +68,8 @@ def playlist_export(ctx: click.Context, playlist_id: str):
             export_config=cfg['export'], 
             organize_by_owner=organize_by_owner, 
             current_user_id=current_user_id, 
-            library_paths=library_paths
+            library_paths=library_paths,
+            provider=provider
         )
     click.echo(f"Exported playlist '{result.playlist_name}' ({result.playlist_id})")
     click.echo(f"File: {result.exported_file}")
@@ -84,9 +86,8 @@ def playlist_build(ctx: click.Context, playlist_id: str, force_auth: bool):
     provider_cfg = get_provider_config(cfg)
     if not provider_cfg.get('client_id'):
         raise click.UsageError('providers.spotify.client_id not configured')
-    test_mode = cfg.get('test', {}).get('mode', False)
     with get_db(cfg) as db:
-        result = build_single_playlist(db=db, playlist_id=playlist_id, spotify_config=provider_cfg, config=cfg, force_auth=force_auth, test_mode=test_mode)
+        result = build_single_playlist(db=db, playlist_id=playlist_id, spotify_config=provider_cfg, config=cfg, force_auth=force_auth)
     click.echo(f"Built playlist '{result.playlist_name}' ({result.playlist_id})")
     click.echo(f"Tracks processed: {result.tracks_processed}")
     click.echo(f"Tracks matched: {result.tracks_matched}")
