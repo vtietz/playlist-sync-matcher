@@ -39,6 +39,9 @@ def list_unified_tracks_min(
         valid_columns = {'name', 'artist', 'album', 'year'}
         if sort_column.lower() in valid_columns:
             order_by = f"ORDER BY t.{sort_column.lower()} {sort_order}"
+    else:
+        # Default sort: artist ASC, album ASC, name ASC for consistent ordering
+        order_by = "ORDER BY t.artist ASC, t.album ASC, t.name ASC"
 
     # Build LIMIT/OFFSET clause
     limit_clause = ""

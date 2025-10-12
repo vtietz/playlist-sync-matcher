@@ -40,7 +40,21 @@
 * **File Endings**: All files must end with a single newline.
 * **Click Commands**: When adding new CLI commands, import the module in `psm/cli/core.py` to register it.
 
-## Code Quality
+# Code Quality
+
+## Goals
+- Keep code simple, small, and safe.
+- Prefer clear types & interfaces over dynamic dicts/strings.
+- Changes must pass local quality gates before commit/PR.
+
+## Design & Clean Code (musts)
+- Single responsibility: each file/class/function has one clear job. If a file exceeds the limits below, split it.
+- APIs over ad-hoc dicts: use dataclasses/TypedDict/Pydantic (or language equivalent). Avoid getattr/hasattr tricks.
+- Small units: default max function length 80 lines; file length 500–800 lines; cyclomatic complexity ≤10 (warn) / ≤15 (fail).
+- Explicit errors: raise typed exceptions; no silent excepts. Log with context.
+- Dependency hygiene: minimize imports; no side effects at import time.
+- Naming: descriptive, consistent, no abbreviations without reason.
+- Immutability by default: avoid mutating global state.
 * **Remove Unused Code**: Delete unused imports, variables, and helper functions after refactoring. Don't leave dead code.
 * **Use Standard Library**: Prefer built-in modules (copy.deepcopy, functools.lru_cache) over custom implementations.
 * **Performance Awareness**: Cache expensive operations (normalization, OAuth sessions), use connection pooling, avoid redundant work.

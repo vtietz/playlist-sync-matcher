@@ -38,6 +38,14 @@ case "${1:-}" in
         python -m psm.gui
         exit 0
         ;;
+    clear-cache)
+        echo "Clearing Python cache files..."
+        find . -type d -name "__pycache__" -exec echo "Removing {}" \; -exec rm -rf {} + 2>/dev/null || true
+        find . -type f -name "*.pyc" -exec echo "Removing {}" \; -exec rm -f {} + 2>/dev/null || true
+        find . -type f -name "*.pyo" -exec echo "Removing {}" \; -exec rm -f {} + 2>/dev/null || true
+        echo "Cache cleared!"
+        exit 0
+        ;;
     build-cli)
         echo "Building CLI executable with PyInstaller..."
         pyinstaller psm-cli.spec
@@ -77,6 +85,7 @@ case "${1:-}" in
         echo "  build-all             Build both CLI and GUI executables"
         echo "  install               Install or update dependencies"
         echo "  test [pytest args]    Run test suite (e.g. ./run.sh test -q tests/test_hashing.py)"
+        echo "  clear-cache           Remove all Python cache files (__pycache__, *.pyc)"
         echo "  version               Show CLI version"
         echo "  py <args>             Run python with given args inside venv"
         exit 0

@@ -122,7 +122,7 @@ def get_confidence_tooltip(method_str: str) -> str:
     tooltips = {
         "CERTAIN": "Exact match using unique identifiers (ISRC, Spotify ID)",
         "HIGH": "Strong match with high similarity score (>85%)",
-        "MODERATE": "Reasonable match with moderate similarity (70-85%)",
+        "MEDIUM": "Reasonable match with moderate similarity (70-85%)",
         "LOW": "Weak match with low similarity (<70%)",
         "UNKNOWN": "Matching method not recorded"
     }

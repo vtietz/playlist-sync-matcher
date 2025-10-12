@@ -73,6 +73,7 @@ class UnifiedTracksView(QWidget):
         self.tracks_table.setObjectName("tracksTable")  # For stylesheet targeting
         self.tracks_table.setModel(self.proxy_model)
         self.tracks_table.setSortingEnabled(True)
+        self.tracks_table.sortByColumn(1, Qt.AscendingOrder)  # Initial sort: Artist A→Z
         self.tracks_table.setSelectionBehavior(QTableView.SelectRows)
         self.tracks_table.setSelectionMode(QTableView.SingleSelection)
 

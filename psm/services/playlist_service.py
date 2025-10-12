@@ -199,7 +199,7 @@ def match_single_playlist(
     result.tracks_matched = matched_count
     result.duration_seconds = time.time() - start
 
-    logger.debug(f"[playlist] Matched {new_matches} new tracks ({matched_count}/{len(playlist_track_ids)} total) in {result.duration_seconds:.2f}s")
+    logger.debug(f"[playlist] Found {new_matches} match(es) ({matched_count}/{len(playlist_track_ids)} total) in {result.duration_seconds:.2f}s")
 
     return result
 

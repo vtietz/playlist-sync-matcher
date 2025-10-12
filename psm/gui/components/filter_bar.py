@@ -99,7 +99,7 @@ class FilterBar(QWidget):
 
         # Confidence filter (for matched tracks)
         self.confidence_combo = QComboBox()
-        self.confidence_combo.addItems(["All Confidence", "CERTAIN", "HIGH", "MODERATE", "LOW"])
+        self.confidence_combo.addItems(["All Confidence", "CERTAIN", "HIGH", "MEDIUM", "LOW"])
         self.confidence_combo.currentIndexChanged.connect(self._on_filter_changed)
 
         # Quality filter (for matched tracks)

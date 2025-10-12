@@ -17,6 +17,8 @@ from typing import Optional, Set
 from PySide6.QtCore import QSortFilterProxyModel, Qt, QTimer
 import logging
 
+from ..utils.formatters import extract_confidence, get_quality_status_text
+
 logger = logging.getLogger(__name__)
 
 
@@ -147,8 +149,9 @@ class UnifiedTracksProxyModel(QSortFilterProxyModel):
         """Set confidence filter.
 
         Args:
-            confidence: Confidence level to filter by (CERTAIN/HIGH/MODERATE/LOW), or None for all
+            confidence: Confidence level to filter by (CERTAIN/HIGH/MEDIUM/LOW), or None for all
         """
+        logger.debug(f"Setting confidence filter: {confidence}")
         self.beginFilterChange()
         self._confidence_filter = confidence
         self.invalidateFilter()
@@ -160,6 +163,7 @@ class UnifiedTracksProxyModel(QSortFilterProxyModel):
         Args:
             quality: Quality level to filter by (EXCELLENT/GOOD/PARTIAL/POOR), or None for all
         """
+        logger.debug(f"Setting quality filter: {quality}")
         self.beginFilterChange()
         self._quality_filter = quality
         self.invalidateFilter()
@@ -273,25 +277,33 @@ class UnifiedTracksProxyModel(QSortFilterProxyModel):
                 if year_value is None or year_value != self._year_filter:
                     return False
 
-            # Early exit: Filter by confidence
+            # Early exit: Filter by confidence (only applies to matched tracks)
             if self._confidence_filter and row_data:
-                # Extract confidence from method field
+                # Extract confidence using canonical parser
                 method = row_data.get('method', '')
-                confidence = ''
-                if method and '-' in method:
-                    confidence = method.split('-')[0].strip()
+                if not method:
+                    # Unmatched track - exclude from confidence filter
+                    return False
+                confidence = extract_confidence(method)
+                logger.debug(
+                    f"Confidence filter check: method='{method}', "
+                    f"extracted='{confidence}', filter='{self._confidence_filter}', "
+                    f"match={confidence == self._confidence_filter}"
+                )
                 if confidence != self._confidence_filter:
                     return False
 
-            # Early exit: Filter by quality
+            # Early exit: Filter by quality (only applies to matched tracks)
             if self._quality_filter and row_data:
-                # Extract quality from method field
-                method = row_data.get('method', '')
-                quality = ''
-                if method and '-' in method:
-                    parts = method.split('-')
-                    if len(parts) > 1:
-                        quality = parts[1].strip()
+                # Derive quality from metadata completeness and bitrate
+                missing_count = row_data.get('missing_metadata_count', 0)
+                bitrate = row_data.get('bitrate_kbps')
+                quality = get_quality_status_text(missing_count, bitrate)
+                logger.debug(
+                    f"Quality filter check: missing_count={missing_count}, "
+                    f"bitrate={bitrate}, quality='{quality}', "
+                    f"filter='{self._quality_filter}', match={quality == self._quality_filter}"
+                )
                 if quality != self._quality_filter:
                     return False
 

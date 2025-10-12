@@ -324,7 +324,7 @@ class MatchingEngine:
         duration = time.time() - start
         match_rate = (new_matches / total * 100) if total > 0 else 0
         logger.info(
-            f"✓ Created {new_matches} new match(es) from {total} changed track(s) "
+            f"✓ Found {new_matches} match(es) from {total} changed track(s) "
             f"({match_rate:.1f}% match rate) in {duration:.2f}s"
         )
         return new_matches
@@ -447,7 +447,7 @@ class MatchingEngine:
         file_match_rate = (new_matches / len(files_to_match) * 100) if files_to_match else 0
         track_match_rate = (new_matches / total * 100) if total > 0 else 0
         logger.info(
-            f"✓ Created {new_matches} new match(es) from {len(files_to_match)} changed file(s) "
+            f"✓ Found {new_matches} match(es) from {len(files_to_match)} changed file(s) "
             f"({file_match_rate:.1f}% of files matched) | "
             f"{new_matches}/{total} tracks ({track_match_rate:.1f}% of tracks) in {duration:.2f}s"
         )

@@ -11,6 +11,7 @@ IF /I "%~1"=="install" GOTO install
 IF /I "%~1"=="test" GOTO test
 IF /I "%~1"=="analyze" GOTO analyze
 IF /I "%~1"=="cleanup" GOTO cleanup
+IF /I "%~1"=="clear-cache" GOTO clear_cache
 IF /I "%~1"=="gui" GOTO gui
 IF /I "%~1"=="build-cli" GOTO build_cli
 IF /I "%~1"=="build-gui" GOTO build_gui
@@ -96,6 +97,19 @@ ECHO Running code cleanup in %CMODE% mode...
 python scripts\cleanup_code.py %CLEANUP_ARGS%
 GOTO :EOF
 
+:clear_cache
+ECHO Clearing Python cache files...
+FOR /D /R . %%d IN (__pycache__) DO @IF EXIST "%%d" (
+  ECHO Removing %%d
+  RD /S /Q "%%d"
+)
+FOR /R . %%f IN (*.pyc *.pyo) DO @IF EXIST "%%f" (
+  ECHO Removing %%f
+  DEL /Q "%%f"
+)
+ECHO Cache cleared!
+GOTO :EOF
+
 :gui
 python -m psm.gui
 GOTO :EOF
@@ -145,6 +159,7 @@ ECHO   cleanup [mode]        Clean code (whitespace, unused imports)
 ECHO                         Examples: run.bat cleanup          (clean changed files)
 ECHO                                  run.bat cleanup all      (clean entire project)
 ECHO                                  run.bat cleanup --dry-run all  (preview changes)
+ECHO   clear-cache           Remove all Python cache files (__pycache__, *.pyc)
 ECHO   version               Show CLI version
 ECHO   py ^<args^>            Run python with given args inside venv (e.g. run.bat py tools\bulk_replace.py --from X --to Y)
 EXIT /B 0
