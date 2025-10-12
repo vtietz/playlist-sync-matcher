@@ -136,11 +136,11 @@ class PlaylistsTab(QWidget):
         self.btn_match_one = QPushButton("Match Selected")
         self.btn_export_one = QPushButton("Export Selected")
         
-        # Add buttons to layout
-        buttons_layout.addStretch()
+        # Add buttons to layout (left-aligned)
         buttons_layout.addWidget(self.btn_pull_one)
         buttons_layout.addWidget(self.btn_match_one)
         buttons_layout.addWidget(self.btn_export_one)
+        buttons_layout.addStretch()  # Push buttons to the left
         
         # Initially disable per-playlist actions
         self.enable_playlist_actions(False)

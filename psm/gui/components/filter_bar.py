@@ -122,27 +122,27 @@ class FilterBar(QWidget):
         row1_layout.setSpacing(10)
         
         row1_layout.addWidget(QLabel("Playlist:"))
-        row1_layout.addWidget(self.playlist_combo)
+        row1_layout.addWidget(self.playlist_combo, stretch=1)
         
         row1_layout.addWidget(QLabel("Artist:"))
-        row1_layout.addWidget(self.artist_combo)
+        row1_layout.addWidget(self.artist_combo, stretch=1)
         
         row1_layout.addWidget(QLabel("Album:"))
-        row1_layout.addWidget(self.album_combo)
+        row1_layout.addWidget(self.album_combo, stretch=1)
         
         row1_layout.addWidget(QLabel("Year:"))
-        row1_layout.addWidget(self.year_combo)
+        row1_layout.addWidget(self.year_combo, stretch=1)
         
         row1_layout.addWidget(QLabel("Matched:"))
-        row1_layout.addWidget(self.track_status_combo)
+        row1_layout.addWidget(self.track_status_combo, stretch=1)
         
         row1_layout.addWidget(QLabel("Confidence:"))
-        row1_layout.addWidget(self.confidence_combo)
+        row1_layout.addWidget(self.confidence_combo, stretch=1)
         
         row1_layout.addWidget(QLabel("Quality:"))
-        row1_layout.addWidget(self.quality_combo)
+        row1_layout.addWidget(self.quality_combo, stretch=1)
         
-        row1_layout.addStretch()
+        # No stretch at end - widgets distribute evenly
         
         # Second row: Search field
         row2_layout = QHBoxLayout()

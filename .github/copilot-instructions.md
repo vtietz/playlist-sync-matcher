@@ -72,7 +72,29 @@ return result
 6. ✅ Resources cleaned up properly (threads, sockets, files)
 7. ✅ README updated if functionality changed
 8. ✅ Any new workflow steps use virtualenv-safe invocation (`run.bat` or install + python -m) and avoid raw system Python when project dependencies are required.
+9. ✅ **Code quality analysis passed** - Run `run.bat analyze` after bigger implementations to check:
+   - Complexity (Lizard): Functions should have CCN ≤ 15 and NLOC ≤ 100
+   - Style (flake8): No style violations, max line length 120
+   - Types (mypy - optional): Type hints where applicable
 
-# Git Commit Message Guidelines
-* After your summary always propose clear, concise commit messages that accurately describe the changes made.
+## Code Quality Analysis
+* **When to Run**: After bigger implementations, refactorings, or before committing significant changes
+* **How to Run**:
+  - `run.bat analyze` - Analyze only changed files (default, quick)
+  - `run.bat analyze all` - Analyze entire project (comprehensive)
+  - `run.bat analyze files <path>` - Analyze specific files
+* **What to Check**:
+  - **Complexity (Lizard)**: Functions with CCN > 15 need refactoring. Extract logic into smaller functions.
+  - **Function Length**: Functions > 100 lines (NLOC) should be split into smaller, focused functions.
+  - **Style (flake8)**: Fix any reported style issues. Project uses 120 char line length.
+  - **Types (mypy)**: Optional but helpful. Add type hints to new functions.
+* **Addressing Issues**:
+  - **High Complexity**: Extract nested logic into helper functions, use early returns to reduce nesting
+  - **Long Functions**: Split into multiple functions with clear single responsibilities
+  - **Style Issues**: Follow PEP 8 with project-specific rules (120 char line length, Black-compatible)
+  - **Import Issues**: Remove unused imports, organize imports logically
+
+# Required final actions
+* Run tests to ensure all changes pass.
+* After your summary always propose clear, concise commit messages that accurately describe the changes made. Just a header, no details.
 * Use the imperative mood in the subject line (e.g., "Add feature", "Fix bug", "Update docs").

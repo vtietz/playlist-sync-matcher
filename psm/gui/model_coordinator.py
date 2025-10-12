@@ -93,6 +93,17 @@ class ModelCoordinator(QObject):
         """Set pending sort for tracks (to be applied after data load)."""
         self._pending_tracks_sort = (column, order)
     
+    def get_pending_tracks_sort(self) -> Optional[Tuple[int, Qt.SortOrder]]:
+        """Get and clear pending sort for tracks.
+        
+        Returns:
+            Tuple of (column, order) if set, None otherwise.
+            Clears the pending sort after returning it.
+        """
+        pending = self._pending_tracks_sort
+        self._pending_tracks_sort = None
+        return pending
+    
     def set_pending_albums_sort(self, column: int, order: Qt.SortOrder):
         """Set pending sort for albums (to be applied after data load)."""
         self._pending_albums_sort = (column, order)

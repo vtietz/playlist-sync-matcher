@@ -334,11 +334,8 @@ class DataRefreshController(QObject):
             tracks: List of all track dicts
             playlists: List of playlists (not used - kept for backward compatibility)
         """
-        # Get pending sort if available (restored from window state)
-        pending_sort = None
-        if hasattr(self.window, '_pending_tracks_sort') and self.window._pending_tracks_sort is not None:
-            pending_sort = self.window._pending_tracks_sort
-            self.window._pending_tracks_sort = None  # Clear after capturing
+        # Get pending sort from ModelCoordinator (restored from window state)
+        pending_sort = self.window.model_coordinator.get_pending_tracks_sort()
         
         # Create streaming service instance and store reference to prevent garbage collection
         self._active_streaming_service = TrackStreamingService(

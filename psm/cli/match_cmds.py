@@ -34,15 +34,31 @@ def match(ctx: click.Context, top_tracks: int, top_albums: int, full: bool, trac
     
     # Handle single track matching
     if track_id:
-        click.echo(click.style(f"=== Matching single track: {track_id} ===", fg='cyan', bold=True))
-        
         from ..services.match_service import match_changed_tracks
         
         with get_db(cfg) as db:
+            # Get track info for logging
+            track = db.get_track_by_id(track_id)
+            
+            if track:
+                click.echo(click.style(
+                    f"=== Matching single track: {track_id} ===",
+                    fg='cyan', bold=True
+                ))
+                click.echo(f"Track: {track.name}")
+                click.echo(f"Artist: {track.artist}")
+            else:
+                click.echo(click.style(
+                    f"=== Matching single track: {track_id} ===",
+                    fg='cyan', bold=True
+                ))
+                click.echo(click.style("⚠ Track not found in database", fg='yellow'))
+                return
+            
             matched_count = match_changed_tracks(db, cfg, track_ids=[track_id])
             
             if matched_count > 0:
-                click.echo(f'✓ Matched track successfully')
+                click.echo(f'✓ Matched track {track_id}')
             else:
                 click.echo(f'⚠ No match found for track')
         

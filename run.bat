@@ -9,6 +9,7 @@ CALL %VENV%\Scripts\activate.bat
 IF /I "%~1"=="install" GOTO install
 
 IF /I "%~1"=="test" GOTO test
+IF /I "%~1"=="analyze" GOTO analyze
 IF /I "%~1"=="gui" GOTO gui
 IF /I "%~1"=="build-cli" GOTO build_cli
 IF /I "%~1"=="build-gui" GOTO build_gui
@@ -62,6 +63,22 @@ IF %TEST_EXIT% GEQ 2 (
 :test_success
 GOTO :EOF
 
+:analyze
+SHIFT
+SET AMODE=%1
+IF "%AMODE%"=="" SET AMODE=changed
+SHIFT
+SET ANALYZE_ARGS=%AMODE%
+:collect_analyze
+IF "%~1"=="" GOTO run_analyze
+SET ANALYZE_ARGS=%ANALYZE_ARGS% %1
+SHIFT
+GOTO collect_analyze
+:run_analyze
+ECHO Running code analysis in %AMODE% mode...
+python scripts\analyze_code.py %ANALYZE_ARGS%
+GOTO :EOF
+
 :gui
 python -m psm.gui
 GOTO :EOF
@@ -103,6 +120,10 @@ ECHO   build-gui             Build GUI executable (dist\psm-gui.exe)
 ECHO   build-all             Build both CLI and GUI executables
 ECHO   install               Install or update dependencies
 ECHO   test [pytest args]    Run test suite (e.g. run.bat test -q tests\test_hashing.py)
+ECHO   analyze [mode]        Run code quality analysis (modes: all, changed, files)
+ECHO                         Examples: run.bat analyze          (analyze changed files)
+ECHO                                  run.bat analyze all      (analyze entire project)
+ECHO                                  run.bat analyze files psm\gui\main_window.py
 ECHO   version               Show CLI version
 ECHO   py ^<args^>            Run python with given args inside venv (e.g. run.bat py tools\bulk_replace.py --from X --to Y)
 EXIT /B 0
