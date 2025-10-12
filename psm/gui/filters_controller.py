@@ -44,39 +44,38 @@ class FiltersController:
     
     def handle_playlist_filter_change(
         self, 
-        playlist_name: str,
+        playlist_name: Optional[str],
         fetch_tracks_callback: Optional[Callable[[str], None]] = None
     ):
         """Handle playlist filter change from FilterBar.
         
         Args:
-            playlist_name: Selected playlist name (or "All Playlists")
+            playlist_name: Selected playlist name, or None for "All Playlists"
             fetch_tracks_callback: Optional callback to fetch playlist tracks
                                   Should accept playlist_name and return track IDs
         """
-        if playlist_name == "All Playlists" or not playlist_name:
+        if not playlist_name or playlist_name == "All Playlists":
             self.clear_filters()
             return
         
         logger.debug(f"Playlist filter changed to: {playlist_name}")
         
         # If callback provided, use it to fetch tracks asynchronously
+        # This routes to MainOrchestrator → SelectionSyncController → FilterStore
         if fetch_tracks_callback:
-            # This will be implemented when async loading is added
-            # For now, just log
-            logger.debug(f"Fetching tracks for playlist: {playlist_name}")
-            # fetch_tracks_callback(playlist_name)
+            logger.debug(f"Invoking async callback for playlist: {playlist_name}")
+            fetch_tracks_callback(playlist_name)
         else:
             # Synchronous path (will freeze UI for large playlists)
             logger.debug(f"No async callback provided for playlist: {playlist_name}")
     
-    def handle_artist_filter_change(self, artist_name: str):
+    def handle_artist_filter_change(self, artist_name: Optional[str]):
         """Handle artist filter change from FilterBar.
         
         Args:
-            artist_name: Selected artist name (or "All Artists")
+            artist_name: Selected artist name, or None for "All Artists"
         """
-        if artist_name == "All Artists" or not artist_name:
+        if not artist_name or artist_name == "All Artists":
             # Clear artist filter (but keep playlist if set)
             current_state = self.filter_store.state
             if current_state.active_dimension in ("artist", "album"):
@@ -86,14 +85,14 @@ class FiltersController:
         logger.debug(f"Artist filter changed to: {artist_name}")
         self.filter_store.set_artist(artist_name)
     
-    def handle_album_filter_change(self, album_name: str, artist_name: Optional[str] = None):
+    def handle_album_filter_change(self, album_name: Optional[str], artist_name: Optional[str] = None):
         """Handle album filter change from FilterBar.
         
         Args:
-            album_name: Selected album name (or "All Albums")
-            artist_name: Optional artist name (required for album filter)
+            album_name: Selected album name, or None for "All Albums"
+            artist_name: Optional artist name (provides context when both selected)
         """
-        if album_name == "All Albums" or not album_name:
+        if not album_name or album_name == "All Albums":
             # Clear album filter (but keep artist if set in current state)
             current_state = self.filter_store.state
             if current_state.active_dimension in ("artist", "album") and current_state.artist_name:
@@ -103,13 +102,14 @@ class FiltersController:
                 self.clear_filters()
             return
         
-        # Album filter requires artist context
-        if not artist_name or artist_name == "All Artists":
-            logger.warning(f"Album filter '{album_name}' requires artist selection - ignoring")
-            return
-        
-        logger.debug(f"Album filter changed to: {album_name} (artist: {artist_name})")
-        self.filter_store.set_album(album_name, artist_name)
+        # Album filter now works with or without artist context
+        if artist_name and artist_name != "All Artists":
+            logger.debug(f"Album filter changed to: {album_name} (artist: {artist_name})")
+            self.filter_store.set_album(album_name, artist_name)
+        else:
+            # Album-only filtering (no artist constraint)
+            logger.debug(f"Album filter changed to: {album_name} (album-only)")
+            self.filter_store.set_album(album_name, None)
     
     def get_current_state(self):
         """Get current filter state.

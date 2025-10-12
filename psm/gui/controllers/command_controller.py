@@ -1,7 +1,7 @@
 """Controller for CLI command execution and action handlers."""
 from __future__ import annotations
 from typing import TYPE_CHECKING, Optional
-from PySide6.QtCore import QObject
+from PySide6.QtCore import QObject, QTimer
 import logging
 import webbrowser
 from pathlib import Path
@@ -20,12 +20,9 @@ logger = logging.getLogger(__name__)
 class CommandController(QObject):
     """Manages CLI command execution and UI action handlers.
     
-    Responsibilities:
-    - Execute CLI commands with standardized lifecycle
-    - Coordinate with CommandService for process management
-    - Update database monitor during command execution
-    - Trigger appropriate refresh after commands
-    - Handle all action button clicks (pull, scan, match, export, etc.)
+    This controller bridges user actions (button clicks, menu selections) to
+    CLI command execution via CommandService. It also handles lifecycle events
+    like enabling/disabling UI elements and refreshing data after commands.
     """
     
     def __init__(
@@ -138,7 +135,18 @@ class CommandController(QObject):
             
             # Call the actual refresh callback if needed
             if refresh_callback:
+                # Suppress auto-refresh during and after intentional refresh to prevent duplicates
+                # The DB monitor will otherwise trigger a second refresh when it detects the write
+                if self._db_monitor:
+                    self._db_monitor.set_ignore_window(2.5)  # Cover refresh + brief aftermath
+                    self._db_monitor.set_suppression(True)
+                
+                # Execute intentional refresh
                 refresh_callback()
+                
+                # Schedule suppression clear after ignore window expires
+                if self._db_monitor:
+                    QTimer.singleShot(2500, lambda: self._db_monitor.set_suppression(False))
         
         try:
             # Execute via command service with standardized lifecycle
@@ -221,6 +229,8 @@ class CommandController(QObject):
         Args:
             track_id: ID of the track to diagnose
         """
+        # Add visible log message to confirm click is received
+        self.window.append_log(f"🔍 Diagnose button clicked - track ID: {track_id}")
         # Set ignore window to cover the operation plus brief aftermath
         if self._db_monitor:
             self._db_monitor.set_ignore_window(2.5)
@@ -332,57 +342,14 @@ class CommandController(QObject):
         logger.debug(f"Match track clicked - track ID: {track_id}")
         if track_id:
             logger.info(f"Matching single track: {track_id}")
-            # Use async task to match this specific track
-            self._match_specific_track_async(track_id)
+            # Use standard CLI command execution (consistent with other buttons)
+            self._execute_command(
+                ['match', '--track-id', track_id],
+                f"✓ Matched track {track_id}",
+                refresh_after=True,
+                fast_refresh=True  # Only refresh tracks table
+            )
         else:
             logger.warning("Match track clicked but no track ID provided")
             self.window.append_log("⚠ No track selected")
-    
-    def _match_specific_track_async(self, track_id: str):
-        """Match a specific track asynchronously.
-        
-        Args:
-            track_id: ID of track to match
-        """
-        from PySide6.QtCore import QTimer
-        from ...services.match_service import match_changed_tracks
-        from ...config import load_config
-        from ...cli.helpers import get_db
-        
-        # Clear log and show progress
-        self.window.append_log(f"Matching track {track_id}...")
-        
-        # Disable actions during matching
-        self.command_service.enable_actions(False)
-        
-        def do_match():
-            """Perform the matching operation in background."""
-            try:
-                # Load config and database
-                cfg = load_config()
-                
-                with get_db(cfg) as db:
-                    # Match just this one track
-                    matched_count = match_changed_tracks(db, cfg, track_ids=[track_id])
-                    
-                    # Show result
-                    if matched_count > 0:
-                        self.window.append_log(f"✓ Matched track successfully")
-                        logger.info(f"Matched 1 track")
-                    else:
-                        self.window.append_log(f"⚠ No match found for track")
-                        logger.warning(f"No match found for track {track_id}")
-                
-            except Exception as e:
-                logger.error(f"Error matching track: {e}", exc_info=True)
-                self.window.append_log(f"✗ Error matching track: {e}")
-            finally:
-                # Re-enable actions
-                self.command_service.enable_actions(True)
-                
-                # Fast refresh to update UI
-                if self._data_refresh:
-                    QTimer.singleShot(100, self._data_refresh.refresh_tracks_only_async)
-        
-        # Execute in thread pool
-        self.command_service.executor.submit(do_match)
+

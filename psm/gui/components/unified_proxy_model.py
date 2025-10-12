@@ -216,6 +216,7 @@ class UnifiedTracksProxyModel(QSortFilterProxyModel):
             # FAST PATH: If no filters are active, accept immediately
             # This avoids ALL expensive data() calls when showing "All Songs"
             if (self._playlist_track_ids is None and
+                not self._playlist_filter and
                 self._status_filter == "all" and
                 not self._artist_filter and
                 not self._album_filter and
@@ -233,10 +234,18 @@ class UnifiedTracksProxyModel(QSortFilterProxyModel):
                     return True  # If no data, show the row
             
             # Early exit: Filter by playlist (check track ID)
-            if self._playlist_track_ids is not None:
-                track_id = row_data.get('id') if row_data else None
-                if track_id not in self._playlist_track_ids:
-                    return False
+            # If track_ids not loaded yet, fall back to playlist name matching
+            if self._playlist_filter:
+                if self._playlist_track_ids is not None:
+                    # Authoritative: Use track_ids once loaded
+                    track_id = row_data.get('id') if row_data else None
+                    if track_id not in self._playlist_track_ids:
+                        return False
+                elif row_data:
+                    # Fallback: Match playlist name before track_ids are loaded
+                    playlists = row_data.get('playlists', '')
+                    if not playlists or self._playlist_filter not in playlists:
+                        return False
         
             # Early exit: Filter by match status
             if self._status_filter != "all" and row_data:

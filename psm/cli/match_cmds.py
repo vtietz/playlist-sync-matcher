@@ -16,12 +16,14 @@ logger = logging.getLogger(__name__)
 @click.option('--top-tracks', type=int, default=20, help='Number of top unmatched tracks to show')
 @click.option('--top-albums', type=int, default=10, help='Number of top unmatched albums to show')
 @click.option('--full', is_flag=True, help='Force full re-match of all tracks (default: skip already-matched)')
+@click.option('--track-id', type=str, help='Match only a specific track by ID')
 @click.pass_context
-def match(ctx: click.Context, top_tracks: int, top_albums: int, full: bool):
+def match(ctx: click.Context, top_tracks: int, top_albums: int, full: bool, track_id: str | None):
     """Match streaming tracks to local library files (scoring engine).
     
     Default mode: Smart incremental matching (skips already-matched tracks)
     Use --full to force complete re-match of all tracks
+    Use --track-id <id> to match only a specific track
     
     Automatically generates detailed reports:
     - matched_tracks.csv / .html: All matched tracks with confidence scores
@@ -29,6 +31,22 @@ def match(ctx: click.Context, top_tracks: int, top_albums: int, full: bool):
     - unmatched_albums.csv / .html: Unmatched albums grouped by popularity
     """
     cfg = ctx.obj
+    
+    # Handle single track matching
+    if track_id:
+        click.echo(click.style(f"=== Matching single track: {track_id} ===", fg='cyan', bold=True))
+        
+        from ..services.match_service import match_changed_tracks
+        
+        with get_db(cfg) as db:
+            matched_count = match_changed_tracks(db, cfg, track_ids=[track_id])
+            
+            if matched_count > 0:
+                click.echo(f'✓ Matched track successfully')
+            else:
+                click.echo(f'⚠ No match found for track')
+        
+        return
     
     # Print styled header for user experience
     if full:

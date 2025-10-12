@@ -189,7 +189,8 @@ class MainWindow(QMainWindow):
         self.ui_state = UiStateController(
             toolbar=self.toolbar,
             playlists_tab=self.playlists_tab,
-            btn_diagnose=self.btn_diagnose
+            btn_diagnose=self.btn_diagnose,
+            btn_match_one=self.tracks_panel.btn_match_one
         )
         
         # Wire up ModelCoordinator with views for sorting/resizing
@@ -285,9 +286,9 @@ class MainWindow(QMainWindow):
         # Wire FilterBar user actions to FilterStore (bidirectional filtering)
         # When user changes filter dropdowns, update FilterStore → emits filterChanged → view updates
         filter_bar = self.tracks_panel.filter_bar
-        filter_bar.playlist_combo.currentTextChanged.connect(self._on_filterbar_playlist_changed)
-        filter_bar.artist_combo.currentTextChanged.connect(self._on_filterbar_artist_changed)
-        filter_bar.album_combo.currentTextChanged.connect(self._on_filterbar_album_changed)
+        filter_bar.playlist_combo.currentIndexChanged.connect(self._on_filterbar_playlist_changed)
+        filter_bar.artist_combo.currentIndexChanged.connect(self._on_filterbar_artist_changed)
+        filter_bar.album_combo.currentIndexChanged.connect(self._on_filterbar_album_changed)
         
         # Connect panel signals
         self.tracks_panel.selection_changed.connect(self._on_track_selection_changed)
@@ -599,12 +600,14 @@ class MainWindow(QMainWindow):
         # Note: Controller directly subscribes to PlaylistsTab.selection_changed
         # and publishes to FilterStore asynchronously. No signals emitted here.
     
-    def _on_filterbar_playlist_changed(self, playlist_name: str):
+    def _on_filterbar_playlist_changed(self):
         """Handle user changing playlist filter in FilterBar.
         
-        Args:
-            playlist_name: Selected playlist name (or "All Playlists")
+        Retrieves current playlist selection and updates FilterStore.
+        Uses currentIndexChanged signal (fires only on selection change, not during typing).
         """
+        playlist_name = self.unified_tracks_view.filter_bar.get_playlist_filter()
+        
         # Delegate to filters controller
         if hasattr(self, '_controller'):
             # If controller exists, pass it to handle async loading
@@ -616,30 +619,30 @@ class MainWindow(QMainWindow):
             # No controller yet, synchronous handling
             self.filters_controller.handle_playlist_filter_change(playlist_name)
     
-    def _on_filterbar_artist_changed(self, artist_name: str):
+    def _on_filterbar_artist_changed(self):
         """Handle user changing artist filter in FilterBar.
         
-        Args:
-            artist_name: Selected artist name (or "All Artists")
+        Retrieves current artist selection and updates FilterStore.
+        Uses currentIndexChanged signal (fires only on selection change, not during typing).
         """
+        artist_name = self.unified_tracks_view.filter_bar.get_artist_filter()
         self.filters_controller.handle_artist_filter_change(artist_name)
     
-    def _on_filterbar_album_changed(self, album_name: str):
+    def _on_filterbar_album_changed(self):
         """Handle user changing album filter in FilterBar.
         
-        Args:
-            album_name: Selected album name (or "All Albums")
+        Retrieves current album and artist selections and updates FilterStore.
+        Uses currentIndexChanged signal (fires only on selection change, not during typing).
         """
-        # Get current artist selection from FilterBar for context
+        album_name = self.unified_tracks_view.filter_bar.get_album_filter()
         artist_name = self.unified_tracks_view.filter_bar.get_artist_filter()
         self.filters_controller.handle_album_filter_change(album_name, artist_name)
     
-    def _on_track_selection_changed(self, selected, deselected):
+    def _on_track_selection_changed(self):
         """Handle track selection change.
         
-        Args:
-            selected: QItemSelection of selected items
-            deselected: QItemSelection of deselected items
+        Called when track selection changes in the tracks panel.
+        Checks actual selection state and updates button states via UiStateController.
         """
         # Enable/disable track actions based on selection
         has_selection = self.unified_tracks_view.tracks_table.selectionModel().hasSelection()

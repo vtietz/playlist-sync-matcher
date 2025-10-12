@@ -46,7 +46,8 @@ class UiStateController:
         self,
         toolbar=None,
         playlists_tab=None,
-        btn_diagnose=None
+        btn_diagnose=None,
+        btn_match_one=None
     ):
         """Initialize UI state controller.
         
@@ -54,11 +55,13 @@ class UiStateController:
             toolbar: ActionsToolbar instance (for workflow buttons)
             playlists_tab: PlaylistsTab instance (for per-playlist buttons)
             btn_diagnose: QPushButton for track diagnosis
+            btn_match_one: QPushButton for matching single track
         """
         # Component references
         self._toolbar = toolbar
         self._playlists_tab = playlists_tab
         self._btn_diagnose = btn_diagnose
+        self._btn_match_one = btn_match_one
         
         # State flags (single source of truth)
         self._is_running: bool = False
@@ -166,7 +169,10 @@ class UiStateController:
         
         if self._btn_diagnose:
             self._btn_diagnose.setEnabled(should_enable)
-            logger.debug(f"Track actions: enabled={should_enable} (running={self._is_running}, has_selection={self._has_track_selection})")
+        if self._btn_match_one:
+            self._btn_match_one.setEnabled(should_enable)
+        
+        logger.debug(f"Track actions: enabled={should_enable} (running={self._is_running}, has_selection={self._has_track_selection})")
     
     # Convenience methods (higher-level state changes)
     

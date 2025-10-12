@@ -136,6 +136,9 @@ class TracksPanel(QWidget):
             deselected: Deselected items
         """
         has_selection = len(selected.indexes()) > 0
+        # Note: btn_match_one and btn_diagnose are managed by UiStateController
+        # but we still enable/disable them here for immediate feedback when selection changes
+        # UiStateController will override if a command is running
         self.btn_match_one.setEnabled(has_selection)
         self.btn_diagnose.setEnabled(has_selection)
         
@@ -145,13 +148,51 @@ class TracksPanel(QWidget):
     def _on_diagnose_clicked(self):
         """Handle diagnose button click - emit signal with selected track ID."""
         track_id = self._get_selected_track_id()
-        if track_id:
+        
+        if not track_id:
+            # Get track data for diagnostic logging
+            selected_indexes = self.tracks_table.selectionModel().selectedRows()
+            if selected_indexes:
+                proxy_index = selected_indexes[0]
+                source_index = self.proxy_model.mapToSource(proxy_index)
+                track_data = self._model.get_row_data(source_index.row())
+                if track_data:
+                    logger.warning(
+                        f"Diagnose clicked but no track_id resolved. "
+                        f"Available keys: {list(track_data.keys())}, "
+                        f"id={track_data.get('id')}, track_id={track_data.get('track_id')}"
+                    )
+                else:
+                    logger.warning("Diagnose clicked but track_data is None")
+            else:
+                logger.warning("Diagnose clicked but no track selected")
+        else:
+            logger.info(f"Emitting diagnose_clicked signal with track_id: {track_id}")
             self.diagnose_clicked.emit(track_id)
     
     def _on_match_one_clicked(self):
         """Handle match one button click - emit signal with selected track ID."""
         track_id = self._get_selected_track_id()
-        if track_id:
+        
+        if not track_id:
+            # Get track data for diagnostic logging
+            selected_indexes = self.tracks_table.selectionModel().selectedRows()
+            if selected_indexes:
+                proxy_index = selected_indexes[0]
+                source_index = self.proxy_model.mapToSource(proxy_index)
+                track_data = self._model.get_row_data(source_index.row())
+                if track_data:
+                    logger.warning(
+                        f"Match one clicked but no track_id resolved. "
+                        f"Available keys: {list(track_data.keys())}, "
+                        f"id={track_data.get('id')}, track_id={track_data.get('track_id')}"
+                    )
+                else:
+                    logger.warning("Match one clicked but track_data is None")
+            else:
+                logger.warning("Match one clicked but no track selected")
+        else:
+            logger.info(f"Emitting match_one_clicked signal with track_id: {track_id}")
             self.match_one_clicked.emit(track_id)
     
     def _get_selected_track_id(self) -> Optional[str]:
@@ -174,7 +215,10 @@ class TracksPanel(QWidget):
         if not track_data:
             return None
         
-        return track_data.get('track_id')
+        # Robust identifier resolution: handle both 'id' and 'track_id' keys
+        # Selection uses 'id', but some paths may use 'track_id'
+        track_id = track_data.get('id') or track_data.get('track_id')
+        return track_id
     
     def has_selection(self) -> bool:
         """Check if a track is currently selected.

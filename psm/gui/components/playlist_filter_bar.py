@@ -12,6 +12,7 @@ from PySide6.QtCore import Signal, Qt
 import logging
 
 from .debounced_search_field import DebouncedSearchField
+from .searchable_combobox import SearchableComboBox
 
 logger = logging.getLogger(__name__)
 
@@ -42,8 +43,7 @@ class PlaylistFilterBar(QWidget):
         super().__init__(parent)
         
         # Create filter widgets
-        self.owner_combo = QComboBox()
-        self.owner_combo.addItem("All Owners")
+        self.owner_combo = SearchableComboBox(all_text="All Owners")
         self.owner_combo.currentIndexChanged.connect(self._on_filter_changed)
         
         # Load filter options when user clicks the dropdown
@@ -91,8 +91,7 @@ class PlaylistFilterBar(QWidget):
         Returns:
             Owner name or None if "All Owners" selected
         """
-        text = self.owner_combo.currentText()
-        return None if text == "All Owners" else text
+        return self.owner_combo.get_selected_value()
     
     def get_search_text(self) -> str:
         """Get search text.
@@ -108,22 +107,12 @@ class PlaylistFilterBar(QWidget):
         Args:
             owners: List of unique owner names
         """
-        # Store current selection
-        current_owner = self.owner_combo.currentText()
-        
-        # Clear and repopulate
-        self.owner_combo.clear()
-        self.owner_combo.addItem("All Owners")
-        self.owner_combo.addItems(sorted(owners))
-        
-        # Restore selection if it still exists
-        owner_idx = self.owner_combo.findText(current_owner)
-        if owner_idx >= 0:
-            self.owner_combo.setCurrentIndex(owner_idx)
+        # Populate searchable combobox (it handles selection preservation)
+        self.owner_combo.populate_items(owners, sort=True)
     
     def clear_filters(self):
         """Reset all filters to default state."""
-        self.owner_combo.setCurrentIndex(0)
+        self.owner_combo.clear_selection()
         self.search_field.clear()
 
 

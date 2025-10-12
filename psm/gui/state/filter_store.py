@@ -54,12 +54,12 @@ class FilterState:
     
     Policy: Only ONE dimension active at a time.
     - If playlist_name is set, album/artist should be None
-    - If album_name is set, artist_name must also be set, playlist should be None
+    - If album_name is set, it can be used alone or with artist_name, playlist should be None
     - If artist_name is set alone, album/playlist should be None
     
     Attributes:
         playlist_name: Filter by playlist (None = no playlist filter)
-        album_name: Filter by album (requires artist_name, None = no album filter)
+        album_name: Filter by album (can be used alone or with artist_name)
         artist_name: Filter by artist (None = no artist filter)
         track_ids: Set of track IDs for playlist filter (cached for performance)
     """
@@ -71,11 +71,9 @@ class FilterState:
     
     def __post_init__(self):
         """Validate state invariants."""
-        # Album filter requires artist
-        if self.album_name and not self.artist_name:
-            raise ValueError("album_name requires artist_name to be set")
+        # Album filter can be used alone or with artist (no longer requires artist)
         
-        # Only one dimension active
+        # Only one dimension active (album and artist together count as one: "album")
         dimensions_set = sum([
             self.playlist_name is not None,
             self.album_name is not None,

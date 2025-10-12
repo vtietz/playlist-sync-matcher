@@ -160,18 +160,22 @@ class TestAlbumFilter:
         assert state.playlist_name is None
     
     def test_album_filter_without_artist(self, controller):
-        """Should not set album filter without artist."""
+        """Should set album-only filter without artist."""
         controller.handle_album_filter_change("Test Album", None)
         
-        # Should not set filter (album requires artist)
-        assert controller.filter_store.state.is_cleared
+        # Album-only filtering is now supported
+        state = controller.filter_store.state
+        assert state.album_name == "Test Album"
+        assert state.artist_name is None
     
     def test_album_filter_with_all_artists(self, controller):
-        """Should not set album filter when artist is 'All Artists'."""
+        """Should set album-only filter when artist is 'All Artists'."""
         controller.handle_album_filter_change("Test Album", "All Artists")
         
-        # Should not set filter
-        assert controller.filter_store.state.is_cleared
+        # Album-only filtering is now supported
+        state = controller.filter_store.state
+        assert state.album_name == "Test Album"
+        assert state.artist_name is None
     
     def test_album_clear_preserves_artist(self, controller):
         """Clearing album should preserve artist-only filter."""

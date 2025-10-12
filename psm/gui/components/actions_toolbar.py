@@ -139,8 +139,8 @@ class ActionsToolbar(QToolBar):
         self.addWidget(self._btn_pull)
         self.addWidget(self._btn_scan)
         self.addWidget(self._btn_match)
-        self.addWidget(self._btn_report)
         self.addWidget(self._btn_export)
+        self.addWidget(self._btn_report)
         self.addWidget(self._btn_open_reports)
         self.addSeparator()
         self.addWidget(self._btn_refresh)
@@ -172,8 +172,9 @@ class ActionsToolbar(QToolBar):
         """Enable or disable all workflow buttons.
         
         This should be called when starting/stopping long-running operations
-        to prevent concurrent execution. Open Reports and Refresh stay enabled
-        as they don't execute CLI commands or modify data.
+        to prevent concurrent execution. Open Reports stays enabled as it
+        doesn't execute CLI commands. Refresh is disabled during data loading
+        to prevent overlapping refresh operations.
         
         Args:
             enabled: True to enable buttons, False to disable
@@ -185,7 +186,8 @@ class ActionsToolbar(QToolBar):
         self._btn_report.setEnabled(enabled)
         self._btn_export.setEnabled(enabled)
         self._btn_watch.setEnabled(enabled)
-        # Note: _btn_open_reports and _btn_refresh intentionally stay enabled
+        self._btn_refresh.setEnabled(enabled)  # Disable during data loading
+        # Note: _btn_open_reports intentionally stays enabled
     
     def setWatchMode(self, enabled: bool):
         """Set the watch mode toggle state.
