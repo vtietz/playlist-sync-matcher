@@ -16,7 +16,7 @@ def log_progress(
     item_name: str = "files"
 ) -> None:
     """Log progress info with consistent formatting.
-    
+
     Args:
         processed: Number of items processed so far
         total: Total number of items (None if unknown)
@@ -29,22 +29,22 @@ def log_progress(
     parts = [
         f"{click.style(f'{processed}', fg='cyan')} {item_name} processed"
     ]
-    
+
     if total:
         pct = (processed / total * 100) if total > 0 else 0
         parts[0] = f"{click.style(f'{processed}/{total}', fg='cyan')} {item_name} ({pct:.0f}%)"
-    
+
     if new > 0:
         parts.append(f"{click.style(f'{new} new', fg='green')}")
     if updated > 0:
         parts.append(f"{click.style(f'{updated} updated', fg='blue')}")
     if skipped > 0:
         parts.append(f"{click.style(f'{skipped} skipped', fg='yellow')}")
-    
+
     if elapsed_seconds > 0:
         rate = processed / elapsed_seconds if elapsed_seconds > 0 else 0
         parts.append(f"{rate:.1f} {item_name}/s")
-    
+
     logger.info(" | ".join(parts))
 
 
@@ -57,7 +57,7 @@ def format_summary(
     item_name: str = "items"
 ) -> str:
     """Format a summary line with colored counts.
-    
+
     Args:
         new: Count of new items
         updated: Count of updated items
@@ -65,7 +65,7 @@ def format_summary(
         deleted: Count of deleted items
         duration_seconds: Total duration in seconds
         item_name: Name of items (e.g., "Library", "Playlists")
-        
+
     Returns:
         Formatted summary string with colors
     """
@@ -76,13 +76,13 @@ def format_summary(
         click.style(f'{updated} updated', fg='blue'),
         click.style(f'{unchanged} unchanged', fg='yellow')
     ]
-    
+
     if deleted > 0:
         parts.append(click.style(f'{deleted} deleted', fg='red'))
-    
+
     if duration_seconds > 0:
         parts.append(f"in {duration_seconds:.2f}s")
-    
+
     return " ".join(parts)
 
 

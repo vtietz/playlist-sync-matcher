@@ -9,7 +9,6 @@ Reports are automatically generated in both CSV and HTML formats.
 from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List, Dict, Any
-from pathlib import Path
 import logging
 
 import click
@@ -41,7 +40,7 @@ class QualityReport:
     low_bitrate_count: int = 0
     files_without_bitrate: int = 0
     issues: List[QualityIssue] = field(default_factory=list)
-    
+
     def get_summary_stats(self) -> Dict[str, Any]:
         """Get summary statistics as a dict."""
         return {
@@ -64,30 +63,30 @@ class QualityReport:
 def analyze_library_quality(db: DatabaseInterface, min_bitrate_kbps: int = 320, max_issues: int = 50, silent: bool = False) -> QualityReport:
     """
     Analyze library metadata quality.
-    
+
     Args:
         db: Database instance
         min_bitrate_kbps: Minimum acceptable bitrate in kbps (default: 320)
         max_issues: Maximum number of detailed issues to collect (default: 50)
         silent: If True, suppress progress logging (default: False)
-    
+
     Returns:
         QualityReport with detailed issue breakdown
     """
     if not silent:
         logger.info("[analyze] Analyzing library metadata quality...")
-    
+
     report = QualityReport()
     issues_collected = 0
-    
+
     # Query all files with their metadata, playlist count, and liked status
     rows = db.conn.execute("""
-        SELECT 
-            lf.path, 
-            lf.artist, 
-            lf.title, 
-            lf.album, 
-            lf.year, 
+        SELECT
+            lf.path,
+            lf.artist,
+            lf.title,
+            lf.album,
+            lf.year,
             lf.bitrate_kbps,
             COUNT(DISTINCT pt.playlist_id) as playlist_count,
             EXISTS(
@@ -101,51 +100,51 @@ def analyze_library_quality(db: DatabaseInterface, min_bitrate_kbps: int = 320, 
         GROUP BY lf.id
         ORDER BY lf.path
     """).fetchall()
-    
+
     report.total_files = len(rows)
     if not silent:
         logger.info(f"[analyze] Analyzing {report.total_files} files...")
-    
+
     for row in rows:
         path = row['path']
         missing = []
         has_issue = False
-        
+
         # Check for missing metadata fields
         if not row['artist']:
             missing.append('artist')
             report.missing_artist += 1
             has_issue = True
-        
+
         if not row['title']:
             missing.append('title')
             report.missing_title += 1
             has_issue = True
-        
+
         if not row['album']:
             missing.append('album')
             report.missing_album += 1
             has_issue = True
-        
+
         if not row['year']:
             missing.append('year')
             report.missing_year += 1
             has_issue = True
-        
+
         if len(missing) > 1:
             report.missing_multiple += 1
-        
+
         # Check bitrate
         bitrate = row['bitrate_kbps']
         low_bitrate = False
-        
+
         if bitrate is None:
             report.files_without_bitrate += 1
         elif bitrate < min_bitrate_kbps:
             low_bitrate = True
             report.low_bitrate_count += 1
             has_issue = True
-        
+
         # Collect detailed issues (up to max_issues)
         if has_issue and issues_collected < max_issues:
             report.issues.append(QualityIssue(
@@ -157,24 +156,24 @@ def analyze_library_quality(db: DatabaseInterface, min_bitrate_kbps: int = 320, 
                 is_liked=bool(row['is_liked'])
             ))
             issues_collected += 1
-    
+
     if not silent:
         logger.info(f"[analyze] Analysis complete. Found issues in {len(report.issues)} files (showing first {max_issues})")
-    
+
     return report
 
 
 def _get_top_offenders_by_field_grouped(db, field_name: str, top_n: int = 10) -> List[Dict[str, Any]]:
     """Get top offenders with missing field, intelligently grouped by album.
-    
+
     Groups files by album to maximize impact - fixing one album fixes multiple files.
     Returns albums sorted by: file count (desc), then album name.
-    
+
     Args:
         db: Database instance
         field_name: Field to check ('artist', 'title', 'album', 'year')
         top_n: Number of album groups to return
-    
+
     Returns:
         List of dicts with 'album', 'artist', 'file_count', 'files' keys
     """
@@ -188,7 +187,7 @@ def _get_top_offenders_by_field_grouped(db, field_name: str, top_n: int = 10) ->
             LIMIT ?
         """
         rows = db.conn.execute(query, (top_n * 3,)).fetchall()
-        
+
         # Group by artist for missing album case
         artist_groups = {}
         for row in rows:
@@ -196,7 +195,7 @@ def _get_top_offenders_by_field_grouped(db, field_name: str, top_n: int = 10) ->
             if artist not in artist_groups:
                 artist_groups[artist] = []
             artist_groups[artist].append(row['path'])
-        
+
         # Convert to result format
         results = []
         for artist, files in sorted(artist_groups.items(), key=lambda x: (-len(x[1]), x[0])):
@@ -209,20 +208,20 @@ def _get_top_offenders_by_field_grouped(db, field_name: str, top_n: int = 10) ->
             if len(results) >= top_n:
                 break
         return results
-    
+
     # Normal case: group by album
     query = f"""
-        SELECT album, artist, COUNT(*) as file_count, 
+        SELECT album, artist, COUNT(*) as file_count,
                GROUP_CONCAT(path, '|') as paths
         FROM library_files
-        WHERE ({field_name} IS NULL OR {field_name} = '') 
+        WHERE ({field_name} IS NULL OR {field_name} = '')
           AND album IS NOT NULL AND album != ''
         GROUP BY album, artist
         ORDER BY file_count DESC, album
         LIMIT ?
     """
     rows = db.conn.execute(query, (top_n,)).fetchall()
-    
+
     results = []
     for row in rows:
         paths = row['paths'].split('|') if row['paths'] else []
@@ -232,14 +231,14 @@ def _get_top_offenders_by_field_grouped(db, field_name: str, top_n: int = 10) ->
             'file_count': row['file_count'],
             'files': paths[:5]  # Show max 5 files per album
         })
-    
+
     return results
 
 
 def print_quality_report(report: QualityReport, min_bitrate_kbps: int = 320, db=None, top_n: int = 10):
     """
     Print formatted quality report to console with top offenders.
-    
+
     Args:
         report: QualityReport instance
         min_bitrate_kbps: Minimum bitrate threshold used
@@ -247,7 +246,7 @@ def print_quality_report(report: QualityReport, min_bitrate_kbps: int = 320, db=
         top_n: Number of top offenders to show per category
     """
     stats = report.get_summary_stats()
-    
+
     logger.info("")
     logger.info("=" * 70)
     logger.info("LIBRARY METADATA QUALITY REPORT")
@@ -265,13 +264,13 @@ def print_quality_report(report: QualityReport, min_bitrate_kbps: int = 320, db=
     logger.info(f"  Low bitrate: {stats['low_bitrate_count']:5d} files ({stats['low_bitrate_pct']:5.1f}%)")
     logger.info(f"  No bitrate info: {stats['files_without_bitrate']} files")
     logger.info("=" * 70)
-    
+
     # Show top offenders per category (INFO mode) - grouped by album for maximum impact
     if db and (stats['missing_artist'] > 0 or stats['missing_album'] > 0 or stats['missing_year'] > 0):
         logger.info("")
         logger.info("Top Albums/Groups With Missing Metadata (Fix These For Maximum Impact!):")
         logger.info("")
-        
+
         if stats['missing_year'] > 0:
             logger.info(click.style("  Missing Year (grouped by album):", fg='yellow', bold=True))
             offenders = _get_top_offenders_by_field_grouped(db, 'year', top_n)
@@ -280,18 +279,18 @@ def print_quality_report(report: QualityReport, min_bitrate_kbps: int = 320, db=
                 album = group['album'] or '[No Album]'
                 artist = group['artist']
                 count = group['file_count']
-                
+
                 logger.info(f"    {click.style(f'📁 {artist} - {album}', fg='cyan')} ({count} file{'s' if count != 1 else ''})")
                 for file_path in group['files'][:3]:  # Show max 3 example files
                     logger.info(f"       • {file_path}")
                 if len(group['files']) > 3:
                     logger.info(f"       ... and {len(group['files']) - 3} more from this album")
                 total_files_shown += count
-            
+
             if stats['missing_year'] > total_files_shown:
                 logger.info(f"    ... and {stats['missing_year'] - total_files_shown} more files in {stats['missing_year'] - total_files_shown} other albums")
             logger.info("")
-        
+
         if stats['missing_album'] > 0:
             logger.info(click.style("  Missing Album (grouped by artist):", fg='yellow', bold=True))
             offenders = _get_top_offenders_by_field_grouped(db, 'album', top_n)
@@ -299,18 +298,18 @@ def print_quality_report(report: QualityReport, min_bitrate_kbps: int = 320, db=
             for group in offenders:
                 artist = group['artist']
                 count = group['file_count']
-                
+
                 logger.info(f"    {click.style(f'👤 {artist}', fg='cyan')} ({count} file{'s' if count != 1 else ''})")
                 for file_path in group['files'][:3]:  # Show max 3 example files
                     logger.info(f"       • {file_path}")
                 if len(group['files']) > 3:
                     logger.info(f"       ... and {len(group['files']) - 3} more from this artist")
                 total_files_shown += count
-            
+
             if stats['missing_album'] > total_files_shown:
                 logger.info(f"    ... and {stats['missing_album'] - total_files_shown} more files from other artists")
             logger.info("")
-        
+
         if stats['missing_artist'] > 0:
             logger.info(click.style("  Missing Artist (grouped by album):", fg='yellow', bold=True))
             offenders = _get_top_offenders_by_field_grouped(db, 'artist', top_n)
@@ -318,31 +317,31 @@ def print_quality_report(report: QualityReport, min_bitrate_kbps: int = 320, db=
             for group in offenders:
                 album = group['album'] or '[No Album]'
                 count = group['file_count']
-                
+
                 logger.info(f"    {click.style(f'📁 {album}', fg='cyan')} ({count} file{'s' if count != 1 else ''})")
                 for file_path in group['files'][:3]:  # Show max 3 example files
                     logger.info(f"       • {file_path}")
                 if len(group['files']) > 3:
                     logger.info(f"       ... and {len(group['files']) - 3} more from this album")
                 total_files_shown += count
-            
+
             if stats['missing_artist'] > total_files_shown:
                 logger.info(f"    ... and {stats['missing_artist'] - total_files_shown} more files in other albums")
             logger.info("")
-    
+
     # Show detailed issues if debug logging is enabled
     if report.issues and logging.getLogger().isEnabledFor(logging.DEBUG):
         logger.info("")
         logger.info(f"Detailed Issues (showing first {len(report.issues)}):")
         logger.info("")
-        
+
         for issue in report.issues:
             problems = []
             if issue.missing_fields:
                 problems.append(f"missing: {', '.join(issue.missing_fields)}")
             if issue.low_bitrate and issue.bitrate_kbps:
                 problems.append(f"low bitrate: {issue.bitrate_kbps} kbps")
-            
+
             logger.info(f"  {issue.path}")
             logger.info(f"    → {'; '.join(problems)}")
             logger.info("")

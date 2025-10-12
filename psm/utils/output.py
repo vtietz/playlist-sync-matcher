@@ -6,10 +6,10 @@ from pathlib import Path
 
 def section_header(text: str) -> str:
     """Format a section header with color.
-    
+
     Args:
         text: Header text
-        
+
     Returns:
         Formatted header string
     """
@@ -18,11 +18,11 @@ def section_header(text: str) -> str:
 
 def success(text: str, prefix: str = "✓") -> str:
     """Format a success message.
-    
+
     Args:
         text: Message text
         prefix: Prefix character (default: ✓)
-        
+
     Returns:
         Formatted success string
     """
@@ -31,11 +31,11 @@ def success(text: str, prefix: str = "✓") -> str:
 
 def error(text: str, prefix: str = "✗") -> str:
     """Format an error message.
-    
+
     Args:
         text: Message text
         prefix: Prefix character (default: ✗)
-        
+
     Returns:
         Formatted error string
     """
@@ -44,11 +44,11 @@ def error(text: str, prefix: str = "✗") -> str:
 
 def warning(text: str, prefix: str = "⚠") -> str:
     """Format a warning message.
-    
+
     Args:
         text: Message text
         prefix: Prefix character (default: ⚠)
-        
+
     Returns:
         Formatted warning string
     """
@@ -57,10 +57,10 @@ def warning(text: str, prefix: str = "⚠") -> str:
 
 def info(text: str) -> str:
     """Format an info message.
-    
+
     Args:
         text: Message text
-        
+
     Returns:
         Formatted info string
     """
@@ -69,11 +69,11 @@ def info(text: str) -> str:
 
 def file_path(path: Path | str, label: str | None = None) -> str:
     """Format a file path with optional label.
-    
+
     Args:
         path: File path to format
         label: Optional label to show before path
-        
+
     Returns:
         Formatted path string
     """
@@ -85,17 +85,17 @@ def file_path(path: Path | str, label: str | None = None) -> str:
 
 def clickable_path(path: Path | str, label: str | None = None) -> str:
     """Format a clickable file path (absolute path for terminal clicking).
-    
+
     Args:
         path: File path to format
         label: Optional label to show before path
-        
+
     Returns:
         Formatted clickable path string
     """
     abs_path = Path(path).resolve()
     path_str = str(abs_path)
-    
+
     if label:
         return f"  {click.style('•', fg='blue')} {label}: {click.style(path_str, fg='cyan', underline=True)}"
     return f"  {click.style(path_str, fg='cyan', underline=True)}"
@@ -103,12 +103,12 @@ def clickable_path(path: Path | str, label: str | None = None) -> str:
 
 def report_files(csv_path: Path | str, html_path: Path | str, label: str) -> str:
     """Format report file paths (CSV and HTML).
-    
+
     Args:
         csv_path: Path to CSV file
         html_path: Path to HTML file
         label: Report label
-        
+
     Returns:
         Formatted report files string
     """
@@ -119,12 +119,12 @@ def report_files(csv_path: Path | str, html_path: Path | str, label: str) -> str
 
 def count_badge(count: int, label: str, color: str = 'cyan') -> str:
     """Format a count badge.
-    
+
     Args:
         count: Count to display
         label: Label for the count
         color: Color for the count (default: cyan)
-        
+
     Returns:
         Formatted count badge
     """
@@ -133,7 +133,7 @@ def count_badge(count: int, label: str, color: str = 'cyan') -> str:
 
 def divider() -> str:
     """Return a visual divider line.
-    
+
     Returns:
         Divider string
     """
@@ -143,7 +143,7 @@ def divider() -> str:
 __all__ = [
     "section_header",
     "success",
-    "error", 
+    "error",
     "warning",
     "info",
     "file_path",

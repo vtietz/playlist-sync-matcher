@@ -5,7 +5,7 @@ deferring expensive aggregations like playlist concatenation.
 """
 from __future__ import annotations
 import sqlite3
-from typing import List, Dict, Any, Optional, Tuple, Set
+from typing import List, Dict, Any, Optional, Set
 
 
 def list_unified_tracks_min(
@@ -17,10 +17,10 @@ def list_unified_tracks_min(
     offset: int = 0
 ) -> List[Dict[str, Any]]:
     """Get minimal unified tracks (one row per track, no playlists aggregation).
-    
+
     Returns core track metadata with matched flag computed in SQL using EXISTS.
     Defers playlist name concatenation to lazy loading.
-    
+
     Args:
         conn: SQLite connection
         provider: Provider filter
@@ -28,7 +28,7 @@ def list_unified_tracks_min(
         sort_order: 'ASC' or 'DESC'
         limit: Maximum rows to return (for paging)
         offset: Row offset (for paging)
-        
+
     Returns:
         List of dicts with: id, name, artist, album, year, matched (bool), local_path, playlist_count
     """
@@ -39,16 +39,16 @@ def list_unified_tracks_min(
         valid_columns = {'name', 'artist', 'album', 'year'}
         if sort_column.lower() in valid_columns:
             order_by = f"ORDER BY t.{sort_column.lower()} {sort_order}"
-    
+
     # Build LIMIT/OFFSET clause
     limit_clause = ""
     if limit is not None:
         limit_clause = f"LIMIT {int(limit)} OFFSET {int(offset)}"
-    
+
     # Main query: one row per track with EXISTS check for matches and playlist count
     # Use window function or subquery to get best local_path per track
     query = f"""
-    SELECT 
+    SELECT
         t.id,
         t.name,
         t.artist,
@@ -69,7 +69,7 @@ def list_unified_tracks_min(
     FROM tracks t
     LEFT JOIN (
         -- Get best match per track (highest score)
-        SELECT 
+        SELECT
             m1.track_id,
             m1.provider,
             m1.file_id,
@@ -80,8 +80,8 @@ def list_unified_tracks_min(
             SELECT track_id, provider, MAX(score) as max_score
             FROM matches
             GROUP BY track_id, provider
-        ) m2 ON m1.track_id = m2.track_id 
-            AND m1.provider = m2.provider 
+        ) m2 ON m1.track_id = m2.track_id
+            AND m1.provider = m2.provider
             AND m1.score = m2.max_score
     ) m ON t.id = m.track_id AND t.provider = m.provider
     LEFT JOIN library_files lf ON m.file_id = lf.id
@@ -95,9 +95,9 @@ def list_unified_tracks_min(
     {order_by}
     {limit_clause}
     """
-    
+
     cursor = conn.execute(query, (provider,))
-    
+
     results = []
     for row in cursor.fetchall():
         # Calculate missing metadata count for quality status
@@ -110,7 +110,7 @@ def list_unified_tracks_min(
             missing_count += 1
         if not row[14]:  # file_year
             missing_count += 1
-        
+
         results.append({
             'id': row[0],
             'name': row[1] or '',
@@ -127,7 +127,7 @@ def list_unified_tracks_min(
             'bitrate_kbps': row[15],  # For quality calculation
             'playlist_count': row[16],  # Number of playlists containing this track
         })
-    
+
     return results
 
 
@@ -137,14 +137,14 @@ def get_track_ids_for_playlist(
     provider: str
 ) -> Set[str]:
     """Get set of track IDs that belong to a specific playlist.
-    
+
     Used for efficient playlist filtering in GUI without loading playlists column.
-    
+
     Args:
         conn: SQLite connection
         playlist_name: Name of playlist to filter by
         provider: Provider filter
-        
+
     Returns:
         Set of track IDs in the playlist
     """
@@ -157,5 +157,5 @@ def get_track_ids_for_playlist(
         """,
         (playlist_name, provider)
     )
-    
+
     return {row[0] for row in cursor.fetchall()}

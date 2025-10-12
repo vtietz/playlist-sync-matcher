@@ -20,7 +20,7 @@ class SpotifyConfig:
     cache_file: str = "tokens.json"
     cert_file: str = "cert.pem"
     key_file: str = "key.pem"
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for backward compatibility."""
         return asdict(self)
@@ -37,7 +37,7 @@ class LibraryConfig:
     fast_scan: bool = True
     commit_interval: int = 100
     min_bitrate_kbps: int = 320
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for backward compatibility."""
         return asdict(self)
@@ -50,7 +50,7 @@ class LoggingConfig:
     progress_interval: int = 100  # Log progress every N items (default for matching)
     scan_progress_interval: int = 500  # Log progress for scan operations (higher due to faster processing)
     item_name_overrides: Dict[str, str] = field(default_factory=dict)  # Optional custom item names per operation
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for backward compatibility."""
         return asdict(self)
@@ -65,7 +65,7 @@ class MatchingConfig:
     show_unmatched_tracks: int = 20
     show_unmatched_albums: int = 20
     max_candidates_per_track: int = 500  # Performance safeguard: cap candidates per track
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for backward compatibility."""
         return asdict(self)
@@ -75,7 +75,7 @@ class MatchingConfig:
 class ProvidersConfig:
     """Configuration for all providers."""
     spotify: SpotifyConfig = field(default_factory=SpotifyConfig)
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for backward compatibility."""
         return {"spotify": self.spotify.to_dict()}
@@ -94,7 +94,7 @@ class ExportConfig:
     clean_before_export: bool = False  # Delete all existing .m3u files before export
     auto_overwrite: bool = True  # Automatically overwrite existing files (false = prompt if newer)
     detect_obsolete: bool = True  # Detect and report/prompt about obsolete playlists
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for backward compatibility."""
         return asdict(self)
@@ -104,7 +104,7 @@ class ExportConfig:
 class ReportsConfig:
     """Reporting configuration."""
     directory: str = "export/reports"
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for backward compatibility."""
         return asdict(self)
@@ -115,7 +115,7 @@ class DatabaseConfig:
     """Database configuration."""
     path: str = "data/spotify_sync.db"
     pragma_journal_mode: str = "WAL"
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for backward compatibility."""
         return asdict(self)
@@ -133,10 +133,10 @@ class AppConfig:
     reports: ReportsConfig = field(default_factory=ReportsConfig)
     database: DatabaseConfig = field(default_factory=DatabaseConfig)
     logging: LoggingConfig = field(default_factory=LoggingConfig)
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to nested dictionary for backward compatibility.
-        
+
         Returns:
             Nested dict structure matching config format
         """
@@ -151,14 +151,14 @@ class AppConfig:
             "database": self.database.to_dict(),
             "logging": self.logging.to_dict(),
         }
-    
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> AppConfig:
         """Create typed config from dictionary.
-        
+
         Args:
             data: Dictionary config (from load_config)
-            
+
         Returns:
             Typed AppConfig instance
         """
@@ -166,7 +166,7 @@ class AppConfig:
         provider_name = data.get("provider", "spotify")
         providers_data = data.get("providers", {})
         provider_config = providers_data.get(provider_name, {})
-        
+
         return cls(
             log_level=data.get("log_level", "INFO"),
             provider=provider_name,
@@ -183,32 +183,32 @@ class AppConfig:
 # Type-aware config dict wrapper for gradual migration
 class TypedConfigDict(dict):
     """Dictionary wrapper that provides typed access to config sections.
-    
+
     This allows gradual migration from dict-based to typed config:
     - Existing code: cfg['spotify']['client_id']  (still works)
     - New code: cfg.typed.spotify.client_id  (typed access)
     """
-    
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._typed_cache: AppConfig | None = None
-    
+
     @property
     def typed(self) -> AppConfig:
         """Get strongly-typed config object.
-        
+
         Returns:
             AppConfig instance with typed access
         """
         if self._typed_cache is None:
             self._typed_cache = AppConfig.from_dict(self)
         return self._typed_cache
-    
+
     def __setitem__(self, key, value):
         """Invalidate typed cache when dict is modified."""
         super().__setitem__(key, value)
         self._typed_cache = None
-    
+
     def update(self, *args, **kwargs):
         """Invalidate typed cache when dict is updated."""
         super().update(*args, **kwargs)

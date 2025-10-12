@@ -21,20 +21,20 @@ def write_matched_tracks_report(
     provider: str = 'spotify'
 ) -> tuple[Path, Path]:
     """Write matched tracks report to CSV and HTML.
-    
+
     Args:
         db: Database instance
         out_dir: Output directory for reports
         provider: Provider name (default: spotify)
-    
+
     Returns:
         Tuple of (csv_path, html_path)
     """
     out_dir.mkdir(parents=True, exist_ok=True)
-    
+
     # Fetch matched tracks data
     matched_rows = db.conn.execute("""
-        SELECT 
+        SELECT
             m.track_id,
             m.file_id,
             m.method,
@@ -64,15 +64,15 @@ def write_matched_tracks_report(
         GROUP BY m.track_id, m.file_id, m.provider
         ORDER BY m.score DESC
     """).fetchall()
-    
+
     # Write CSV
     csv_path = out_dir / "matched_tracks.csv"
     _write_csv(csv_path, matched_rows)
-    
+
     # Write HTML
     html_path = out_dir / "matched_tracks.html"
     _write_html(html_path, matched_rows, provider)
-    
+
     return (csv_path, html_path)
 
 
@@ -80,17 +80,17 @@ def _extract_confidence(method_str: str) -> str:
     """Extract confidence from method string like 'MatchConfidence.CERTAIN' or 'score:HIGH:89.50'."""
     if not method_str:
         return "UNKNOWN"
-    
+
     # Handle enum format: "MatchConfidence.CERTAIN" -> "CERTAIN"
     if "MatchConfidence." in method_str:
         return method_str.split(".")[-1]
-    
+
     # Handle old score format: "score:HIGH:89.50" -> "HIGH"
     if ':' in method_str:
         parts = method_str.split(':')
         if len(parts) >= 2:
             return parts[1]
-    
+
     return "UNKNOWN"
 
 
@@ -123,45 +123,45 @@ def _write_html(html_path: Path, matched_rows: list, provider: str) -> None:
     """Write matched tracks HTML report."""
     links = get_link_generator(provider)
     html_rows = []
-    
+
     for row in matched_rows:
         # Track ID (monospaced for easy copying)
         track_id_display = f'<code style="font-size: 0.85em">{row["track_id"]}</code>'
-        
+
         confidence = _extract_confidence(row['method'])
         confidence_badge_class = get_confidence_badge_class(confidence)
         confidence_badge = format_badge(confidence, confidence_badge_class)
-        
+
         # Create provider links for track, artist, and album
         track_url = links.track_url(row['track_id'])
         track_link = f'<a href="{track_url}" target="_blank" title="Open in {provider.title()}">{row["track_name"] or "Unknown"}</a>'
-        
+
         # Artist link (if artist_id available)
         if row['track_artist_id']:
             artist_url = links.artist_url(row['track_artist_id'])
             artist_link = f'<a href="{artist_url}" target="_blank" title="Open in {provider.title()}">{row["track_artist"] or "Unknown"}</a>'
         else:
             artist_link = row['track_artist'] or ""
-        
+
         # Album link (if album_id available)
         if row['track_album_id']:
             album_url = links.album_url(row['track_album_id'])
             album_link = f'<a href="{album_url}" target="_blank" title="Open in {provider.title()}">{row["track_album"] or "Unknown"}</a>'
         else:
             album_link = row['track_album'] or ""
-        
+
         # Format durations
         track_duration = format_duration(duration_ms=row['track_duration_ms'])
         file_duration = format_duration(duration_sec=row['file_duration_sec'])
-        
+
         # Shorten file path
         short_path = shorten_path(row['file_path'], max_length=60)
         path_display = f'<span class="path-short" title="{row["file_path"]}">{short_path}</span>'
-        
+
         # Playlist count and liked status
         playlist_display = format_playlist_count(row['playlist_count'])
         liked_display = format_liked(row['is_liked'])
-        
+
         html_rows.append([
             track_id_display,
             track_link,
@@ -179,7 +179,7 @@ def _write_html(html_path: Path, matched_rows: list, provider: str) -> None:
             liked_display,
             confidence_badge
         ])
-    
+
     html_content = get_html_template(
         title="Matched Tracks",
         columns=[
@@ -193,5 +193,5 @@ def _write_html(html_path: Path, matched_rows: list, provider: str) -> None:
         csv_filename="matched_tracks.csv",
         active_page="matched_tracks"
     )
-    
+
     html_path.write_text(html_content, encoding='utf-8')

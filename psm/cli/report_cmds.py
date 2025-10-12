@@ -18,36 +18,36 @@ logger = logging.getLogger(__name__)
 @click.pass_context
 def report(ctx: click.Context, match_reports: bool, analysis_reports: bool, min_bitrate: int | None):
     """Generate all available reports from existing database.
-    
+
     This command regenerates reports without re-running matching or analysis phases.
     Useful for:
     - Updating report formats after code changes
     - Generating reports with different settings
     - Creating reports after manual database changes
-    
+
     Reports generated:
     - Match Reports: matched_tracks, unmatched_tracks, unmatched_albums, playlist_coverage
     - Analysis Reports: metadata_quality (if library has been scanned)
     - index.html: Navigation dashboard for all reports
     """
     from ..utils.output import (
-        section_header, success, error, warning, info, 
-        clickable_path, report_files, count_badge
+        section_header, success, error, warning, clickable_path,
+        report_files, count_badge
     )
-    
+
     cfg = ctx.obj
     out_dir = Path(cfg['reports']['directory'])
-    
+
     with get_db(cfg) as db:
         reports_generated = []
-        
+
         # Generate match reports
         if match_reports:
             click.echo(section_header("Generating match reports"))
             try:
                 write_match_reports(db, out_dir)
                 reports_generated.extend(['matched_tracks', 'unmatched_tracks', 'unmatched_albums', 'playlist_coverage'])
-                
+
                 # Show generated files
                 click.echo(report_files(out_dir / 'matched_tracks.csv', out_dir / 'matched_tracks.html', 'Matched tracks'))
                 click.echo(report_files(out_dir / 'unmatched_tracks.csv', out_dir / 'unmatched_tracks.html', 'Unmatched tracks'))
@@ -57,7 +57,7 @@ def report(ctx: click.Context, match_reports: bool, analysis_reports: bool, min_
             except Exception as e:
                 logger.error(f"Failed to generate match reports: {e}")
                 click.echo(error(f"Match reports failed: {e}"), err=True)
-        
+
         # Generate analysis reports
         if analysis_reports:
             click.echo("")
@@ -69,18 +69,18 @@ def report(ctx: click.Context, match_reports: bool, analysis_reports: bool, min_
                     click.echo(warning("No library files found. Run 'scan' first to enable analysis reports."))
                 else:
                     from ..services.analysis_service import analyze_library_quality
-                    
+
                     if min_bitrate is None:
                         min_bitrate = cfg.get('library', {}).get('min_bitrate_kbps', 320)
                     min_bitrate = int(min_bitrate) if min_bitrate is not None else 320
-                    
+
                     # Use large number for max_issues to get all issues for report
                     report_obj = analyze_library_quality(db, min_bitrate_kbps=min_bitrate, max_issues=999999, silent=True)
-                    
+
                     if report_obj.issues:
                         write_analysis_quality_reports(report_obj, out_dir, min_bitrate_kbps=min_bitrate)
                         reports_generated.append('metadata_quality')
-                        
+
                         # Show generated files
                         click.echo(report_files(out_dir / 'metadata_quality.csv', out_dir / 'metadata_quality.html', 'Metadata quality'))
                         click.echo(success(f"Analysis reports generated ({count_badge(len(report_obj.issues), 'issues', 'yellow')})"))
@@ -89,7 +89,7 @@ def report(ctx: click.Context, match_reports: bool, analysis_reports: bool, min_
             except Exception as e:
                 logger.error(f"Failed to generate analysis reports: {e}")
                 click.echo(error(f"Analysis reports failed: {e}"), err=True)
-        
+
         # Always generate index page if any reports were created
         if reports_generated:
             click.echo("")
@@ -98,7 +98,7 @@ def report(ctx: click.Context, match_reports: bool, analysis_reports: bool, min_
             index_path = out_dir / 'index.html'
             click.echo(clickable_path(index_path, 'Index page'))
             click.echo(success("Navigation dashboard generated"))
-        
+
         # Summary
         click.echo("")
         click.echo(success(f"Generated {count_badge(len(reports_generated), 'reports')} in {click.style(str(out_dir.resolve()), fg='cyan', underline=True)}"))

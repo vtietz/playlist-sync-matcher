@@ -20,14 +20,14 @@ API_BASE = "https://api.spotify.com/v1"
 
 class SpotifyAPIClient:
     """Spotify Web API client.
-    
+
     Provides methods for fetching user data, playlists, tracks, and liked songs.
     Also supports write operations (playlist updates) for push functionality.
     """
-    
+
     def __init__(self, token: str):
         """Initialize client with access token.
-        
+
         Args:
             token: Valid Spotify OAuth access token
         """
@@ -40,14 +40,14 @@ class SpotifyAPIClient:
     @retry(stop=stop_after_attempt(5), wait=wait_random_exponential(multiplier=1, max=30))
     def _get(self, path: str, params: Dict[str, Any] | None = None) -> Dict[str, Any]:
         """Execute GET request with retry logic and rate limit handling.
-        
+
         Args:
             path: API endpoint path (e.g., '/me/playlists')
             params: Optional query parameters
-            
+
         Returns:
             JSON response as dict
-            
+
         Raises:
             requests.HTTPError: On non-retryable errors
         """
@@ -71,11 +71,11 @@ class SpotifyAPIClient:
 
     def _put(self, path: str, json: Dict[str, Any]) -> Dict[str, Any]:  # pragma: no cover (simple network wrapper)
         """Execute PUT request with rate limit handling.
-        
+
         Args:
             path: API endpoint path
             json: Request body as dict
-            
+
         Returns:
             JSON response as dict (may be empty)
         """
@@ -94,11 +94,11 @@ class SpotifyAPIClient:
 
     def _post(self, path: str, json: Dict[str, Any]) -> Dict[str, Any]:  # pragma: no cover
         """Execute POST request with rate limit handling.
-        
+
         Args:
             path: API endpoint path
             json: Request body as dict
-            
+
         Returns:
             JSON response as dict (may be empty)
         """
@@ -117,7 +117,7 @@ class SpotifyAPIClient:
 
     def current_user_profile(self) -> Dict[str, Any]:
         """Get current user's profile information.
-        
+
         Returns:
             User profile dict with 'id', 'display_name', etc.
         """
@@ -125,7 +125,7 @@ class SpotifyAPIClient:
 
     def current_user_playlists(self) -> Iterator[Dict[str, Any]]:
         """Fetch all playlists for the current user.
-        
+
         Yields:
             Playlist dicts with 'id', 'name', 'snapshot_id', 'owner', etc.
         """
@@ -143,10 +143,10 @@ class SpotifyAPIClient:
 
     def playlist_items(self, playlist_id: str) -> List[Dict[str, Any]]:
         """Fetch all tracks in a playlist.
-        
+
         Args:
             playlist_id: Spotify playlist ID
-            
+
         Returns:
             List of playlist item dicts with 'track' and 'added_at'
         """
@@ -176,13 +176,13 @@ class SpotifyAPIClient:
         return tracks
 
     # ---------------- Write / detail helpers (used by push service) -----------------
-    
+
     def get_playlist(self, playlist_id: str) -> Dict[str, Any]:  # pragma: no cover
         """Fetch detailed playlist information.
-        
+
         Args:
             playlist_id: Spotify playlist ID
-            
+
         Returns:
             Playlist dict with full metadata
         """
@@ -190,10 +190,10 @@ class SpotifyAPIClient:
 
     def replace_playlist_tracks_remote(self, playlist_id: str, track_ids: Sequence[str]):  # pragma: no cover
         """Replace all tracks in a playlist with a new set.
-        
+
         Spotify's PUT replace endpoint accepts at most 100 URIs. For >100 we
         clear (empty replace) then batch POST add.
-        
+
         Args:
             playlist_id: Spotify playlist ID
             track_ids: List of Spotify track IDs (without 'spotify:track:' prefix)
@@ -218,7 +218,7 @@ class SpotifyAPIClient:
 
     def liked_tracks(self) -> Iterator[Dict[str, Any]]:
         """Fetch all liked (saved) tracks for the current user.
-        
+
         Yields:
             Track item dicts with 'track' and 'added_at'
         """

@@ -21,7 +21,6 @@ import subprocess
 import argparse
 from pathlib import Path
 from typing import List, Tuple
-import json
 
 
 # Configuration
@@ -51,18 +50,18 @@ EXCLUDE_PATTERNS = [
 
 def run_command(cmd: List[str], description: str) -> Tuple[int, str]:
     """Run a command and return exit code and output.
-    
+
     Args:
         cmd: Command to run as list of strings
         description: Human-readable description
-        
+
     Returns:
         Tuple of (exit_code, output)
     """
     print(f"\n{'='*80}")
     print(f"🔍 {description}")
     print(f"{'='*80}")
-    
+
     try:
         result = subprocess.run(
             cmd,
@@ -71,10 +70,10 @@ def run_command(cmd: List[str], description: str) -> Tuple[int, str]:
             text=True,
             check=False
         )
-        
+
         output = result.stdout + result.stderr
         print(output)
-        
+
         return result.returncode, output
     except Exception as e:
         error_msg = f"❌ Error running {description}: {e}"
@@ -84,7 +83,7 @@ def run_command(cmd: List[str], description: str) -> Tuple[int, str]:
 
 def get_changed_files() -> List[str]:
     """Get list of modified Python files from git.
-    
+
     Returns:
         List of file paths
     """
@@ -97,7 +96,7 @@ def get_changed_files() -> List[str]:
             text=True,
             check=True
         )
-        
+
         # Also get untracked files
         result_untracked = subprocess.run(
             ["git", "ls-files", "--others", "--exclude-standard"],
@@ -106,15 +105,15 @@ def get_changed_files() -> List[str]:
             text=True,
             check=True
         )
-        
+
         all_files = result.stdout.strip().split("\n") + result_untracked.stdout.strip().split("\n")
-        
+
         # Filter for Python files only
         python_files = [
-            f for f in all_files 
+            f for f in all_files
             if f.endswith('.py') and f.strip() and not any(excl in f for excl in EXCLUDE_PATTERNS)
         ]
-        
+
         return python_files
     except subprocess.CalledProcessError:
         print("⚠️  Warning: Not a git repository or git not available")
@@ -123,10 +122,10 @@ def get_changed_files() -> List[str]:
 
 def analyze_complexity(files: List[str] = None) -> int:
     """Run Lizard complexity analysis.
-    
+
     Args:
         files: Specific files to analyze, or None for all
-        
+
     Returns:
         Exit code (0 = success)
     """
@@ -140,14 +139,14 @@ def analyze_complexity(files: List[str] = None) -> int:
         "--exclude", "*/build/*",
         "--exclude", "*/dist/*",
     ]
-    
+
     if files:
         cmd.extend(files)
     else:
         cmd.extend(PYTHON_DIRS)
-    
+
     exit_code, output = run_command(cmd, "Complexity Analysis (Lizard)")
-    
+
     # Lizard returns 0 if no issues, parse output for summary
     if "No thresholds exceeded" in output or exit_code == 0:
         print("✅ No complexity issues found!")
@@ -159,22 +158,22 @@ def analyze_complexity(files: List[str] = None) -> int:
 
 def analyze_style(files: List[str] = None) -> int:
     """Run flake8 style analysis.
-    
+
     Args:
         files: Specific files to analyze, or None for all
-        
+
     Returns:
         Exit code (0 = success)
     """
     # Check if flake8 is available
     try:
-        subprocess.run([sys.executable, "-m", "flake8", "--version"], 
+        subprocess.run([sys.executable, "-m", "flake8", "--version"],
                       capture_output=True, check=True)
     except subprocess.CalledProcessError:
         print("⚠️  flake8 not installed, skipping style analysis")
         print("   Install with: pip install flake8")
         return 0
-    
+
     cmd = [
         sys.executable, "-m", "flake8",
         "--max-line-length", str(MAX_LINE_LENGTH),
@@ -183,14 +182,14 @@ def analyze_style(files: List[str] = None) -> int:
         "--count",
         "--statistics",
     ]
-    
+
     if files:
         cmd.extend(files)
     else:
         cmd.extend(PYTHON_DIRS)
-    
+
     exit_code, output = run_command(cmd, "Style Analysis (flake8)")
-    
+
     if exit_code == 0:
         print("✅ No style issues found!")
         return 0
@@ -201,35 +200,35 @@ def analyze_style(files: List[str] = None) -> int:
 
 def analyze_types(files: List[str] = None) -> int:
     """Run mypy type checking (optional).
-    
+
     Args:
         files: Specific files to analyze, or None for all
-        
+
     Returns:
         Exit code (0 = success)
     """
     # Check if mypy is available
     try:
-        subprocess.run([sys.executable, "-m", "mypy", "--version"], 
+        subprocess.run([sys.executable, "-m", "mypy", "--version"],
                       capture_output=True, check=True)
     except subprocess.CalledProcessError:
         print("ℹ️  mypy not installed, skipping type analysis (optional)")
         return 0
-    
+
     cmd = [
         sys.executable, "-m", "mypy",
         "--ignore-missing-imports",
         "--no-strict-optional",
         "--check-untyped-defs",
     ]
-    
+
     if files:
         cmd.extend(files)
     else:
         cmd.extend(PYTHON_DIRS)
-    
+
     exit_code, output = run_command(cmd, "Type Analysis (mypy - optional)")
-    
+
     if exit_code == 0:
         print("✅ No type issues found!")
         return 0
@@ -240,23 +239,23 @@ def analyze_types(files: List[str] = None) -> int:
 
 def print_summary(results: dict):
     """Print analysis summary.
-    
+
     Args:
         results: Dict mapping check name to exit code
     """
     print(f"\n{'='*80}")
     print("📊 ANALYSIS SUMMARY")
     print(f"{'='*80}")
-    
+
     total_issues = 0
     for check, exit_code in results.items():
         status = "✅ PASS" if exit_code == 0 else "⚠️  ISSUES"
         print(f"{check:20s}: {status}")
         if exit_code != 0:
             total_issues += 1
-    
+
     print(f"{'='*80}")
-    
+
     if total_issues == 0:
         print("✅ All checks passed!")
         return 0
@@ -278,7 +277,7 @@ Examples:
   %(prog)s --skip-style all # Skip style checks, only complexity
         """
     )
-    
+
     parser.add_argument(
         'mode',
         choices=['all', 'changed', 'files'],
@@ -304,12 +303,12 @@ Examples:
         action='store_true',
         help='Skip mypy type analysis'
     )
-    
+
     args = parser.parse_args()
-    
+
     # Determine which files to analyze
     files_to_analyze = None
-    
+
     if args.mode == 'changed':
         files_to_analyze = get_changed_files()
         if not files_to_analyze:
@@ -326,19 +325,19 @@ Examples:
         print(f"📝 Analyzing {len(files_to_analyze)} specified file(s)")
     else:  # all
         print(f"📝 Analyzing entire project: {', '.join(PYTHON_DIRS)}")
-    
+
     # Run analyses
     results = {}
-    
+
     if not args.skip_complexity:
         results['Complexity'] = analyze_complexity(files_to_analyze)
-    
+
     if not args.skip_style:
         results['Style'] = analyze_style(files_to_analyze)
-    
+
     if not args.skip_types:
         results['Types'] = analyze_types(files_to_analyze)
-    
+
     # Print summary
     return print_summary(results)
 

@@ -16,12 +16,12 @@ logger = logging.getLogger(__name__)
 def export(ctx: click.Context):
     """Export matched playlists to M3U files."""
     from ..utils.output import section_header, success, warning, info
-    
+
     cfg = ctx.obj
-    
+
     # Print styled header for user experience
     click.echo(section_header("Exporting playlists to M3U"))
-    
+
     organize_by_owner = cfg['export'].get('organize_by_owner', False)
     library_paths = cfg.get('library', {}).get('paths', [])
     with get_db(cfg) as db:
@@ -33,14 +33,14 @@ def export(ctx: click.Context):
             current_user_id=current_user_id,
             library_paths=library_paths
         )
-    
+
     # Handle obsolete files (if detected)
     if result.obsolete_files:
         click.echo()
         click.echo(warning(f"Found {len(result.obsolete_files)} obsolete playlist(s):"))
         for obsolete_file in result.obsolete_files:
             click.echo(info(f"{Path(obsolete_file).name}"))
-        
+
         click.echo()
         if click.confirm("Delete obsolete playlists?", default=False):
             deleted_count = 0
@@ -54,7 +54,7 @@ def export(ctx: click.Context):
             click.echo(success(f"Deleted {deleted_count} obsolete playlist(s)"))
         else:
             click.echo(info("Kept obsolete playlists"))
-    
+
     # Service already logs the summary, no need to repeat here
     click.echo(success("Export complete"))
 

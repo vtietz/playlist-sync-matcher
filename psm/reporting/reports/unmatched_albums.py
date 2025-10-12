@@ -14,23 +14,23 @@ def write_unmatched_albums_report(
     provider: str = 'spotify'
 ) -> tuple[Path, Path]:
     """Write unmatched albums report to CSV and HTML.
-    
+
     Args:
         db: Database instance
         out_dir: Output directory for reports
         provider: Provider name (default: spotify)
-    
+
     Returns:
         Tuple of (csv_path, html_path)
     """
     out_dir.mkdir(parents=True, exist_ok=True)
-    
+
     # Fetch unmatched albums data with IDs for linking
     # Use CTEs to compute counts first, then get distinct track names
     unmatched_album_rows = db.conn.execute("""
         WITH album_stats AS (
             -- Compute track and playlist counts per album
-            SELECT 
+            SELECT
                 t.artist,
                 t.album,
                 t.artist_id,
@@ -56,7 +56,7 @@ def write_unmatched_albums_report(
               AND t.album IS NOT NULL
               AND t.artist IS NOT NULL
         )
-        SELECT 
+        SELECT
             s.artist,
             s.album,
             s.artist_id,
@@ -70,15 +70,15 @@ def write_unmatched_albums_report(
         GROUP BY s.artist, s.album, s.artist_id, s.album_id
         ORDER BY s.playlist_count DESC, s.track_count DESC, s.artist, s.album
     """).fetchall()
-    
+
     # Write CSV
     csv_path = out_dir / "unmatched_albums.csv"
     _write_csv(csv_path, unmatched_album_rows)
-    
+
     # Write HTML
     html_path = out_dir / "unmatched_albums.html"
     _write_html(html_path, unmatched_album_rows, provider)
-    
+
     return (csv_path, html_path)
 
 
@@ -101,7 +101,7 @@ def _write_html(html_path: Path, unmatched_album_rows: list, provider: str) -> N
     """Write unmatched albums HTML report."""
     links = get_link_generator(provider)
     html_rows = []
-    
+
     for row in unmatched_album_rows:
         # Create artist link if artist_id is available
         artist_text = row['artist'] or ""
@@ -110,7 +110,7 @@ def _write_html(html_path: Path, unmatched_album_rows: list, provider: str) -> N
             artist_link = f'<a href="{artist_url}" target="_blank" title="Open in {provider.title()}">{artist_text}</a>'
         else:
             artist_link = artist_text
-        
+
         # Create album link if album_id is available
         album_text = row['album'] or ""
         if album_text and row['album_id']:
@@ -118,12 +118,12 @@ def _write_html(html_path: Path, unmatched_album_rows: list, provider: str) -> N
             album_link = f'<a href="{album_url}" target="_blank" title="Open in {provider.title()}">{album_text}</a>'
         else:
             album_link = album_text
-        
+
         # Create track links for the track list
         tracks_text = row['tracks'] or ""
         track_ids = (row['track_ids'] or "").split('|') if row['track_ids'] else []
         track_names = tracks_text.split('; ') if tracks_text else []
-        
+
         # Create clickable track list if we have IDs
         if track_ids and len(track_ids) == len(track_names):
             track_links = []
@@ -136,7 +136,7 @@ def _write_html(html_path: Path, unmatched_album_rows: list, provider: str) -> N
             tracks_display = '; '.join(track_links)
         else:
             tracks_display = tracks_text
-        
+
         html_rows.append([
             artist_link,
             album_link,
@@ -144,7 +144,7 @@ def _write_html(html_path: Path, unmatched_album_rows: list, provider: str) -> N
             row['playlist_count'],
             tracks_display
         ])
-    
+
     html_content = get_html_template(
         title="Unmatched Albums",
         columns=["Artist", "Album", "Track Count", "Playlists", "Tracks"],
@@ -154,5 +154,5 @@ def _write_html(html_path: Path, unmatched_album_rows: list, provider: str) -> N
         csv_filename="unmatched_albums.csv",
         active_page="unmatched_albums"
     )
-    
+
     html_path.write_text(html_content, encoding='utf-8')

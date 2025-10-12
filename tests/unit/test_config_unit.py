@@ -1,5 +1,4 @@
 from pathlib import Path
-import os
 import textwrap
 from psm.config import load_config, deep_merge, coerce_scalar
 

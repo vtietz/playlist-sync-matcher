@@ -1,7 +1,6 @@
 from __future__ import annotations
 from pathlib import Path
 from typing import Iterable, Dict, Any, Sequence
-import os
 import logging
 from psm.utils.path_format import format_path_for_m3u
 
@@ -25,7 +24,7 @@ def export_strict(
     library_roots: list[str] | None = None
 ):
     """Strict mode: only include resolved local file paths, omit missing tracks.
-    
+
     Args:
         playlist: Playlist metadata dict
         tracks: Iterable of track dicts with 'local_path' field
@@ -38,11 +37,11 @@ def export_strict(
     fname = f"{sanitize_filename(playlist.get('name', 'playlist'))}_{playlist_id[:8]}.m3u"
     path = out_dir / fname
     lines = [HEADER]
-    
+
     # Add Spotify URL if playlist ID is available
     if playlist_id != 'unknown':
         lines.append(f"# Spotify: https://open.spotify.com/playlist/{playlist_id}")
-    
+
     for t in tracks:
         local_path = t.get('local_path')
         if not local_path:
@@ -50,7 +49,7 @@ def export_strict(
         formatted_path = format_path_for_m3u(local_path, path, path_format, library_roots)
         lines.append(formatted_path)
     path.write_text('\n'.join(lines), encoding='utf-8')
-    
+
     kept = sum(1 for t in tracks if t.get('local_path'))
     logger.debug(f"[exported] strict playlist='{playlist.get('name')}' kept={kept} file={path}")
     return path
@@ -83,7 +82,7 @@ def export_mirrored(
     """Mirrored mode: preserve full playlist order; include EXTINF lines for all tracks.
     Missing tracks use a placeholder path prefixed with '!' to indicate they're not available.
     This maintains M3U spec compliance (every #EXTINF has a path) while preserving track order.
-    
+
     Args:
         playlist: Playlist metadata dict
         tracks: Sequence of track dicts with 'local_path' field
@@ -96,18 +95,18 @@ def export_mirrored(
     fname = f"{sanitize_filename(playlist.get('name', 'playlist'))}_{playlist_id[:8]}.m3u"
     path = out_dir / fname
     lines = [HEADER]
-    
+
     # Add Spotify URL if playlist ID is available
     if playlist_id != 'unknown':
         lines.append(f"# Spotify: https://open.spotify.com/playlist/{playlist_id}")
-    
+
     # Collect missing tracks for summary
     missing_tracks = [t for t in tracks if not t.get('local_path')]
     if missing_tracks:
         lines.append(f"# NOTE: {len(missing_tracks)} tracks not found in library")
         lines.append(f"# Missing tracks are marked with ❌ emoji and won't play")
         lines.append("#")
-    
+
     # Include ALL tracks to preserve order (mirrored mode)
     for t in tracks:
         is_missing = not t.get('local_path')
@@ -123,7 +122,7 @@ def export_mirrored(
             placeholder = f"!MISSING - {artist} - {name}"
             lines.append(placeholder)
     path.write_text('\n'.join(lines), encoding='utf-8')
-    
+
     missing = sum(1 for t in tracks if not t.get('local_path'))
     logger.debug(f"[exported] mirrored playlist='{playlist.get('name')}' total={len(tracks)} missing={missing} file={path}")
     return path
@@ -141,7 +140,7 @@ def export_placeholders(
 
     Placeholder files allow media players to show positional gaps. Each placeholder
     is an empty (or tiny) file named using playlist position & track title.
-    
+
     Args:
         playlist: Playlist metadata dict
         tracks: Sequence of track dicts with 'local_path' field
@@ -157,11 +156,11 @@ def export_placeholders(
     placeholders_dir = out_dir / (f"{sanitize_filename(playlist.get('name', 'playlist'))}_{playlist_id[:8]}_placeholders")
     placeholders_dir.mkdir(parents=True, exist_ok=True)
     lines = [HEADER]
-    
+
     # Add Spotify URL if playlist ID is available
     if playlist_id != 'unknown':
         lines.append(f"# Spotify: https://open.spotify.com/playlist/{playlist_id}")
-    
+
     used_names = set()
     for t in tracks:
         pos = t.get('position')
@@ -188,7 +187,7 @@ def export_placeholders(
             formatted_path = format_path_for_m3u(t['local_path'], path, path_format, library_roots)
             lines.append(formatted_path)
     path.write_text('\n'.join(lines), encoding='utf-8')
-    
+
     placeholders = sum(1 for t in tracks if not t.get('local_path'))
     logger.debug(f"[exported] placeholders playlist='{playlist.get('name')}' total={len(tracks)} placeholders={placeholders} file={path}")
     return path

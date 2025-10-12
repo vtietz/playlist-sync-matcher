@@ -7,7 +7,6 @@ from .helpers import cli, get_db
 @click.pass_context
 def playlists_group(ctx: click.Context):
     """List and manage playlists."""
-    pass
 
 
 @playlists_group.command(name='list')

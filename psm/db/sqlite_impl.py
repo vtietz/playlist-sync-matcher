@@ -1,11 +1,10 @@
 from __future__ import annotations
 import sqlite3
 import logging
-import sys
 from pathlib import Path
 from typing import Iterable, Sequence, Any, Dict, Tuple, Optional, List
 from .interface import DatabaseInterface
-from .models import TrackRow, LibraryFileRow, MatchRow, PlaylistRow
+from .models import TrackRow, LibraryFileRow, PlaylistRow
 from . import queries_analytics
 from . import queries_unified
 
@@ -49,11 +48,11 @@ class Database(DatabaseInterface):
         self.conn = sqlite3.connect(path, timeout=30)
         self.conn.row_factory = sqlite3.Row
         self._closed = False
-        
+
         # Check SQLite version for window function support (required >= 3.25.0)
         self._sqlite_version = tuple(int(x) for x in sqlite3.sqlite_version.split('.'))
         self._supports_window_functions = self._sqlite_version >= (3, 25, 0)
-        
+
         self._init_schema()
 
     def __enter__(self) -> "Database":  # pragma: no cover
@@ -87,10 +86,10 @@ class Database(DatabaseInterface):
         self._ensure_column('tracks', 'artist_id', 'TEXT')
         self._ensure_column('tracks', 'album_id', 'TEXT')
         self._ensure_column('matches', 'confidence', 'TEXT')
-        
+
         # Migrate existing matches to populate confidence from method string
         self._migrate_confidence_column()
-        
+
         cur.execute("INSERT OR REPLACE INTO meta(key,value) VALUES('schema_version','1')")
         self.conn.commit()
 
@@ -103,7 +102,7 @@ class Database(DatabaseInterface):
 
     def _migrate_confidence_column(self):  # pragma: no cover
         """Populate confidence column from existing method strings.
-        
+
         Extracts confidence tier from method format: "score:TIER" or "score:TIER:details"
         Only updates rows where confidence is NULL to avoid overwriting existing data.
         """
@@ -112,18 +111,18 @@ class Database(DatabaseInterface):
             check = self.conn.execute("SELECT COUNT(*) FROM matches WHERE confidence IS NULL").fetchone()
             if check and check[0] > 0:
                 logger.info(f"Migrating {check[0]} matches to populate confidence column...")
-                
+
                 # Extract confidence tier from method string
                 migrate_sql = """
                 UPDATE matches
                 SET confidence = (
                     CASE
-                        WHEN method LIKE 'score:%' THEN 
+                        WHEN method LIKE 'score:%' THEN
                             SUBSTR(
                                 method,
                                 7,  -- Start after "score:"
-                                CASE 
-                                    WHEN INSTR(SUBSTR(method, 7), ':') > 0 
+                                CASE
+                                    WHEN INSTR(SUBSTR(method, 7), ':') > 0
                                     THEN INSTR(SUBSTR(method, 7), ':') - 1
                                     ELSE LENGTH(method) - 6
                                 END
@@ -309,7 +308,7 @@ class Database(DatabaseInterface):
             ORDER BY p.name
             """
             rows = self.conn.execute(sql).fetchall()
-        
+
         return [PlaylistRow.from_row(row) for row in rows]
 
     def get_playlist_by_id(self, playlist_id: str, provider: str | None = None) -> Optional[PlaylistRow]:
@@ -325,22 +324,22 @@ class Database(DatabaseInterface):
             raise ValueError("provider parameter is required")
         cursor = self.conn.execute("SELECT COUNT(*) FROM playlist_tracks WHERE playlist_id=? AND provider=?", (playlist_id, provider))
         return cursor.fetchone()[0]
-    
+
     def get_playlists_containing_tracks(self, track_ids: List[str], provider: str | None = None) -> List[str]:
         """Get list of playlist IDs that contain any of the specified tracks.
-        
+
         Args:
             track_ids: List of track IDs to search for
             provider: Provider filter (default: 'spotify')
-            
+
         Returns:
             List of distinct playlist IDs containing at least one of the tracks
         """
         if not track_ids:
             return []
-        
+
         provider = provider if provider is not None else 'spotify'
-        
+
         # Use parameterized query with IN clause
         placeholders = ','.join('?' * len(track_ids))
         sql = f"""
@@ -350,13 +349,13 @@ class Database(DatabaseInterface):
           AND provider = ?
         ORDER BY playlist_id
         """
-        
+
         params = list(track_ids) + [provider]
         rows = self.conn.execute(sql, params).fetchall()
         return [row[0] for row in rows]
-    
+
     # --- Repository methods for matching engine ---
-    
+
     def get_all_tracks(self, provider: str | None = None) -> List[TrackRow]:
         """Get all tracks with full metadata for matching."""
         if provider:
@@ -374,9 +373,9 @@ class Database(DatabaseInterface):
             ORDER BY artist, album, name
             """
             rows = self.conn.execute(sql).fetchall()
-        
+
         return [TrackRow.from_row(row) for row in rows]
-    
+
     def get_all_library_files(self) -> List[LibraryFileRow]:
         """Get all library files with full metadata for matching."""
         sql = """
@@ -386,12 +385,12 @@ class Database(DatabaseInterface):
         """
         rows = self.conn.execute(sql).fetchall()
         return [LibraryFileRow.from_row(row) for row in rows]
-    
+
     def get_tracks_by_ids(self, track_ids: List[str], provider: str | None = None) -> List[TrackRow]:
         """Get specific tracks by their IDs."""
         if not track_ids:
             return []
-        
+
         placeholders = ','.join('?' * len(track_ids))
         if provider:
             sql = f"""
@@ -407,14 +406,14 @@ class Database(DatabaseInterface):
             WHERE id IN ({placeholders})
             """
             rows = self.conn.execute(sql, track_ids).fetchall()
-        
+
         return [TrackRow.from_row(row) for row in rows]
-    
+
     def get_library_files_by_ids(self, file_ids: List[int]) -> List[LibraryFileRow]:
         """Get specific library files by their IDs."""
         if not file_ids:
             return []
-        
+
         placeholders = ','.join('?' * len(file_ids))
         sql = f"""
         SELECT id, path, title, artist, album, year, duration, normalized, size, mtime, partial_hash, bitrate_kbps
@@ -423,7 +422,7 @@ class Database(DatabaseInterface):
         """
         rows = self.conn.execute(sql, file_ids).fetchall()
         return [LibraryFileRow.from_row(row) for row in rows]
-    
+
     def get_unmatched_tracks(self, provider: str | None = None) -> List[TrackRow]:
         """Get all tracks that don't have matches yet."""
         if provider:
@@ -444,9 +443,9 @@ class Database(DatabaseInterface):
             ORDER BY t.artist, t.album, t.name
             """
             rows = self.conn.execute(sql).fetchall()
-        
+
         return [TrackRow.from_row(row) for row in rows]
-    
+
     def get_unmatched_library_files(self) -> List[LibraryFileRow]:
         """Get all library files that don't have matches yet."""
         sql = """
@@ -458,58 +457,58 @@ class Database(DatabaseInterface):
         """
         rows = self.conn.execute(sql).fetchall()
         return [LibraryFileRow.from_row(row) for row in rows]
-    
+
     def delete_matches_by_track_ids(self, track_ids: List[str]):
         """Delete all matches for given track IDs."""
         if not track_ids:
             return
-        
+
         placeholders = ','.join('?' * len(track_ids))
         sql = f"DELETE FROM matches WHERE track_id IN ({placeholders})"
         self._execute_with_lock_handling(sql, track_ids)
-    
+
     def delete_matches_by_file_ids(self, file_ids: List[int]):
         """Delete all matches for given file IDs."""
         if not file_ids:
             return
-        
+
         placeholders = ','.join('?' * len(file_ids))
         sql = f"DELETE FROM matches WHERE file_id IN ({placeholders})"
         self._execute_with_lock_handling(sql, file_ids)
-    
+
     def delete_all_matches(self):
         """Delete all track-to-file matches (for full re-match scenarios)."""
         self._execute_with_lock_handling("DELETE FROM matches", [])
-    
+
     def count_distinct_library_albums(self) -> int:
         """Count unique albums in library files."""
         cursor = self.conn.execute("SELECT COUNT(DISTINCT album) FROM library_files WHERE album IS NOT NULL AND album != ''")
         return cursor.fetchone()[0]
-    
+
     def get_match_confidence_counts(self) -> Dict[str, int]:
         """Get count of matches grouped by confidence level."""
         sql = "SELECT method, COUNT(*) FROM matches GROUP BY method"
         rows = self.conn.execute(sql).fetchall()
         return {row[0]: row[1] for row in rows}
-    
+
     def get_match_confidence_tier_counts(self) -> Dict[str, int]:
         """Get count of matches grouped by confidence tier.
-        
+
         Uses the confidence column directly for reliable aggregation.
         Falls back to parsing method string for legacy data.
         """
         sql = """
-        SELECT 
+        SELECT
             COALESCE(
                 confidence,
                 -- Fallback: Extract tier from method for legacy data
                 CASE
-                    WHEN method LIKE 'score:%' THEN 
+                    WHEN method LIKE 'score:%' THEN
                         SUBSTR(
                             method,
                             7,  -- Start after "score:"
-                            CASE 
-                                WHEN INSTR(SUBSTR(method, 7), ':') > 0 
+                            CASE
+                                WHEN INSTR(SUBSTR(method, 7), ':') > 0
                                 THEN INSTR(SUBSTR(method, 7), ':') - 1
                                 ELSE LENGTH(method) - 6
                             END
@@ -523,12 +522,12 @@ class Database(DatabaseInterface):
         """
         rows = self.conn.execute(sql).fetchall()
         return {row[0]: row[1] for row in rows}
-    
+
     def get_playlist_occurrence_counts(self, track_ids: List[str]) -> Dict[str, int]:
         """Get count of playlists each track appears in."""
         if not track_ids:
             return {}
-        
+
         placeholders = ','.join('?' * len(track_ids))
         sql = f"""
         SELECT track_id, COUNT(DISTINCT playlist_id) as count
@@ -538,19 +537,19 @@ class Database(DatabaseInterface):
         """
         rows = self.conn.execute(sql, track_ids).fetchall()
         counts = {row[0]: row[1] for row in rows}
-        
+
         # Fill in zero counts for tracks not in any playlist
         for track_id in track_ids:
             if track_id not in counts:
                 counts[track_id] = 0
-        
+
         return counts
-    
+
     def get_liked_track_ids(self, track_ids: List[str], provider: str | None = None) -> List[str]:
         """Get which of the given track IDs are in liked_tracks."""
         if not track_ids:
             return []
-        
+
         placeholders = ','.join('?' * len(track_ids))
         if provider:
             sql = f"SELECT track_id FROM liked_tracks WHERE track_id IN ({placeholders}) AND provider=?"
@@ -558,20 +557,20 @@ class Database(DatabaseInterface):
         else:
             sql = f"SELECT track_id FROM liked_tracks WHERE track_id IN ({placeholders})"
             rows = self.conn.execute(sql, track_ids).fetchall()
-        
+
         return [row[0] for row in rows]
-    
+
     # --- Export service methods ---
-    
+
     def list_playlists(self, playlist_ids: Optional[List[str]] = None, provider: str | None = None) -> List[Dict[str, Any]]:
         """List playlists with stable ordering.
-        
+
         Returns playlists sorted by owner_name then name for consistent export order.
         Provider-aware to prevent cross-provider data leakage.
         """
         if provider is None:
             provider = 'spotify'  # Default for backward compat
-        
+
         if playlist_ids:
             placeholders = ','.join('?' * len(playlist_ids))
             sql = f"""
@@ -590,24 +589,24 @@ class Database(DatabaseInterface):
             ORDER BY owner_name, name
             """
             rows = self.conn.execute(sql, (provider,)).fetchall()
-        
+
         return [dict(row) for row in rows]
-    
+
     def get_playlist_tracks_with_local_paths(self, playlist_id: str, provider: str | None = None) -> List[Dict[str, Any]]:
         """Get playlist tracks with matched local file paths (best match only per track).
-        
+
         Uses window function to select only the highest-scoring match per track.
         All joins are provider-aware to prevent cross-provider data leakage.
         """
         if provider is None:
             provider = 'spotify'  # Default for backward compat
-        
+
         if self._supports_window_functions:
             # Use window function to rank matches by score (highest first)
             # Then filter to only the best match (rn=1) in the outer query
             sql = """
             WITH ranked_matches AS (
-                SELECT 
+                SELECT
                     m.track_id,
                     m.file_id,
                     m.score,
@@ -615,7 +614,7 @@ class Database(DatabaseInterface):
                 FROM matches m
                 WHERE m.provider = ?
             )
-            SELECT 
+            SELECT
                 pt.position,
                 t.id as track_id,
                 t.name,
@@ -635,7 +634,7 @@ class Database(DatabaseInterface):
         else:
             # Fallback for SQLite < 3.25: use correlated subquery for best match
             sql = """
-            SELECT 
+            SELECT
                 pt.position,
                 t.id as track_id,
                 t.name,
@@ -646,11 +645,11 @@ class Database(DatabaseInterface):
                 lf.path AS local_path
             FROM playlist_tracks pt
             LEFT JOIN tracks t ON t.id = pt.track_id AND t.provider = pt.provider
-            LEFT JOIN matches m ON m.track_id = pt.track_id 
-                AND m.provider = ? 
+            LEFT JOIN matches m ON m.track_id = pt.track_id
+                AND m.provider = ?
                 AND m.score = (
-                    SELECT MAX(m2.score) 
-                    FROM matches m2 
+                    SELECT MAX(m2.score)
+                    FROM matches m2
                     WHERE m2.track_id = m.track_id AND m2.provider = ?
                 )
             LEFT JOIN library_files lf ON lf.id = m.file_id
@@ -658,25 +657,25 @@ class Database(DatabaseInterface):
             ORDER BY pt.position
             """
             rows = self.conn.execute(sql, (provider, provider, playlist_id, provider)).fetchall()
-        
+
         return [dict(row) | {'position': row['position']} for row in rows]
-    
+
     def get_liked_tracks_with_local_paths(self, provider: str | None = None) -> List[Dict[str, Any]]:
         """Get liked tracks with matched local file paths (best match only per track), newest first.
-        
+
         Uses window function to select only the highest-scoring match per track.
         All joins are provider-aware to prevent cross-provider data leakage.
         Ordered by added_at DESC (newest first) to match Spotify's behavior.
         """
         if provider is None:
             provider = 'spotify'  # Default for backward compat
-        
+
         if self._supports_window_functions:
             # Use window function to rank matches by score (highest first)
             # Then filter to only the best match (rn=1) in the outer query
             sql = """
             WITH ranked_matches AS (
-                SELECT 
+                SELECT
                     m.track_id,
                     m.file_id,
                     m.score,
@@ -684,7 +683,7 @@ class Database(DatabaseInterface):
                 FROM matches m
                 WHERE m.provider = ?
             )
-            SELECT 
+            SELECT
                 lt.added_at,
                 t.id as track_id,
                 t.name,
@@ -703,7 +702,7 @@ class Database(DatabaseInterface):
         else:
             # Fallback for SQLite < 3.25: use correlated subquery for best match
             sql = """
-            SELECT 
+            SELECT
                 lt.added_at,
                 t.id as track_id,
                 t.name,
@@ -713,11 +712,11 @@ class Database(DatabaseInterface):
                 lf.path AS local_path
             FROM liked_tracks lt
             LEFT JOIN tracks t ON t.id = lt.track_id AND t.provider = lt.provider
-            LEFT JOIN matches m ON m.track_id = lt.track_id 
-                AND m.provider = ? 
+            LEFT JOIN matches m ON m.track_id = lt.track_id
+                AND m.provider = ?
                 AND m.score = (
-                    SELECT MAX(m2.score) 
-                    FROM matches m2 
+                    SELECT MAX(m2.score)
+                    FROM matches m2
                     WHERE m2.track_id = m.track_id AND m2.provider = ?
                 )
             LEFT JOIN library_files lf ON lf.id = m.file_id
@@ -725,14 +724,14 @@ class Database(DatabaseInterface):
             ORDER BY lt.added_at DESC
             """
             rows = self.conn.execute(sql, (provider, provider, provider)).fetchall()
-        
+
         return [dict(row) for row in rows]
-    
+
     def get_track_by_id(self, track_id: str, provider: str | None = None) -> Optional[TrackRow]:
         """Get a single track by ID."""
         if provider is None:
             provider = 'spotify'  # Default for backward compat
-        
+
         sql = """
         SELECT id, provider, name, artist, album, year, isrc, duration_ms, normalized, album_id, artist_id
         FROM tracks
@@ -740,22 +739,22 @@ class Database(DatabaseInterface):
         """
         row = self.conn.execute(sql, (track_id, provider)).fetchone()
         return TrackRow.from_row(row) if row else None
-    
+
     def get_match_for_track(self, track_id: str, provider: str | None = None) -> Optional[Dict[str, Any]]:
         """Get match details for a track if it exists."""
         if provider is None:
             provider = 'spotify'  # Default for backward compat
-        
+
         sql = """
-        SELECT 
-            m.file_id, 
-            m.score, 
+        SELECT
+            m.file_id,
+            m.score,
             m.method,
-            f.path, 
-            f.title, 
-            f.artist, 
-            f.album, 
-            f.duration, 
+            f.path,
+            f.title,
+            f.artist,
+            f.album,
+            f.duration,
             f.normalized,
             f.year,
             f.bitrate_kbps
@@ -767,27 +766,27 @@ class Database(DatabaseInterface):
         return dict(row) if row else None
 
     # --- Performance / Analytics queries (delegate to helper modules) ---
-    
+
     def get_distinct_artists(self, provider: str | None = None) -> List[str]:
         """Get unique artist names from tracks (SQL DISTINCT)."""
         provider = provider or 'spotify'
         return queries_analytics.get_distinct_artists(self.conn, provider)
-    
+
     def get_distinct_albums(self, provider: str | None = None) -> List[str]:
         """Get unique album names from tracks (SQL DISTINCT)."""
         provider = provider or 'spotify'
         return queries_analytics.get_distinct_albums(self.conn, provider)
-    
+
     def get_distinct_years(self, provider: str | None = None) -> List[int]:
         """Get unique years from tracks (SQL DISTINCT)."""
         provider = provider or 'spotify'
         return queries_analytics.get_distinct_years(self.conn, provider)
-    
+
     def get_playlist_coverage(self, provider: str | None = None) -> List[Dict[str, Any]]:
         """Get playlist coverage statistics in a single SQL query."""
         provider = provider or 'spotify'
         return queries_analytics.get_playlist_coverage(self.conn, provider)
-    
+
     def list_unified_tracks_min(
         self,
         provider: str | None = None,
@@ -806,7 +805,7 @@ class Database(DatabaseInterface):
             limit,
             offset
         )
-    
+
     def get_playlists_for_track_ids(
         self,
         track_ids: List[str],
@@ -819,7 +818,7 @@ class Database(DatabaseInterface):
             track_ids,
             provider
         )
-    
+
     def get_track_ids_for_playlist(
         self,
         playlist_name: str,

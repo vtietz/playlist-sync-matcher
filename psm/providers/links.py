@@ -12,16 +12,16 @@ if TYPE_CHECKING:
 
 def get_link_generator(provider: str = "spotify") -> "ProviderLinkGenerator":
     """Get the link generator for the specified provider.
-    
+
     Args:
         provider: Provider name (default: "spotify")
-    
+
     Returns:
         ProviderLinkGenerator instance for the provider
-    
+
     Raises:
         ValueError: If provider is not supported
-    
+
     Example:
         >>> links = get_link_generator("spotify")
         >>> track_url = links.track_url("3n3Ppam7vgaVa1iaRUc9Lp")
@@ -30,12 +30,12 @@ def get_link_generator(provider: str = "spotify") -> "ProviderLinkGenerator":
     if provider.lower() == "spotify":
         from .spotify.provider import SpotifyLinkGenerator
         return SpotifyLinkGenerator()
-    
+
     # Future providers can be added here
     # elif provider.lower() == "deezer":
     #     from .deezer_provider import DeezerLinkGenerator
     #     return DeezerLinkGenerator()
-    
+
     raise ValueError(f"Unsupported provider: {provider}. Available: spotify")
 
 

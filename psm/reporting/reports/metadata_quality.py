@@ -20,17 +20,17 @@ def write_metadata_quality_report(
     min_bitrate_kbps: int = 320
 ) -> tuple[Path, Path]:
     """Write metadata quality analysis to CSV and HTML.
-    
+
     Args:
         report: QualityReport from analysis_service
         out_dir: Output directory for reports
         min_bitrate_kbps: Bitrate threshold used
-    
+
     Returns:
         Tuple of (csv_path, html_path)
     """
     out_dir.mkdir(parents=True, exist_ok=True)
-    
+
     # Prepare data rows with individual columns for each metadata field
     rows = []
     for issue in report.issues:
@@ -39,13 +39,13 @@ def write_metadata_quality_report(
         has_title = "title" not in issue.missing_fields
         has_album = "album" not in issue.missing_fields
         has_year = "year" not in issue.missing_fields
-        
+
         # Count missing fields
         missing_count = len(issue.missing_fields)
-        
+
         # Bitrate handling
         bitrate_num = issue.bitrate_kbps if issue.bitrate_kbps else 0
-        
+
         rows.append({
             'path': issue.path,
             'has_artist': has_artist,
@@ -57,15 +57,15 @@ def write_metadata_quality_report(
             'playlist_count': issue.playlist_count,
             'is_liked': issue.is_liked,
         })
-    
+
     # Write CSV
     csv_path = out_dir / "metadata_quality.csv"
     _write_csv(csv_path, rows, min_bitrate_kbps)
-    
+
     # Write HTML
     html_path = out_dir / "metadata_quality.html"
     _write_html(html_path, rows, report, min_bitrate_kbps)
-    
+
     return (csv_path, html_path)
 
 
@@ -79,8 +79,8 @@ def _write_csv(csv_path: Path, rows: list[dict], min_bitrate_kbps: int = 320) ->
         ])
         for row in rows:
             quality_status = get_quality_status_text(
-                row['missing_count'], 
-                row['bitrate'], 
+                row['missing_count'],
+                row['bitrate'],
                 min_bitrate_kbps
             )
             w.writerow([
@@ -108,16 +108,16 @@ def _write_html(
         # Shorten file path for display
         short_path = shorten_path(row['path'], max_length=60)
         path_display = f'<span class="path-short" title="{row["path"]}">{short_path}</span>'
-        
+
         # Create quality status badge
         quality_status = get_quality_status_text(row['missing_count'], row['bitrate'], min_bitrate_kbps)
         quality_badge_class = get_quality_badge_class(row['missing_count'], row['bitrate'], min_bitrate_kbps)
         quality_badge = format_badge(quality_status, quality_badge_class)
-        
+
         # Playlist count and liked status
         playlist_display = format_playlist_count(row['playlist_count'])
         liked_display = format_liked(row['is_liked'])
-        
+
         html_rows.append([
             path_display,
             '<span class="check-yes">✓</span>' if row['has_title'] else '<span class="check-no">✗</span>',
@@ -129,7 +129,7 @@ def _write_html(
             liked_display,
             quality_badge
         ])
-    
+
     stats = report.get_summary_stats()
     description = (
         f"Total files: {stats['total_files']:,} | "
@@ -139,7 +139,7 @@ def _write_html(
         f"Missing year: {stats['missing_year']} ({stats['missing_year_pct']}%) | "
         f"Low bitrate (<{min_bitrate_kbps}kbps): {stats['low_bitrate_count']} ({stats['low_bitrate_pct']}%)"
     )
-    
+
     html_content = get_html_template(
         title="Metadata Quality Analysis",
         columns=["File", "Title", "Artist", "Album", "Year", "Bitrate", "Playlists", "Liked", "Status"],
@@ -149,5 +149,5 @@ def _write_html(
         csv_filename="metadata_quality.csv",
         active_page="metadata_quality"
     )
-    
+
     html_path.write_text(html_content, encoding='utf-8')

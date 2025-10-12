@@ -30,6 +30,16 @@
 * **All Tests Must Pass**: Run full test suite after any changes. Never leave tests failing.
 * **Finally remove all backward compatibility code**: If a feature or code path is deprecated, remove it entirely rather than leaving it commented out or behind flags.
 
+## Style Guidelines (PEP 8 + Project Rules)
+* **Line Length**: Max 120 characters (not 80). Break long lines at logical points.
+* **Blank Lines**: 2 blank lines after top-level class/function definitions, 1 blank line before nested functions.
+* **Whitespace**: No trailing whitespace, space after commas `[a, b, c]`, spaces around operators `x = y + 1`.
+* **Imports**: No unused imports. Remove them immediately when refactoring.
+* **F-strings**: Only use f-strings when you have placeholders. Use regular strings otherwise: `"text"` not `f"text"`.
+* **Line Breaks**: Break BEFORE operators for long expressions, not after. Align continuation lines properly.
+* **File Endings**: All files must end with a single newline.
+* **Click Commands**: When adding new CLI commands, import the module in `psm/cli/core.py` to register it.
+
 ## Code Quality
 * **Remove Unused Code**: Delete unused imports, variables, and helper functions after refactoring. Don't leave dead code.
 * **Use Standard Library**: Prefer built-in modules (copy.deepcopy, functools.lru_cache) over custom implementations.
@@ -93,6 +103,20 @@ return result
   - **Long Functions**: Split into multiple functions with clear single responsibilities
   - **Style Issues**: Follow PEP 8 with project-specific rules (120 char line length, Black-compatible)
   - **Import Issues**: Remove unused imports, organize imports logically
+
+## Code Cleanup
+* **Safe Automated Cleanup**: Use `run.bat cleanup` to fix low-hanging fruit automatically
+* **What It Fixes**:
+  - Trailing whitespace on lines
+  - Whitespace-only blank lines
+  - Missing newline at end of file
+  - Unused imports (safe removal only)
+* **How to Use**:
+  - `run.bat cleanup --dry-run changed` - Preview changes before applying
+  - `run.bat cleanup changed` - Clean only changed files (safe for daily use)
+  - `run.bat cleanup all` - Clean entire project (use before major commits)
+  - `run.bat cleanup --skip-imports all` - Only clean whitespace, skip import removal
+* **Safety**: Only performs safe, non-breaking transformations. Does NOT change code structure, line length, or indentation.
 
 # Required final actions
 * Run tests to ensure all changes pass.

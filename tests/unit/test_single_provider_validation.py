@@ -31,7 +31,7 @@ def test_validate_single_provider_multiple_providers_fails():
     }
     with pytest.raises(ValueError) as exc_info:
         validate_single_provider(cfg)
-    
+
     assert 'Multiple providers configured' in str(exc_info.value)
     assert 'spotify' in str(exc_info.value)
     assert 'apple_music' in str(exc_info.value)
@@ -50,7 +50,7 @@ def test_validate_single_provider_no_client_id_fails():
     }
     with pytest.raises(ValueError) as exc_info:
         validate_single_provider(cfg)
-    
+
     assert 'no client_id configured' in str(exc_info.value)
     assert 'PSM__PROVIDERS__SPOTIFY__CLIENT_ID' in str(exc_info.value)
 
@@ -62,7 +62,7 @@ def test_validate_single_provider_empty_providers_fails():
     }
     with pytest.raises(ValueError) as exc_info:
         validate_single_provider(cfg)
-    
+
     # Empty providers dict is treated as no providers section
     assert 'No providers section' in str(exc_info.value)
 
@@ -72,7 +72,7 @@ def test_validate_single_provider_no_providers_section_fails():
     cfg = {}
     with pytest.raises(ValueError) as exc_info:
         validate_single_provider(cfg)
-    
+
     assert 'No providers section' in str(exc_info.value)
 
 

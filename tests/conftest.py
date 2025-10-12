@@ -31,10 +31,10 @@ except Exception:  # pragma: no cover
 @pytest.fixture
 def test_config(tmp_path: Path) -> Dict[str, Any]:
     """Provide a minimal test configuration as a dict.
-    
+
     Tests should use this fixture and pass cfg to CLI/modules directly,
     rather than creating config files or setting environment variables.
-    
+
     Default paths are isolated to tmp_path for test isolation.
     Tests can override individual values using dict update or deep_merge.
     """

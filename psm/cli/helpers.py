@@ -10,17 +10,17 @@ from ..providers import get_provider_instance
 
 def get_provider_config(cfg: dict, provider_name: str | None = None) -> dict:
     """Get provider configuration from config dict.
-    
+
     Args:
         cfg: Full configuration dict
         provider_name: Provider name (defaults to cfg['provider'])
-        
+
     Returns:
         Provider configuration dict
     """
     if provider_name is None:
         provider_name = cfg.get('provider', 'spotify')
-    
+
     providers = cfg.get('providers', {})
     return providers.get(provider_name, {})
 
@@ -42,40 +42,40 @@ def _redact_spotify_config(cfg: dict) -> dict:
 @click.pass_context
 def cli(ctx: click.Context, config_file: str | None, progress: bool | None, progress_interval: int | None):
     """Spotify-to-local music library synchronization tool.
-    
+
     \b
     TYPICAL WORKFLOWS:
-    
+
     \b
     Initial Setup:
       psm login        # Authenticate with Spotify
       psm scan         # Index your local music library
-    
+
     \b
     Full Sync (all playlists):
       psm pull         # Download playlists from Spotify
       psm match        # Match tracks to local files
       psm export       # Generate M3U playlist files
-    
+
     \b
     Single Playlist Workflow:
       psm playlist pull PLAYLIST_ID      # Pull one playlist
       psm playlist match PLAYLIST_ID     # Match its tracks
       psm playlist export PLAYLIST_ID    # Export to M3U
       # OR: psm playlist build PLAYLIST_ID  (does all three)
-    
+
     \b
     Quality Analysis:
       psm analyze         # Check library quality issues
       psm report          # Show unmatched tracks
       psm report-albums   # Show incomplete albums
-    
+
     \b
     Maintenance:
       psm scan --full             # Refresh library index
       psm scan --watch            # Continuously import changed files
       psm match-diagnose TRACK    # Debug matching issues
-    
+
     \b
     Note: SQLite WAL mode enables safe concurrent operations.
     You can run pull, scan, and match simultaneously in different terminals.
@@ -84,7 +84,7 @@ def cli(ctx: click.Context, config_file: str | None, progress: bool | None, prog
         ctx.obj = ctx.obj
     else:
         ctx.obj = load_typed_config(config_file).to_dict()
-    
+
     # Override logging config from CLI flags
     if progress is not None:
         ctx.obj.setdefault('logging', {})['progress_enabled'] = progress
@@ -98,10 +98,10 @@ def get_db(cfg):
 
 def build_auth(cfg):
     """Build authentication provider from config.
-    
+
     Args:
         cfg: Full configuration dict with providers configuration
-        
+
     Returns:
         AuthProvider instance
     """
@@ -113,10 +113,10 @@ def build_auth(cfg):
 
 def get_token(cfg):
     """Get access token using authentication provider.
-    
+
     Args:
         cfg: Full configuration dict with providers configuration
-        
+
     Returns:
         Access token string
     """

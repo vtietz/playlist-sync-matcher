@@ -1,4 +1,3 @@
-from pathlib import Path
 from click.testing import CliRunner
 from psm.cli import cli
 from psm.version import __version__

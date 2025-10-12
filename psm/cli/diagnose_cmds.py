@@ -18,25 +18,25 @@ logger = logging.getLogger(__name__)
 @click.pass_context
 def diagnose(ctx: click.Context, track_id: str, provider: str, top_n: int):
     """Diagnose why a specific track isn't matching.
-    
+
     This command helps troubleshoot unmatched tracks by showing:
     - Track metadata from the provider
     - Normalized search string used for matching
     - Closest matching files in your library with scores
     - Recommendations for fixing the issue
-    
+
     To find the track ID, check the unmatched_tracks report (CSV or HTML).
     The track ID is shown in the first column.
-    
+
     Example:
         psm diagnose 3n3Ppam7vgaVa1iaRUc9Lp
         psm diagnose --provider spotify --top-n 10 3n3Ppam7vgaVa1iaRUc9Lp
     """
     cfg = ctx.obj
-    
+
     click.echo(section_header(f"Diagnosing Track: {track_id}"))
     click.echo("")
-    
+
     with get_db(cfg) as db:
         result = diagnose_track(db, track_id, provider=provider, top_n=top_n)
         output = format_diagnostic_output(result)

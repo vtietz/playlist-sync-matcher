@@ -6,7 +6,7 @@ needed by service-layer logic. Extend incrementally.
 """
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 from psm.db import DatabaseInterface
-from psm.db.models import TrackRow, LibraryFileRow, MatchRow, PlaylistRow
+from psm.db.models import TrackRow, LibraryFileRow, PlaylistRow
 
 class MockRow(dict):
     """Row-like mapping supporting dict-style access."""
@@ -144,17 +144,17 @@ class MockDatabase(DatabaseInterface):
         if provider:
             return sum(1 for (_,prov) in self.playlists if prov == provider)
         return len(self.playlists)
-    
+
     def get_playlists_containing_tracks(self, track_ids: List[str], provider: str | None = None) -> List[str]:
         """Return distinct playlist IDs that contain any of the given track IDs."""
         self.call_log.append('get_playlists_containing_tracks')
         provider = provider or 'spotify'
         if not track_ids:
             return []
-        
+
         track_id_set = set(track_ids)
         affected_playlists = set()
-        
+
         for (pid, prov), tracks in self.playlist_tracks.items():
             if prov != provider:
                 continue
@@ -163,7 +163,7 @@ class MockDatabase(DatabaseInterface):
                 if tid in track_id_set:
                     affected_playlists.add(pid)
                     break
-        
+
         return list(affected_playlists)
 
     # --- tracks / library ---
@@ -187,10 +187,10 @@ class MockDatabase(DatabaseInterface):
         self.call_log.append('add_match')
         provider = provider or 'spotify'
         self.matches.append({
-            'track_id': track_id, 
-            'file_id': file_id, 
-            'score': score, 
-            'method': method, 
+            'track_id': track_id,
+            'file_id': file_id,
+            'score': score,
+            'method': method,
             'provider': provider,
             'confidence': confidence
         })
@@ -237,9 +237,9 @@ class MockDatabase(DatabaseInterface):
 
     def close(self):  # idempotent
         self._closed = True
-    
+
     # --- Repository methods for matching engine ---
-    
+
     def get_all_tracks(self, provider: str | None = None) -> List[TrackRow]:
         """Get all tracks with full metadata for matching."""
         rows = []
@@ -260,7 +260,7 @@ class MockDatabase(DatabaseInterface):
                 artist_id=data.get('artist_id'),
             ))
         return rows
-    
+
     def get_all_library_files(self) -> List[LibraryFileRow]:
         """Get all library files with full metadata for matching."""
         rows = []
@@ -280,7 +280,7 @@ class MockDatabase(DatabaseInterface):
                 bitrate_kbps=data.get('bitrate_kbps'),
             ))
         return rows
-    
+
     def get_tracks_by_ids(self, track_ids: List[str], provider: str | None = None) -> List[TrackRow]:
         """Get specific tracks by their IDs."""
         rows = []
@@ -301,7 +301,7 @@ class MockDatabase(DatabaseInterface):
                         artist_id=data.get('artist_id'),
                     ))
         return rows
-    
+
     def get_library_files_by_ids(self, file_ids: List[int]) -> List[LibraryFileRow]:
         """Get specific library files by their IDs."""
         # File IDs in mock are 1-based indices
@@ -325,7 +325,7 @@ class MockDatabase(DatabaseInterface):
                     bitrate_kbps=data.get('bitrate_kbps'),
                 ))
         return rows
-    
+
     def get_unmatched_tracks(self, provider: str | None = None) -> List[TrackRow]:
         """Get all tracks that don't have matches yet."""
         matched_ids = {m['track_id'] for m in self.matches}
@@ -346,7 +346,7 @@ class MockDatabase(DatabaseInterface):
                     artist_id=data.get('artist_id'),
                 ))
         return rows
-    
+
     def get_unmatched_library_files(self) -> List[LibraryFileRow]:
         """Get all library files that don't have matches yet."""
         matched_file_ids = {m['file_id'] for m in self.matches}
@@ -368,24 +368,24 @@ class MockDatabase(DatabaseInterface):
                     bitrate_kbps=data.get('bitrate_kbps'),
                 ))
         return rows
-    
+
     def delete_matches_by_track_ids(self, track_ids: List[str]):
         """Delete all matches for given track IDs."""
         self.matches = [m for m in self.matches if m['track_id'] not in track_ids]
-    
+
     def delete_matches_by_file_ids(self, file_ids: List[int]):
         """Delete all matches for given file IDs."""
         self.matches = [m for m in self.matches if m['file_id'] not in file_ids]
-    
+
     def delete_all_matches(self):
         """Delete all track-to-file matches (for full re-match scenarios)."""
         self.matches = []
-    
+
     def count_distinct_library_albums(self) -> int:
         """Count unique albums in library files."""
         albums = {data.get('album') for data in self.library_files.values() if data.get('album')}
         return len(albums)
-    
+
     def get_match_confidence_counts(self) -> Dict[str, int]:
         """Get count of matches grouped by confidence level."""
         counts: Dict[str, int] = {}
@@ -393,10 +393,10 @@ class MockDatabase(DatabaseInterface):
             method = m.get('method', 'UNKNOWN')
             counts[method] = counts.get(method, 0) + 1
         return counts
-    
+
     def get_match_confidence_tier_counts(self) -> Dict[str, int]:
         """Get count of matches grouped by confidence tier.
-        
+
         Uses confidence field if available, falls back to parsing method string.
         """
         counts: Dict[str, int] = {}
@@ -414,7 +414,7 @@ class MockDatabase(DatabaseInterface):
                     tier = method
             counts[tier] = counts.get(tier, 0) + 1
         return counts
-    
+
     def get_playlist_occurrence_counts(self, track_ids: List[str]) -> Dict[str, int]:
         """Get count of playlists each track appears in."""
         counts: Dict[str, int] = {tid: 0 for tid in track_ids}
@@ -423,7 +423,7 @@ class MockDatabase(DatabaseInterface):
                 if tid in track_ids:
                     counts[tid] = counts.get(tid, 0) + 1
         return counts
-    
+
     def get_liked_track_ids(self, track_ids: List[str], provider: str | None = None) -> List[str]:
         """Get which of the given track IDs are in liked_tracks."""
         result = []
@@ -433,14 +433,14 @@ class MockDatabase(DatabaseInterface):
                     result.append(tid)
                     break
         return result
-    
+
     def count_playlist_tracks(self, playlist_id: str, provider: str | None = None) -> int:
         """Count tracks in a playlist."""
         tracks = self.playlist_tracks.get((playlist_id, provider or 'spotify'), [])
         return len(tracks)
-    
+
     # --- Export service methods ---
-    
+
     def list_playlists(self, playlist_ids: Optional[List[str]] = None, provider: str | None = None) -> List[Dict[str, Any]]:
         """List playlists with stable ordering."""
         provider = provider or 'spotify'
@@ -459,13 +459,13 @@ class MockDatabase(DatabaseInterface):
         # Sort by owner_name then name
         playlists.sort(key=lambda p: (p.get('owner_name') or '', p.get('name') or ''))
         return playlists
-    
+
     def get_playlist_tracks_with_local_paths(self, playlist_id: str, provider: str | None = None) -> List[Dict[str, Any]]:
         """Get playlist tracks with matched local file paths (best match only per track)."""
         provider = provider or 'spotify'
         tracks = self.playlist_tracks.get((playlist_id, provider), [])
         result = []
-        
+
         # Build best matches map (highest score per track)
         best_matches: Dict[str, Dict[str, Any]] = {}
         for m in self.matches:
@@ -474,20 +474,20 @@ class MockDatabase(DatabaseInterface):
             track_id = m['track_id']
             if track_id not in best_matches or m['score'] > best_matches[track_id]['score']:
                 best_matches[track_id] = m
-        
+
         # Build library files index
         lib_files = {i+1: (path, data) for i, (path, data) in enumerate(self.library_files.items())}
-        
+
         for pos, track_id, added_at in tracks:
             track_data = self.tracks.get((track_id, provider), {})
             local_path = None
-            
+
             # Get best match if exists
             if track_id in best_matches:
                 file_id = best_matches[track_id]['file_id']
                 if file_id in lib_files:
                     local_path = lib_files[file_id][0]
-            
+
             result.append({
                 'position': pos,
                 'track_id': track_id,
@@ -497,13 +497,13 @@ class MockDatabase(DatabaseInterface):
                 'duration_ms': track_data.get('duration_ms'),
                 'local_path': local_path,
             })
-        
+
         return result
-    
+
     def get_liked_tracks_with_local_paths(self, provider: str | None = None) -> List[Dict[str, Any]]:
         """Get liked tracks with matched local file paths (best match only per track), newest first."""
         provider = provider or 'spotify'
-        
+
         # Build best matches map
         best_matches: Dict[str, Dict[str, Any]] = {}
         for m in self.matches:
@@ -512,10 +512,10 @@ class MockDatabase(DatabaseInterface):
             track_id = m['track_id']
             if track_id not in best_matches or m['score'] > best_matches[track_id]['score']:
                 best_matches[track_id] = m
-        
+
         # Build library files index
         lib_files = {i+1: (path, data) for i, (path, data) in enumerate(self.library_files.items())}
-        
+
         # Get liked tracks for this provider
         liked_tracks = []
         for (track_id, prov), data in self.liked.items():
@@ -523,13 +523,13 @@ class MockDatabase(DatabaseInterface):
                 continue
             track_data = self.tracks.get((track_id, prov), {})
             local_path = None
-            
+
             # Get best match if exists
             if track_id in best_matches:
                 file_id = best_matches[track_id]['file_id']
                 if file_id in lib_files:
                     local_path = lib_files[file_id][0]
-            
+
             liked_tracks.append({
                 'added_at': data.get('added_at'),
                 'track_id': track_id,
@@ -539,11 +539,11 @@ class MockDatabase(DatabaseInterface):
                 'duration_ms': track_data.get('duration_ms'),
                 'local_path': local_path,
             })
-        
+
         # Sort by added_at DESC (newest first)
         liked_tracks.sort(key=lambda t: t.get('added_at') or '', reverse=True)
         return liked_tracks
-    
+
     def get_track_by_id(self, track_id: str, provider: str | None = None) -> Optional[TrackRow]:
         """Get a single track by ID."""
         provider = provider or 'spotify'
@@ -563,21 +563,21 @@ class MockDatabase(DatabaseInterface):
             album_id=data.get('album_id'),
             artist_id=data.get('artist_id'),
         )
-    
+
     def get_match_for_track(self, track_id: str, provider: str | None = None) -> Optional[Dict[str, Any]]:
         """Get match details for a track if it exists."""
         provider = provider or 'spotify'
-        
+
         # Find match for this track
         match = None
         for m in self.matches:
             if m['track_id'] == track_id and m['provider'] == provider:
                 match = m
                 break
-        
+
         if not match:
             return None
-        
+
         # Get library file details
         lib_files = list(self.library_files.items())
         file_id = match['file_id']
@@ -595,11 +595,11 @@ class MockDatabase(DatabaseInterface):
                 'normalized': data.get('normalized'),
                 'year': data.get('year'),
             }
-        
+
         return None
-    
+
     # --- Missing abstract methods (added for test compatibility) ---
-    
+
     def get_distinct_albums(self, provider: str | None = None) -> List[str]:
         """Get list of distinct albums from library files."""
         albums = set()
@@ -608,7 +608,7 @@ class MockDatabase(DatabaseInterface):
             if album:
                 albums.add(album)
         return sorted(list(albums))
-    
+
     def get_distinct_artists(self, provider: str | None = None) -> List[str]:
         """Get list of distinct artists from library files."""
         artists = set()
@@ -617,7 +617,7 @@ class MockDatabase(DatabaseInterface):
             if artist:
                 artists.add(artist)
         return sorted(list(artists))
-    
+
     def get_distinct_years(self, provider: str | None = None) -> List[int]:
         """Get list of distinct years from library files."""
         years = set()
@@ -626,7 +626,7 @@ class MockDatabase(DatabaseInterface):
             if year:
                 years.add(year)
         return sorted(list(years))
-    
+
     def get_playlist_coverage(self, provider: str | None = None) -> List[Dict[str, Any]]:
         """Get playlist coverage statistics."""
         provider = provider or 'spotify'
@@ -636,8 +636,8 @@ class MockDatabase(DatabaseInterface):
                 continue
             tracks_in_playlist = self.playlist_tracks.get((pid, prov), [])
             total = len(tracks_in_playlist)
-            matched = sum(1 for _, tid, _ in tracks_in_playlist 
-                         if any(m.get('track_id') == tid and m.get('provider') == prov 
+            matched = sum(1 for _, tid, _ in tracks_in_playlist
+                         if any(m.get('track_id') == tid and m.get('provider') == prov
                                for m in self.matches))
             result.append({
                 'id': pid,
@@ -647,7 +647,7 @@ class MockDatabase(DatabaseInterface):
                 'coverage_pct': int((matched / total * 100) if total > 0 else 0)
             })
         return result
-    
+
     def get_playlists_for_track_ids(self, track_ids: List[str], provider: str | None = None) -> Dict[str, str]:
         """Get comma-separated playlist names for each track ID."""
         provider = provider or 'spotify'
@@ -663,7 +663,7 @@ class MockDatabase(DatabaseInterface):
                         playlists.append(playlist['name'])
             result[track_id] = ', '.join(sorted(playlists))
         return result
-    
+
     def get_track_ids_for_playlist(self, playlist_name: str, provider: str | None = None) -> set:
         """Get set of track IDs in a playlist."""
         provider = provider or 'spotify'
@@ -675,7 +675,7 @@ class MockDatabase(DatabaseInterface):
             for _, tid, _ in tracks:
                 track_ids.add(tid)
         return track_ids
-    
+
     def list_unified_tracks_min(
         self,
         provider: str | None = None,
@@ -691,9 +691,9 @@ class MockDatabase(DatabaseInterface):
             if prov != provider:
                 continue
             # Find match
-            match = next((m for m in self.matches 
+            match = next((m for m in self.matches
                          if m.get('track_id') == tid and m.get('provider') == prov), None)
-            
+
             result.append({
                 'id': tid,
                 'name': track.get('name'),
@@ -706,17 +706,17 @@ class MockDatabase(DatabaseInterface):
                 'local_path': match.get('path') if match else None,
                 'playlists': ''  # Populated separately
             })
-        
+
         # Simple sorting if requested
         if sort_column and sort_column in ['name', 'artist', 'album', 'year']:
             result.sort(key=lambda x: x.get(sort_column) or '', reverse=(sort_order == 'DESC'))
-        
+
         # Apply pagination
         if limit:
             result = result[offset:offset+limit]
         elif offset:
             result = result[offset:]
-        
+
         return result
 
 __all__ = ["MockDatabase"]

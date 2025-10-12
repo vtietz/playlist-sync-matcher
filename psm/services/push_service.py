@@ -18,10 +18,10 @@ then batch-add in chunks of 100.
 """
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Sequence, Dict, Any, Optional, Tuple
+from typing import List, Sequence, Dict, Any, Tuple
 import logging
 
-from ..db import Database, DatabaseInterface
+from ..db import DatabaseInterface
 from ..push.m3u_parser import parse_m3u_paths
 
 logger = logging.getLogger(__name__)

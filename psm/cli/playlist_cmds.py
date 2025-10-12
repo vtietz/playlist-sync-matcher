@@ -18,7 +18,6 @@ logger = logging.getLogger(__name__)
 @click.pass_context
 def playlist_group(ctx: click.Context):  # pragma: no cover - simple container
     """Single playlist operations (pull, match, export, build, push)."""
-    pass
 
 
 @playlist_group.command(name='pull')
@@ -63,11 +62,11 @@ def playlist_export(ctx: click.Context, playlist_id: str):
     with get_db(cfg) as db:
         current_user_id = db.get_meta('current_user_id') if organize_by_owner else None
         result = export_single_playlist(
-            db=db, 
-            playlist_id=playlist_id, 
-            export_config=cfg['export'], 
-            organize_by_owner=organize_by_owner, 
-            current_user_id=current_user_id, 
+            db=db,
+            playlist_id=playlist_id,
+            export_config=cfg['export'],
+            organize_by_owner=organize_by_owner,
+            current_user_id=current_user_id,
             library_paths=library_paths,
             provider=provider
         )
@@ -104,7 +103,7 @@ def playlist_push(ctx: click.Context, playlist_id: str, file_path: Path | None, 
     """Push local changes to update a remote playlist (Spotify only)."""
     cfg = ctx.obj
     provider = cfg.get('provider', 'spotify')
-    
+
     # For now, only Spotify is supported for push
     if provider != 'spotify':
         raise click.UsageError(f"Push is currently only supported for Spotify, not '{provider}'")
@@ -112,9 +111,9 @@ def playlist_push(ctx: click.Context, playlist_id: str, file_path: Path | None, 
     provider_cfg = get_provider_config(cfg, provider)
     if not provider_cfg.get('client_id'):
         raise click.UsageError('providers.spotify.client_id not configured')
-    
+
     token = get_token(cfg)
-    
+
     # Use SpotifyAPIClient directly
     from ..providers.spotify import SpotifyAPIClient
     client = SpotifyAPIClient(token)

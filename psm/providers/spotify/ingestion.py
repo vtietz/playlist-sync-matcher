@@ -26,12 +26,12 @@ logger = logging.getLogger(__name__)
 
 def extract_year(release_date: str | None) -> int | None:
     """Extract year from Spotify release date string.
-    
+
     Spotify returns dates in various formats: YYYY-MM-DD, YYYY-MM, or YYYY.
-    
+
     Args:
         release_date: Release date string from Spotify API
-        
+
     Returns:
         Year as integer, or None if extraction fails
     """
@@ -45,16 +45,16 @@ def extract_year(release_date: str | None) -> int | None:
 
 def ingest_playlists(db, client: 'SpotifyAPIClient', use_year: bool = False, force_refresh: bool = False):
     """Ingest playlists from Spotify API into database.
-    
+
     Handles incremental updates using snapshot IDs. Only re-processes playlists
     that have changed since last sync, unless force_refresh is True.
-    
+
     Args:
         db: Database instance
         client: SpotifyAPIClient instance
         use_year: Include year in normalization (from config matching.use_year)
         force_refresh: Force refresh all tracks even if playlists unchanged (populates new fields)
-        
+
     Returns:
         set: Set of track IDs that were added or updated
     """
@@ -66,7 +66,7 @@ def ingest_playlists(db, client: 'SpotifyAPIClient', use_year: bool = False, for
     updated_playlists = 0
     unchanged_playlists = 0
     changed_track_ids = set()  # Track IDs that were upserted
-    
+
     # Get and store current user ID for owner comparison
     try:
         user_profile = client.current_user_profile()
@@ -78,7 +78,7 @@ def ingest_playlists(db, client: 'SpotifyAPIClient', use_year: bool = False, for
                 db.commit()
     except Exception as e:
         logger.error(f"Could not fetch current user profile: {e}")
-    
+
     for pl in client.current_user_playlists():
         pid = pl['id']
         name = pl.get('name')
@@ -87,12 +87,12 @@ def ingest_playlists(db, client: 'SpotifyAPIClient', use_year: bool = False, for
         owner = pl.get('owner', {})
         owner_id = owner.get('id') if owner else None
         owner_name = owner.get('display_name') if owner else None
-        
+
         # Check if this is a new playlist or existing
         existing_playlist = db.conn.execute(
             "SELECT snapshot_id FROM playlists WHERE id = ?", (pid,)
         ).fetchone()
-        
+
         if not force_refresh and not db.playlist_snapshot_changed(pid, snapshot_id, provider=PROVIDER_NAME):
             unchanged_playlists += 1
             # Still upsert playlist metadata (including owner fields) even when skipped
@@ -101,7 +101,7 @@ def ingest_playlists(db, client: 'SpotifyAPIClient', use_year: bool = False, for
             track_count = pl.get('tracks', {}).get('total', 0) if isinstance(pl.get('tracks'), dict) else 0
             logger.info(f"{click.style('[skip]', fg='yellow')} {name} ({track_count} tracks) - unchanged snapshot")
             continue
-        
+
         tracks = client.playlist_items(pid)
         simplified = []
         for idx, item in enumerate(tracks):
@@ -111,25 +111,25 @@ def ingest_playlists(db, client: 'SpotifyAPIClient', use_year: bool = False, for
             t_id = track.get('id')
             if not t_id:
                 continue
-            
+
             # Extract artist information
             artists = track.get('artists', [])
             artist_names = ', '.join(a['name'] for a in artists if a.get('name'))
             # Get the primary artist ID (first artist)
             artist_id = artists[0].get('id') if artists else None
-            
+
             # Extract album information
             album_data = track.get('album') or {}
             album_name = album_data.get('name')
             album_id = album_data.get('id')
-            
+
             # normalization
             nt, na, combo = normalize_title_artist(track.get('name') or '', artist_names)
             year = extract_year(album_data.get('release_date'))
             if use_year and year:
                 combo = f"{combo} {year}"
             simplified.append((idx, t_id, item.get('added_at')))
-            
+
             # Build track data
             track_data = {
                 'id': t_id,
@@ -143,13 +143,13 @@ def ingest_playlists(db, client: 'SpotifyAPIClient', use_year: bool = False, for
                 'normalized': combo,
                 'year': year,
             }
-            
+
             # Check if track is new or changed
             existing_track = db.conn.execute(
                 "SELECT name, artist, album, isrc, duration_ms, year FROM tracks WHERE id = ? AND provider = ?",
                 (t_id, PROVIDER_NAME)
             ).fetchone()
-            
+
             is_new_or_changed = False
             if not existing_track:
                 # Track doesn't exist - it's new
@@ -163,16 +163,16 @@ def ingest_playlists(db, client: 'SpotifyAPIClient', use_year: bool = False, for
                     existing_track['duration_ms'] != track_data['duration_ms'] or
                     existing_track['year'] != track_data['year']):
                     is_new_or_changed = True
-            
+
             db.upsert_track(track_data, provider=PROVIDER_NAME)
-            
+
             # Only add to changed_track_ids if track is actually new or modified
             if is_new_or_changed:
                 changed_track_ids.add(t_id)
         db.upsert_playlist(pid, name, snapshot_id, owner_id, owner_name, provider=PROVIDER_NAME)
         db.replace_playlist_tracks(pid, simplified, provider=PROVIDER_NAME)
         db.commit()
-        
+
         # Determine if new or updated
         if existing_playlist and not force_refresh:
             updated_playlists += 1
@@ -186,10 +186,10 @@ def ingest_playlists(db, client: 'SpotifyAPIClient', use_year: bool = False, for
             new_playlists += 1
             action = "new"
             color = "green"
-        
+
         logger.info(f"{click.style(f'[{action}]', fg=color)} {name} ({len(simplified)} tracks) | owner={owner_name or owner_id or 'unknown'}")
-    
-    total_processed = new_playlists + updated_playlists
+
+    new_playlists + updated_playlists
     t1 = time.time()
     summary = format_summary(
         new=new_playlists,
@@ -199,21 +199,21 @@ def ingest_playlists(db, client: 'SpotifyAPIClient', use_year: bool = False, for
         item_name="Playlists"
     )
     logger.info(summary)
-    
+
     return changed_track_ids
 
 
 def ingest_liked(db, client: 'SpotifyAPIClient', use_year: bool = False):
     """Ingest liked tracks from Spotify API into database.
-    
+
     Handles incremental updates by tracking the last added_at timestamp.
     Assumes Spotify returns liked tracks in reverse chronological order.
-    
+
     Args:
         db: Database instance
         client: SpotifyAPIClient instance
         use_year: Include year in normalization (from config matching.use_year)
-        
+
     Returns:
         set: Set of track IDs that were added or updated
     """
@@ -224,7 +224,7 @@ def ingest_liked(db, client: 'SpotifyAPIClient', use_year: bool = False):
     new_tracks = 0
     updated_tracks = 0
     changed_track_ids = set()  # Track IDs that were upserted
-    
+
     for item in client.liked_tracks():
         added_at = item.get('added_at')
         track = item.get('track') or {}
@@ -237,29 +237,29 @@ def ingest_liked(db, client: 'SpotifyAPIClient', use_year: bool = False):
         t_id = track.get('id')
         if not t_id:
             continue
-        
+
         # Check if track already exists and get current metadata
         existing_track = db.conn.execute(
             "SELECT name, artist, album, isrc, duration_ms, year FROM tracks WHERE id = ? AND provider = ?",
             (t_id, PROVIDER_NAME)
         ).fetchone()
-        
+
         # Extract artist information
         artists = track.get('artists', [])
         artist_names = ', '.join(a['name'] for a in artists if a.get('name'))
         # Get the primary artist ID (first artist)
         artist_id = artists[0].get('id') if artists else None
-        
+
         # Extract album information
         album_data = track.get('album') or {}
         album_name = album_data.get('name')
         album_id = album_data.get('id')
-        
+
         nt, na, combo = normalize_title_artist(track.get('name') or '', artist_names)
         year = extract_year(album_data.get('release_date'))
         if use_year and year:
             combo = f"{combo} {year}"
-        
+
         # Build track data
         track_data = {
             'id': t_id,
@@ -273,7 +273,7 @@ def ingest_liked(db, client: 'SpotifyAPIClient', use_year: bool = False):
             'normalized': combo,
             'year': year,
         }
-        
+
         # Check if track is new or changed
         is_new_or_changed = False
         if not existing_track:
@@ -288,14 +288,14 @@ def ingest_liked(db, client: 'SpotifyAPIClient', use_year: bool = False):
                 existing_track['duration_ms'] != track_data['duration_ms'] or
                 existing_track['year'] != track_data['year']):
                 is_new_or_changed = True
-        
+
         db.upsert_track(track_data, provider=PROVIDER_NAME)
         db.upsert_liked(t_id, added_at, provider=PROVIDER_NAME)
-        
+
         # Only add to changed_track_ids if track is actually new or modified
         if is_new_or_changed:
             changed_track_ids.add(t_id)
-        
+
         # Determine if new or updated for logging
         if not existing_track:
             new_tracks += 1
@@ -308,14 +308,14 @@ def ingest_liked(db, client: 'SpotifyAPIClient', use_year: bool = False):
         else:
             # Track exists but unchanged - skip logging
             continue
-        
+
         track_name = track.get('name', 'Unknown')
         logger.debug(f"{click.style(f'[{action}]', fg=color)} ❤️  {track_name} | {artist_names}")
-        
+
         if (not newest_seen) or added_at > newest_seen:
             newest_seen = added_at
-    
-    total_ingested = new_tracks + updated_tracks
+
+    new_tracks + updated_tracks
     t1 = time.time()
     summary = format_summary(
         new=new_tracks,
@@ -324,16 +324,16 @@ def ingest_liked(db, client: 'SpotifyAPIClient', use_year: bool = False):
         duration_seconds=t1 - t0,
         item_name="Liked tracks"
     )
-    
+
     # Add newest timestamp info if available
     if newest_seen:
         summary += f" (newest={newest_seen})"
-    
+
     logger.info(summary)
     if newest_seen and newest_seen != last_added_at:
         db.set_meta('liked_last_added_at', newest_seen)
     db.commit()
-    
+
     return changed_track_ids
 
 

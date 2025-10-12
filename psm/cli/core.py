@@ -43,21 +43,21 @@ def build(ctx: click.Context, no_report: bool, no_export: bool, watch: bool, deb
 
     Builds local artifacts from remote + local state without mutating the
     provider. Use --no-export or --no-report to skip phases for faster iteration.
-    
+
     With --watch, ONLY monitors library for changes and incrementally processes them.
     Does NOT run initial full build - run 'psm build' first without --watch to do
     initial setup. In watch mode: only changed files are scanned, matched, exported,
     and reported. This is much more efficient than re-running the entire pipeline.
     """
     cfg = ctx.obj
-    
+
     # Watch mode: skip initial build, only process changes
     if watch:
         from ..services.watch_build_service import run_watch_build, WatchBuildConfig
-        
+
         # Print styled header for watch mode
         click.echo(click.style("=== Entering watch mode ===", fg='cyan', bold=True))
-        
+
         watch_config = WatchBuildConfig(
             config=cfg,
             get_db_func=get_db,
@@ -65,10 +65,10 @@ def build(ctx: click.Context, no_report: bool, no_export: bool, watch: bool, deb
             skip_report=no_report,
             debounce_seconds=debounce
         )
-        
+
         run_watch_build(watch_config)
         return
-    
+
     # Normal build mode (non-watch): Run full pipeline
     ctx.invoke(provider_cmds.pull)
     ctx.invoke(scan_cmds.scan, since=None, deep=True, paths=(), watch=False, debounce=2.0)  # Use --deep for initial full scan
@@ -84,12 +84,12 @@ def build(ctx: click.Context, no_report: bool, no_export: bool, watch: bool, deb
 @click.pass_context
 def gui(ctx):
     """Launch the desktop GUI application.
-    
+
     Opens a graphical interface for managing playlists, viewing reports,
     and running sync operations with visual progress tracking.
-    
+
     Requires PySide6 to be installed (included in requirements.txt).
-    
+
     \b
     Features:
     - Browse playlists and tracks
@@ -97,13 +97,13 @@ def gui(ctx):
     - Run Pull, Scan, Match, Export, Report operations
     - Watch mode with live progress updates
     - Real-time log streaming
-    
+
     \b
     Example:
         psm gui
     """
     import sys
-    
+
     try:
         from psm.gui.app import main as gui_main
         sys.exit(gui_main())

@@ -22,26 +22,26 @@ class TrackRow:
     normalized: Optional[str]
     album_id: Optional[str] = None
     artist_id: Optional[str] = None
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for compatibility with existing code."""
         return asdict(self)
-    
+
     def keys(self):
         """Provide dict-like keys() method for compatibility."""
         return self.to_dict().keys()
-    
+
     def __getitem__(self, key: str) -> Any:
         """Provide dict-like subscript access for compatibility."""
         return getattr(self, key)
-    
+
     @classmethod
     def from_row(cls, row) -> TrackRow:
         """Convert sqlite3.Row to TrackRow.
-        
+
         Args:
             row: sqlite3.Row object with track columns
-            
+
         Returns:
             TrackRow instance
         """
@@ -75,26 +75,26 @@ class LibraryFileRow:
     mtime: Optional[float] = None
     partial_hash: Optional[str] = None
     bitrate_kbps: Optional[int] = None
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for compatibility with existing code."""
         return asdict(self)
-    
+
     def keys(self):
         """Provide dict-like keys() method for compatibility."""
         return self.to_dict().keys()
-    
+
     def __getitem__(self, key: str) -> Any:
         """Provide dict-like subscript access for compatibility."""
         return getattr(self, key)
-    
+
     @classmethod
     def from_row(cls, row) -> LibraryFileRow:
         """Convert sqlite3.Row to LibraryFileRow.
-        
+
         Args:
             row: sqlite3.Row object with library_file columns
-            
+
         Returns:
             LibraryFileRow instance
         """
@@ -123,26 +123,26 @@ class MatchRow:
     score: float
     method: str
     confidence: Optional[str] = None
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for compatibility with existing code."""
         return asdict(self)
-    
+
     def keys(self):
         """Provide dict-like keys() method for compatibility."""
         return self.to_dict().keys()
-    
+
     def __getitem__(self, key: str) -> Any:
         """Provide dict-like subscript access for compatibility."""
         return getattr(self, key)
-    
+
     @classmethod
     def from_row(cls, row) -> MatchRow:
         """Convert sqlite3.Row to MatchRow.
-        
+
         Args:
             row: sqlite3.Row object with match columns
-            
+
         Returns:
             MatchRow instance
         """
@@ -166,26 +166,26 @@ class PlaylistRow:
     owner_id: Optional[str] = None
     owner_name: Optional[str] = None
     track_count: int = 0
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for compatibility with existing code."""
         return asdict(self)
-    
+
     def keys(self):
         """Provide dict-like keys() method for compatibility."""
         return self.to_dict().keys()
-    
+
     def __getitem__(self, key: str) -> Any:
         """Provide dict-like subscript access for compatibility."""
         return getattr(self, key)
-    
+
     @classmethod
     def from_row(cls, row) -> PlaylistRow:
         """Convert sqlite3.Row to PlaylistRow.
-        
+
         Args:
             row: sqlite3.Row object with playlist columns
-            
+
         Returns:
             PlaylistRow instance
         """

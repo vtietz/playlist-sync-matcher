@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 @click.pass_context
 def analyze(ctx: click.Context, min_bitrate: int | None, max_issues: int, top_offenders: int):
     """Analyze local library quality (missing tags, low bitrate).
-    
+
     Automatically generates detailed reports:
     - metadata_quality.csv: All files with quality issues
     - metadata_quality.html: Sortable HTML table
@@ -28,11 +28,11 @@ def analyze(ctx: click.Context, min_bitrate: int | None, max_issues: int, top_of
     if min_bitrate is None:
         min_bitrate = cfg.get('library', {}).get('min_bitrate_kbps', 320)
     min_bitrate = int(min_bitrate) if min_bitrate is not None else 320
-    
+
     with get_db(cfg) as db:
         report = analyze_library_quality(db, min_bitrate_kbps=min_bitrate, max_issues=max_issues)
         print_quality_report(report, min_bitrate_kbps=min_bitrate, db=db, top_n=top_offenders)
-        
+
         # Auto-generate CSV and HTML reports
         if report.issues:
             out_dir = Path(cfg['reports']['directory'])

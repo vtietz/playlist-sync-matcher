@@ -7,10 +7,10 @@ from typing import Optional
 
 def format_boolean_check(value: bool) -> str:
     """Format boolean as check/cross mark.
-    
+
     Args:
         value: Boolean value
-        
+
     Returns:
         '✓' for True, '✗' for False
     """
@@ -19,47 +19,47 @@ def format_boolean_check(value: bool) -> str:
 
 def extract_confidence(method_str: str) -> str:
     """Extract confidence from method string.
-    
+
     Handles formats like:
     - 'MatchConfidence.CERTAIN' -> 'CERTAIN'
     - 'score:HIGH:89.50' -> 'HIGH'
-    
+
     Args:
         method_str: Method string from database
-        
+
     Returns:
         Confidence level (CERTAIN, HIGH, MEDIUM, LOW, UNKNOWN)
     """
     if not method_str:
         return "UNKNOWN"
-    
+
     # Handle enum format: "MatchConfidence.CERTAIN" -> "CERTAIN"
     if "MatchConfidence." in method_str:
         return method_str.split(".")[-1]
-    
+
     # Handle old score format: "score:HIGH:89.50" -> "HIGH"
     if ':' in method_str:
         parts = method_str.split(':')
         if len(parts) >= 2:
             return parts[1]
-    
+
     return "UNKNOWN"
 
 
 def get_quality_status_text(missing_count: int, bitrate_kbps: Optional[int] = None, min_bitrate: int = 320) -> str:
     """Get quality status text based on missing field count and bitrate.
-    
+
     Quality is determined by both metadata completeness and audio quality:
     - POOR: 3+ missing fields OR bitrate < 128 kbps
     - PARTIAL: 2 missing fields OR bitrate 128-191 kbps
     - GOOD: 1 missing field OR bitrate 192-319 kbps
     - EXCELLENT: No missing fields AND bitrate >= 320 kbps (or no bitrate info)
-    
+
     Args:
         missing_count: Number of missing metadata fields (0-4)
         bitrate_kbps: Audio bitrate in kbps (optional)
         min_bitrate: Minimum bitrate for EXCELLENT quality (default: 320)
-        
+
     Returns:
         Quality status text
     """
@@ -72,7 +72,7 @@ def get_quality_status_text(missing_count: int, bitrate_kbps: Optional[int] = No
         metadata_quality = "GOOD"
     else:
         metadata_quality = "EXCELLENT"
-    
+
     # Factor in bitrate if available
     if bitrate_kbps is not None:
         if bitrate_kbps < 128:
@@ -83,23 +83,23 @@ def get_quality_status_text(missing_count: int, bitrate_kbps: Optional[int] = No
             bitrate_quality = "GOOD"
         else:
             bitrate_quality = "EXCELLENT"
-        
+
         # Return the worse of the two qualities
         quality_order = {"POOR": 0, "PARTIAL": 1, "GOOD": 2, "EXCELLENT": 3}
         if quality_order[bitrate_quality] < quality_order[metadata_quality]:
             return bitrate_quality
         else:
             return metadata_quality
-    
+
     return metadata_quality
 
 
 def format_score_percentage(score: float) -> str:
     """Format match score as percentage.
-    
+
     Args:
         score: Match score (0.0 to 1.0)
-        
+
     Returns:
         Formatted percentage string (e.g., "89%")
     """
@@ -110,15 +110,15 @@ def format_score_percentage(score: float) -> str:
 
 def get_confidence_tooltip(method_str: str) -> str:
     """Generate tooltip explaining confidence level.
-    
+
     Args:
         method_str: Method string from database
-        
+
     Returns:
         Tooltip explaining the confidence level
     """
     confidence = extract_confidence(method_str)
-    
+
     tooltips = {
         "CERTAIN": "Exact match using unique identifiers (ISRC, Spotify ID)",
         "HIGH": "Strong match with high similarity score (>85%)",
@@ -126,24 +126,24 @@ def get_confidence_tooltip(method_str: str) -> str:
         "LOW": "Weak match with low similarity (<70%)",
         "UNKNOWN": "Matching method not recorded"
     }
-    
+
     return tooltips.get(confidence, "Confidence level unknown")
 
 
-def get_quality_tooltip(missing_count: int, bitrate_kbps: Optional[int], 
+def get_quality_tooltip(missing_count: int, bitrate_kbps: Optional[int],
                         missing_fields: Optional[list] = None) -> str:
     """Generate tooltip explaining quality assessment.
-    
+
     Args:
         missing_count: Number of missing metadata fields
         bitrate_kbps: Audio bitrate in kbps (optional)
         missing_fields: List of missing field names (optional)
-        
+
     Returns:
         Tooltip explaining the quality factors
     """
     parts = []
-    
+
     # Metadata completeness
     if missing_count == 0:
         parts.append("✓ All metadata present")
@@ -153,7 +153,7 @@ def get_quality_tooltip(missing_count: int, bitrate_kbps: Optional[int],
             parts.append(f"⚠ Missing: {fields_str}")
         else:
             parts.append(f"⚠ {missing_count} metadata field(s) missing")
-    
+
     # Bitrate quality
     if bitrate_kbps is not None:
         if bitrate_kbps >= 320:
@@ -166,7 +166,7 @@ def get_quality_tooltip(missing_count: int, bitrate_kbps: Optional[int],
             parts.append(f"✗ Low audio quality ({bitrate_kbps} kbps)")
     else:
         parts.append("ℹ Bitrate unknown")
-    
+
     return "\n".join(parts)
 
 

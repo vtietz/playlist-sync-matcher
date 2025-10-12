@@ -1,4 +1,3 @@
-from pathlib import Path
 from types import SimpleNamespace
 from psm.db import Database
 from psm.ingest.library import scan_library

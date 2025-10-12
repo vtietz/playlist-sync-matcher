@@ -10,6 +10,7 @@ IF /I "%~1"=="install" GOTO install
 
 IF /I "%~1"=="test" GOTO test
 IF /I "%~1"=="analyze" GOTO analyze
+IF /I "%~1"=="cleanup" GOTO cleanup
 IF /I "%~1"=="gui" GOTO gui
 IF /I "%~1"=="build-cli" GOTO build_cli
 IF /I "%~1"=="build-gui" GOTO build_gui
@@ -79,6 +80,22 @@ ECHO Running code analysis in %AMODE% mode...
 python scripts\analyze_code.py %ANALYZE_ARGS%
 GOTO :EOF
 
+:cleanup
+SHIFT
+SET CMODE=%1
+IF "%CMODE%"=="" SET CMODE=changed
+SHIFT
+SET CLEANUP_ARGS=%CMODE%
+:collect_cleanup
+IF "%~1"=="" GOTO run_cleanup
+SET CLEANUP_ARGS=%CLEANUP_ARGS% %1
+SHIFT
+GOTO collect_cleanup
+:run_cleanup
+ECHO Running code cleanup in %CMODE% mode...
+python scripts\cleanup_code.py %CLEANUP_ARGS%
+GOTO :EOF
+
 :gui
 python -m psm.gui
 GOTO :EOF
@@ -124,6 +141,10 @@ ECHO   analyze [mode]        Run code quality analysis (modes: all, changed, fil
 ECHO                         Examples: run.bat analyze          (analyze changed files)
 ECHO                                  run.bat analyze all      (analyze entire project)
 ECHO                                  run.bat analyze files psm\gui\main_window.py
+ECHO   cleanup [mode]        Clean code (whitespace, unused imports)
+ECHO                         Examples: run.bat cleanup          (clean changed files)
+ECHO                                  run.bat cleanup all      (clean entire project)
+ECHO                                  run.bat cleanup --dry-run all  (preview changes)
 ECHO   version               Show CLI version
 ECHO   py ^<args^>            Run python with given args inside venv (e.g. run.bat py tools\bulk_replace.py --from X --to Y)
 EXIT /B 0

@@ -1,5 +1,4 @@
 """Comprehensive edge case tests for the scoring engine."""
-import pytest
 from psm.match.scoring import evaluate_pair, ScoringConfig, MatchConfidence
 
 

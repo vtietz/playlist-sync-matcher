@@ -16,33 +16,33 @@ def write_playlist_detail_report(
     provider: str = 'spotify'
 ) -> tuple[Path, Path]:
     """Write playlist detail report to CSV and HTML.
-    
+
     Args:
         db: Database instance
         out_dir: Output directory for reports (will create playlists/ subdirectory)
         playlist_id: Playlist ID to generate report for
         provider: Provider name (default: spotify)
-    
+
     Returns:
         Tuple of (csv_path, html_path)
     """
     # Create playlists subdirectory
     playlist_dir = out_dir / "playlists"
     playlist_dir.mkdir(parents=True, exist_ok=True)
-    
+
     # Get playlist info
     playlist_info = db.conn.execute("""
         SELECT name, owner_name, id
         FROM playlists
         WHERE id = ?
     """, (playlist_id,)).fetchone()
-    
+
     if not playlist_info:
         raise ValueError(f"Playlist {playlist_id} not found in database")
-    
+
     # Fetch all tracks in playlist with match status
     tracks = db.conn.execute("""
-        SELECT 
+        SELECT
             t.name as track_name,
             t.artist,
             t.album,
@@ -61,15 +61,15 @@ def write_playlist_detail_report(
         WHERE pt.playlist_id = ? AND pt.provider = ?
         ORDER BY pt.position
     """, (playlist_id, provider)).fetchall()
-    
+
     # Write CSV
     csv_path = playlist_dir / f"{playlist_id}.csv"
     _write_csv(csv_path, tracks, playlist_info)
-    
+
     # Write HTML
     html_path = playlist_dir / f"{playlist_id}.html"
     _write_html(html_path, tracks, playlist_info, provider, playlist_id)
-    
+
     return (csv_path, html_path)
 
 
@@ -85,7 +85,7 @@ def _write_csv(csv_path: Path, tracks: list, playlist_info: dict) -> None:
             duration = format_duration(row['duration_ms'])
             status = "MATCHED" if row['is_matched'] else "UNMATCHED"
             local_file = row['file_path'] if row['file_path'] else ""
-            
+
             w.writerow([
                 idx,
                 row['track_id'],
@@ -109,26 +109,26 @@ def _write_html(
     """Write playlist detail HTML report."""
     links = get_link_generator(provider)
     html_rows = []
-    
+
     matched_count = sum(1 for t in tracks if t['is_matched'])
     total_count = len(tracks)
     unmatched_count = total_count - matched_count
     coverage_pct = (matched_count / total_count * 100) if total_count > 0 else 0
-    
+
     for idx, row in enumerate(tracks, 1):
         # Track ID (monospaced for easy copying)
         track_id_display = f'<code style="font-size: 0.85em">{row["track_id"]}</code>'
-        
+
         # Status badge
         if row['is_matched']:
             status_badge = '<span class="badge badge-success">MATCHED</span>'
         else:
             status_badge = '<span class="badge badge-danger">UNMATCHED</span>'
-        
+
         # Track link
         track_url = links.track_url(row['track_id'])
         track_link = f'<a href="{track_url}" target="_blank" title="Open in {provider.title()}">{row["track_name"]}</a>'
-        
+
         # Artist link (if artist_id available)
         artist_text = row['artist'] or ""
         if artist_text and row['artist_id']:
@@ -136,7 +136,7 @@ def _write_html(
             artist_link = f'<a href="{artist_url}" target="_blank" title="Open artist in {provider.title()}">{artist_text}</a>'
         else:
             artist_link = artist_text
-        
+
         # Album link (if album_id available)
         album_text = row['album'] or ""
         if album_text and row['album_id']:
@@ -144,16 +144,16 @@ def _write_html(
             album_link = f'<a href="{album_url}" target="_blank" title="Open album in {provider.title()}">{album_text}</a>'
         else:
             album_link = album_text
-        
+
         # Duration
         duration = format_duration(row['duration_ms'])
-        
+
         # Local file path (shortened for display)
         local_file = ""
         if row['file_path']:
             short_path = shorten_path(row['file_path'], max_length=60)
             local_file = f'<span class="path-short" title="{row["file_path"]}">{short_path}</span>'
-        
+
         html_rows.append([
             idx,
             track_id_display,
@@ -165,11 +165,11 @@ def _write_html(
             status_badge,
             local_file
         ])
-    
+
     # Create playlist header with Spotify link
     playlist_url = links.playlist_url(playlist_id)
     playlist_link = f'<a href="{playlist_url}" target="_blank" class="download-btn" style="margin-left: 10px;">🎵 Open in {provider.title()}</a>'
-    
+
     description = (
         f'<div style="margin-bottom: 20px;">'
         f'<strong>Owner:</strong> {playlist_info["owner_name"] or "Unknown"} | '
@@ -180,7 +180,7 @@ def _write_html(
         f'{playlist_link}'
         f'</div>'
     )
-    
+
     html_content = get_html_template(
         title=f"Playlist: {playlist_info['name']}",
         columns=["#", "Track ID", "Track", "Artist", "Album", "Duration", "Year", "Status", "Local File"],
@@ -189,5 +189,5 @@ def _write_html(
         default_order=[[0, "asc"]],  # Sort by track number
         csv_filename=f"{playlist_id}.csv"
     )
-    
+
     html_path.write_text(html_content, encoding='utf-8')

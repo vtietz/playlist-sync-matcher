@@ -59,33 +59,33 @@ class CandidateEvaluation:
 @dataclass
 class ScoringConfig:
     """Configuration for scoring engine weights, thresholds, and penalties.
-    
+
     Scoring Scenarios Analysis:
-    
+
     1. Perfect Match (CERTAIN = 100+):
        - Title exact (45) + Artist exact (30) + Album exact (18) + Year (6) + Duration tight (6) = 105
        - OR: Title exact + Artist exact + ISRC (15) + Duration = 96 (below threshold!)
-       
+
     2. Strong Match without Album/Year (HIGH = 90+):
        - Title exact (45) + Artist exact (30) + Duration tight (6) = 81
        - Minus: Album missing local (8) + Album missing remote (5) + Year missing (8) = -21
        - Total: 81 - 21 = 60 (falls to LOW, below MEDIUM!)
-       
+
     3. Strong Match with missing metadata requires ISRC:
        - Title exact (45) + Artist exact (30) + ISRC (15) + Duration (6) = 96 (HIGH)
        - Minus: Album penalties (13) + Year penalties (8) = -21
        - Total: 96 - 21 = 75 (REJECTED if below min_accept=65, but reaches LOW 65-78)
-       
+
     4. Fuzzy title but strong artist + duration:
        - Title fuzzy max (30) + Artist exact (30) + Duration (6) = 66 (LOW)
        - With album: +18 = 84 (HIGH)
-       
+
     Observation: Current thresholds are too strict for files with missing album/year
     but strong title/artist/duration matches. This is common for:
     - Singles (no album)
     - Compilations (year mismatch)
     - User-ripped files (incomplete metadata)
-    
+
     Recommended adjustments:
     - Lower confidence_certain_threshold: 100 → 95 (allows ISRC path without all metadata)
     - Lower confidence_high_threshold: 90 → 82 (allows exact title+artist+duration)
@@ -149,15 +149,15 @@ _VARIANT_PATTERN = re.compile(
 
 def _has_variant(title: str) -> bool:
     """Check if title contains variant keywords using regex.
-    
+
     Handles multiple contexts:
     - Word boundary matches: "Live at..."
     - Parenthesized: "(Live 2023)", "(Remastered)"
     - Bracketed: "[Radio Edit]", "[2024 Remaster]"
-    
+
     Args:
         title: Track title to check
-        
+
     Returns:
         True if variant keyword detected, False otherwise
     """

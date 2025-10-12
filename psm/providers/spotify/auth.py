@@ -33,9 +33,9 @@ _oauth_session: Optional[requests.Session] = None
 
 def _get_oauth_session() -> requests.Session:
     """Get or create a shared requests session for OAuth operations.
-    
+
     Provides connection pooling and reuse for better performance.
-    
+
     Returns:
         Configured requests.Session with common headers
     """
@@ -108,7 +108,7 @@ class OAuthHandler(BaseHTTPRequestHandler):
 
 class SpotifyAuthProvider(AuthProvider):
     """Spotify OAuth authentication provider implementing AuthProvider interface."""
-    
+
     def __init__(self, client_id: str, redirect_port: int, scope: str, cache_file: str = "tokens.json", redirect_path: str = "/callback", redirect_scheme: str = "http", redirect_host: str = "127.0.0.1", cert_file: str | None = None, key_file: str | None = None, timeout_seconds: int = 300):
         self.client_id = client_id
         self.redirect_port = redirect_port
@@ -175,7 +175,7 @@ class SpotifyAuthProvider(AuthProvider):
 
     def get_token(self, force: bool = False) -> Dict[str, Any]:
         """Get valid access token, triggering OAuth flow if needed.
-        
+
         Implements AuthProvider.get_token interface.
         """
         cached = self._load_cache()
@@ -191,7 +191,7 @@ class SpotifyAuthProvider(AuthProvider):
 
     def clear_cache(self) -> None:
         """Clear cached tokens, forcing re-authentication.
-        
+
         Implements AuthProvider.clear_cache interface.
         """
         if os.path.exists(self.cache_file):
@@ -251,7 +251,7 @@ class SpotifyAuthProvider(AuthProvider):
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
         logger.debug(f"[auth] Local server started on port {self.redirect_port}, waiting for authorization code...")
-        
+
         try:
             start = time.time()
             while server.code is None:
@@ -270,7 +270,7 @@ class SpotifyAuthProvider(AuthProvider):
             server.shutdown()
             thread.join(timeout=2.0)
             server.server_close()
-        
+
         # Optional basic state validation (ignore if Spotify didn't echo it for some reason)
         # Extract state from server.code path (handler did not store it; extend handler for completeness)
         # NOTE: For minimal intrusion, we re-parse last request URL from handler 'path'
@@ -294,7 +294,7 @@ class SpotifyAuthProvider(AuthProvider):
 
     def build_redirect_uri(self) -> str:
         """Build OAuth redirect URI.
-        
+
         Implements AuthProvider.build_redirect_uri interface.
         """
         return f"{self.redirect_scheme}://{self.redirect_host}:{self.redirect_port}{self.redirect_path}"

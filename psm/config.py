@@ -73,17 +73,17 @@ _DEFAULTS: Dict[str, Any] = {
 
 def validate_single_provider(cfg: Dict[str, Any]) -> str:
     """Validate that only one provider is configured and return its name.
-    
+
     Multi-provider mode is not yet supported. This ensures users don't
     accidentally configure multiple providers, which would lead to
     undefined behavior.
-    
+
     Args:
         cfg: Configuration dictionary
-        
+
     Returns:
         str: The name of the configured provider
-        
+
     Raises:
         ValueError: If no provider or multiple providers are configured
     """
@@ -93,13 +93,13 @@ def validate_single_provider(cfg: Dict[str, Any]) -> str:
             "No providers section in configuration. "
             "Please add a provider configuration (e.g., PSM__PROVIDERS__SPOTIFY__CLIENT_ID)"
         )
-    
+
     # Find all providers with a client_id configured
     configured = [
         name for name, conf in providers.items()
         if isinstance(conf, dict) and conf.get('client_id')
     ]
-    
+
     if len(configured) == 0:
         # Check if there are provider sections without client_id
         provider_names = list(providers.keys())
@@ -112,14 +112,14 @@ def validate_single_provider(cfg: Dict[str, Any]) -> str:
             "No provider configured. "
             "Please set a provider client_id (e.g., PSM__PROVIDERS__SPOTIFY__CLIENT_ID)"
         )
-    
+
     if len(configured) > 1:
         raise ValueError(
             f"Multiple providers configured: {', '.join(configured)}. "
             "Multi-provider mode is not yet supported. "
             "Please configure only one provider at a time."
         )
-    
+
     provider_name = configured[0]
     logger.debug(f"Using provider: {provider_name}")
     return provider_name
@@ -190,9 +190,9 @@ def load_config(explicit_file: str | None = None, overrides: Dict[str, Any] | No
         dotenv_values = _load_dotenv(Path('.env'))
     # Deep copy defaults to avoid cross-call mutation of nested dicts
     cfg: Dict[str, Any] = copy.deepcopy(_DEFAULTS)
-    
+
     # explicit_file parameter intentionally ignored (legacy signature retained)
-    
+
     # Environment variable prefix (legacy project prefix was different; now standardized on PSM__)
     prefix = "PSM__"
     # Merge .env and real environment (real env wins)
@@ -206,23 +206,23 @@ def load_config(explicit_file: str | None = None, overrides: Dict[str, Any] | No
         cursor[path_parts[-1].lower()] = coerce_scalar(value)
     if overrides:
         cfg = deep_merge(cfg, overrides)
-    
+
     # Configure logging based on log_level
     _configure_logging(cfg.get('log_level', 'INFO'))
-    
+
     return cfg
 
 
 def load_typed_config(explicit_file: str | None = None, overrides: Dict[str, Any] | None = None):
     """Load configuration as typed AppConfig object.
-    
+
     This provides type-safe access to configuration with IDE autocomplete support.
     For backward compatibility, use load_config() which returns a dict.
-    
+
     Args:
         explicit_file: Kept for compatibility, not used
         overrides: Dictionary of override values
-        
+
     Returns:
         AppConfig: Typed configuration object with .to_dict() for dict conversion
     """
@@ -233,7 +233,7 @@ def load_typed_config(explicit_file: str | None = None, overrides: Dict[str, Any
 
 def _configure_logging(level_str: str) -> None:
     """Configure Python logging based on configured level.
-    
+
     Only configures if not already set up (e.g., by GUI). This prevents
     overwriting the GUI's detailed logging format with timestamps.
     """
@@ -246,7 +246,7 @@ def _configure_logging(level_str: str) -> None:
         'CRITICAL': logging.CRITICAL,
     }
     level = level_map.get(level_str, logging.INFO)
-    
+
     # Only configure if no handlers exist (not already configured by GUI)
     root_logger = logging.getLogger()
     if not root_logger.handlers:

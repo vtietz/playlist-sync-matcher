@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class CommandCallbacks:
     """Callbacks for command lifecycle events.
-    
+
     This data class groups all callbacks to simplify the execute() signature
     and make the contract explicit.
     """
@@ -32,14 +32,14 @@ class CommandCallbacks:
 
 class CommandService:
     """Service for executing CLI commands with standardized lifecycle.
-    
+
     This service:
     - Enforces single command execution (reentrancy protection)
     - Allows read-only commands during watch mode (diagnose, config get, etc.)
     - Provides consistent pre/post execution hooks
     - Normalizes error messages for common issues
     - Delegates actual subprocess execution to CliExecutor
-    
+
     Example:
         service = CommandService(executor, enable_actions_callback)
         service.execute(
@@ -48,7 +48,7 @@ class CommandService:
             success_message="✓ Pull completed"
         )
     """
-    
+
     # Commands that are read-only and safe to run during watch mode
     READ_ONLY_COMMANDS = {
         'diagnose',      # Track matching diagnostics (reads DB only)
@@ -57,7 +57,7 @@ class CommandService:
         '--version',     # Version info
         '--help',        # Help text
     }
-    
+
     def __init__(
         self,
         executor,  # CliExecutor instance
@@ -65,7 +65,7 @@ class CommandService:
         watch_mode_controller = None  # Optional WatchModeController for state checking
     ):
         """Initialize command service.
-        
+
         Args:
             executor: CliExecutor instance for running commands
             enable_actions: Callback to enable/disable UI actions
@@ -75,23 +75,23 @@ class CommandService:
         self.enable_actions = enable_actions
         self.watch_mode_controller = watch_mode_controller
         self._log_buffer = []  # Buffer to capture log output for error detection
-    
+
     def _is_read_only_command(self, args: list[str]) -> bool:
         """Check if command is read-only and safe during watch mode.
-        
+
         Args:
             args: Command arguments (e.g., ['diagnose', 'track_id'])
-            
+
         Returns:
             True if command is read-only, False otherwise
         """
         if not args:
             return False
-        
+
         # Check first argument against whitelist
         command = args[0]
         return command in self.READ_ONLY_COMMANDS
-    
+
     def execute(
         self,
         args: list[str],
@@ -101,7 +101,7 @@ class CommandService:
         success_message: str = "✓ Command completed"
     ):
         """Execute CLI command with standardized lifecycle.
-        
+
         Args:
             args: Command arguments (e.g., ['pull', '--force'])
             on_log: Callback for log lines
@@ -111,7 +111,7 @@ class CommandService:
         """
         # Check if this is a read-only command that can run during watch mode
         is_read_only = self._is_read_only_command(args)
-        
+
         # Guard against overlapping commands (but allow read-only during watch mode)
         if self.executor.is_running():
             # Check if watch mode is active
@@ -128,24 +128,24 @@ class CommandService:
                 # Another command (not watch mode) is running
                 on_log("\n⚠ Another command is already running. Please wait...")
                 return
-        
+
         # Clear log buffer for new command
         self._log_buffer.clear()
-        
+
         # Pre-execution: disable actions and set running status
         self.enable_actions(False)
         on_execution_status(True, ' '.join(args))  # Show command being run
-        
+
         def on_log_with_capture(line: str):
             """Log callback that also captures to buffer for error analysis."""
             self._log_buffer.append(line)
             on_log(line)
-        
+
         def on_finished(exit_code: int):
             """Handle command completion."""
             self.enable_actions(True)
             on_execution_status(False, "")  # Set to Ready
-            
+
             if exit_code == 0:
                 # Success path
                 on_log(f"\n{success_message}")
@@ -154,18 +154,18 @@ class CommandService:
             else:
                 # Failure path with enhanced error messaging
                 on_log(f"\n✗ Command failed with exit code {exit_code}")
-                
+
                 # Analyze captured logs for known error patterns
                 self._provide_error_hints(on_log)
-                
+
                 on_log("\n📋 See log output above for details.")
-        
+
         def on_error(error: str):
             """Handle command error."""
             self.enable_actions(True)
             on_execution_status(False, "")  # Set to Ready
             on_log(f"\n✗ Error: {error}")
-        
+
         # Execute via executor (note: executor still expects on_progress callback)
         # We pass a no-op lambda since we're not using progress bars anymore
         self.executor.execute(
@@ -175,27 +175,27 @@ class CommandService:
             on_finished=on_finished,
             on_error=on_error,
         )
-    
+
     def is_running(self) -> bool:
         """Check if a command is currently running.
-        
+
         Returns:
             True if command is executing
         """
         return self.executor.is_running()
-    
+
     def stop_current(self):
         """Stop the currently running command."""
         self.executor.stop_current()
-    
+
     def _provide_error_hints(self, on_log: Callable[[str], None]):
         """Analyze log buffer and provide helpful error hints.
-        
+
         Args:
             on_log: Callback to send hint messages
         """
         log_text = '\n'.join(self._log_buffer)
-        
+
         # Known error pattern: MatchingConfig 'strategies' argument
         if "unexpected keyword argument 'strategies'" in log_text or \
            "MatchingConfig" in log_text and "strategies" in log_text:
@@ -205,7 +205,7 @@ class CommandService:
                 "Try using 'All' actions (Pull All, Match All, Export All) instead of 'Selected' actions."
             )
             return
-        
+
         # Known error pattern: File not found / path issues
         if "FileNotFoundError" in log_text or "No such file or directory" in log_text:
             on_log(
@@ -213,7 +213,7 @@ class CommandService:
                 "Ensure all required files exist and paths are correct."
             )
             return
-        
+
         # Known error pattern: Permission denied
         if "PermissionError" in log_text or "Permission denied" in log_text:
             on_log(
@@ -221,7 +221,7 @@ class CommandService:
                 "Check file permissions or try running with appropriate access rights."
             )
             return
-        
+
         # Known error pattern: Authentication/token issues
         if "authentication" in log_text.lower() or "token" in log_text.lower() or \
            "unauthorized" in log_text.lower():
@@ -230,7 +230,7 @@ class CommandService:
                 "Check your Spotify credentials and ensure tokens are valid."
             )
             return
-        
+
         # Known error pattern: Database locked
         if "database is locked" in log_text.lower():
             on_log(

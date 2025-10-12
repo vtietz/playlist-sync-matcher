@@ -11,7 +11,7 @@ from .debounced_search_field import DebouncedSearchField
 from .status_bar import StatusBar
 
 __all__ = [
-    'SortFilterTable', 'LogPanel', 'FilterBar', 'PlaylistFilterBar', 
-    'UnifiedTracksProxyModel', 'PlaylistProxyModel', 'LinkDelegate', 
+    'SortFilterTable', 'LogPanel', 'FilterBar', 'PlaylistFilterBar',
+    'UnifiedTracksProxyModel', 'PlaylistProxyModel', 'LinkDelegate',
     'FolderDelegate', 'DebouncedSearchField', 'StatusBar'
 ]

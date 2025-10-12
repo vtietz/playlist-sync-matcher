@@ -13,7 +13,7 @@ def write_csv_report(
     rows: Iterable[list[Any]]
 ) -> None:
     """Write CSV report with given headers and rows.
-    
+
     Args:
         csv_path: Path to output CSV file
         headers: List of column headers
@@ -34,7 +34,7 @@ def write_html_report(
     default_order: list[list[Any]] | None = None
 ) -> None:
     """Write HTML report using standard template.
-    
+
     Args:
         html_path: Path to output HTML file
         title: Report title
