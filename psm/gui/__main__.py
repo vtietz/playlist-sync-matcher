@@ -4,7 +4,8 @@ Usage:
     python -m psm.gui
 """
 import sys
-from .app import main
 
 if __name__ == "__main__":
+    # Use absolute import for PyInstaller compatibility
+    from psm.gui.app import main
     sys.exit(main())

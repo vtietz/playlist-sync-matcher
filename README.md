@@ -155,7 +155,9 @@ You'll need a Spotify Developer app to access your playlists:
 
 ### 2. Configure the Tool
 
-Create a `.env` file in the same directory as the executable (or project root):
+**First Run Experience 🆕**: When you run any command for the first time, the tool will detect if `.env` is missing and offer to create a template for you with all necessary settings.
+
+**Manual Setup**: Alternatively, create a `.env` file manually in the same directory as the executable (or project root):
 
 ```bash
 # .env - Minimum required configuration
@@ -236,6 +238,8 @@ xdg-open data/export/reports/index.html     # Linux
 ## Common Commands
 
 > **Note**: Replace `run.bat` with `./run.sh` on Linux/Mac, or use `psm-cli` if using standalone CLI executable, or launch `psm-gui` for the graphical interface.
+> 
+> **📖 For complete CLI reference**: See [docs/cli-reference.md](docs/cli-reference.md) for detailed command documentation, all options, and workflow examples.
 
 **Complete sync pipeline** (recommended for first-time and regular use):
 ```bash
@@ -720,6 +724,7 @@ MIT License
 Development, release process, and provider extension details live in the `docs/` directory:
 
 **User Guides:**
+- `docs/cli-reference.md` - Complete CLI command reference
 - `docs/architecture.md` - System design and components
 - `docs/matching.md` - Match algorithm and strategies
 - `docs/configuration.md` - All configuration options

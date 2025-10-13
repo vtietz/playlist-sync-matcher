@@ -143,25 +143,31 @@ GOTO :EOF
 
 :help
 ECHO Usage: run.bat [command]
-ECHO Commands:
-ECHO   pull ^| scan ^| match ^| export ^| report ^| report-albums ^| build
+ECHO.
+ECHO Application Commands:
+ECHO   pull ^| scan ^| match ^| export ^| report ^| report-albums
+ECHO   build                 Build playlists (sync Spotify to M3U)
 ECHO   gui                   Launch desktop GUI
+ECHO   version               Show CLI version
+ECHO.
+ECHO Development Commands:
+ECHO   install               Install or update dependencies
+ECHO   test [pytest args]    Run test suite (e.g. run.bat test -q tests\unit\)
+ECHO   analyze [mode]        Run code quality analysis (changed^|all^|files)
+ECHO                         Examples: run.bat analyze          (changed files only)
+ECHO                                  run.bat analyze all      (entire project)
+ECHO                                  run.bat analyze files psm\cli\core.py
+ECHO   cleanup [mode]        Clean code (whitespace, unused imports)
+ECHO                         Examples: run.bat cleanup          (changed files only)
+ECHO                                  run.bat cleanup all      (entire project)
+ECHO                                  run.bat cleanup --dry-run all  (preview)
+ECHO   clear-cache           Remove all Python cache files (__pycache__, *.pyc)
+ECHO   py ^<args^>            Run python with args inside venv
+ECHO.
+ECHO Build/Distribution Commands:
 ECHO   build-cli             Build CLI executable (dist\psm-cli.exe)
 ECHO   build-gui             Build GUI executable (dist\psm-gui.exe)
 ECHO   build-all             Build both CLI and GUI executables
-ECHO   install               Install or update dependencies
-ECHO   test [pytest args]    Run test suite (e.g. run.bat test -q tests\test_hashing.py)
-ECHO   analyze [mode]        Run code quality analysis (modes: all, changed, files)
-ECHO                         Examples: run.bat analyze          (analyze changed files)
-ECHO                                  run.bat analyze all      (analyze entire project)
-ECHO                                  run.bat analyze files psm\gui\main_window.py
-ECHO   cleanup [mode]        Clean code (whitespace, unused imports)
-ECHO                         Examples: run.bat cleanup          (clean changed files)
-ECHO                                  run.bat cleanup all      (clean entire project)
-ECHO                                  run.bat cleanup --dry-run all  (preview changes)
-ECHO   clear-cache           Remove all Python cache files (__pycache__, *.pyc)
-ECHO   version               Show CLI version
-ECHO   py ^<args^>            Run python with given args inside venv (e.g. run.bat py tools\bulk_replace.py --from X --to Y)
 EXIT /B 0
 
 :version

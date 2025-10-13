@@ -1,4 +1,5 @@
 from __future__ import annotations
+import sys
 import click
 from pathlib import Path
 import copy
@@ -6,6 +7,23 @@ from ..config import load_typed_config
 from ..version import __version__
 from ..db import Database
 from ..providers import get_provider_instance
+
+
+def check_first_run() -> bool:
+    """Check for first run and handle .env creation.
+    
+    Returns:
+        True if app should continue, False if should exit
+    """
+    try:
+        from ..utils.first_run import check_first_run_cli
+        return check_first_run_cli()
+    except Exception as e:
+        # If first-run check fails, log warning and continue
+        # (don't block users with working env vars)
+        import logging
+        logging.warning(f"First-run check failed: {e}")
+        return True
 
 
 def get_provider_config(cfg: dict, provider_name: str | None = None) -> dict:
@@ -80,6 +98,12 @@ def cli(ctx: click.Context, config_file: str | None, progress: bool | None, prog
     Note: SQLite WAL mode enables safe concurrent operations.
     You can run pull, scan, and match simultaneously in different terminals.
     """
+    # Check for first run and offer to create .env
+    # Only check if not running --version (which doesn't need config)
+    if ctx.invoked_subcommand is not None:
+        if not check_first_run():
+            ctx.exit(1)
+    
     if hasattr(ctx, 'obj') and isinstance(ctx.obj, dict):
         ctx.obj = ctx.obj
     else:

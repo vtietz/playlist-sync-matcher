@@ -46,6 +46,18 @@ case "${1:-}" in
         echo "Cache cleared!"
         exit 0
         ;;
+    analyze)
+        shift
+        echo "Running code quality analysis..."
+        python scripts/analyze_code.py "$@"
+        exit 0
+        ;;
+    cleanup)
+        shift
+        echo "Running code cleanup..."
+        python scripts/cleanup_code.py "$@"
+        exit 0
+        ;;
     build-cli)
         echo "Building CLI executable with PyInstaller..."
         pyinstaller psm-cli.spec
@@ -77,17 +89,31 @@ case "${1:-}" in
         ;;
     help)
         echo "Usage: ./run.sh [command]"
-        echo "Commands:"
-        echo "  pull | scan | match | export | report | report-albums | build"
+        echo ""
+        echo "Application Commands:"
+        echo "  pull | scan | match | export | report | report-albums"
+        echo "  build                 Build playlists (sync Spotify to M3U)"
         echo "  gui                   Launch desktop GUI"
+        echo "  version               Show CLI version"
+        echo ""
+        echo "Development Commands:"
+        echo "  install               Install or update dependencies"
+        echo "  test [pytest args]    Run test suite (e.g. ./run.sh test -q tests/unit/)"
+        echo "  analyze [mode]        Run code quality analysis (changed|all|files)"
+        echo "                        Examples: ./run.sh analyze          (changed files only)"
+        echo "                                 ./run.sh analyze all      (entire project)"
+        echo "                                 ./run.sh analyze files psm/cli/core.py"
+        echo "  cleanup [mode]        Clean code (whitespace, unused imports)"
+        echo "                        Examples: ./run.sh cleanup          (changed files only)"
+        echo "                                 ./run.sh cleanup all      (entire project)"
+        echo "                                 ./run.sh cleanup --dry-run all  (preview)"
+        echo "  clear-cache           Remove all Python cache files (__pycache__, *.pyc)"
+        echo "  py <args>             Run python with args inside venv"
+        echo ""
+        echo "Build/Distribution Commands:"
         echo "  build-cli             Build CLI executable (dist/psm-cli)"
         echo "  build-gui             Build GUI executable (dist/psm-gui)"
         echo "  build-all             Build both CLI and GUI executables"
-        echo "  install               Install or update dependencies"
-        echo "  test [pytest args]    Run test suite (e.g. ./run.sh test -q tests/test_hashing.py)"
-        echo "  clear-cache           Remove all Python cache files (__pycache__, *.pyc)"
-        echo "  version               Show CLI version"
-        echo "  py <args>             Run python with given args inside venv"
         exit 0
         ;;
     version)

@@ -50,6 +50,16 @@ def main() -> int:
     setup_logging()
     logger.info("Starting Playlist Sync Matcher GUI...")
 
+    # Check for first run before creating Qt application
+    from ..utils.first_run import check_env_exists
+    if not check_env_exists():
+        # Need to show GUI dialog, so create minimal QApplication
+        app = QApplication([])
+        from ..utils.first_run import check_first_run_gui
+        if not check_first_run_gui():
+            logger.info("User needs to configure .env file. Exiting.")
+            return 1
+
     # Create Qt application
     app = QApplication(sys.argv)
     app.setApplicationName("Playlist Sync Matcher")
