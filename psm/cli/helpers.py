@@ -1,5 +1,6 @@
 from __future__ import annotations
 import sys
+import os
 import click
 from pathlib import Path
 import copy
@@ -15,6 +16,10 @@ def check_first_run() -> bool:
     Returns:
         True if app should continue, False if should exit
     """
+    # Skip check if running from GUI (GUI handles its own first-run experience)
+    if os.environ.get('PSM_SKIP_FIRST_RUN_CHECK'):
+        return True
+    
     try:
         from ..utils.first_run import check_first_run_cli
         return check_first_run_cli()

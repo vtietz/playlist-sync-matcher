@@ -47,6 +47,7 @@ class CliRunner(QThread):
             # Set environment to force UTF-8 encoding for subprocess
             env = os.environ.copy()
             env['PYTHONIOENCODING'] = 'utf-8'  # Force UTF-8 encoding for Python subprocess
+            env['PSM_SKIP_FIRST_RUN_CHECK'] = '1'  # Skip first-run .env check when running from GUI
 
             # Start subprocess with line-buffered output and UTF-8 encoding
             self.process = subprocess.Popen(
