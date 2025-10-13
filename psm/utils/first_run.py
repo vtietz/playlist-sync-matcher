@@ -4,6 +4,9 @@ Detects if this is the first run and helps users create a .env file.
 """
 from pathlib import Path
 import sys
+import os
+import subprocess
+import platform
 
 
 def get_env_template() -> str:
@@ -87,8 +90,42 @@ def prompt_create_env() -> bool:
         print("Please enter 'y' or 'n'")
 
 
-def create_env_file() -> bool:
+def open_file_in_editor(file_path: Path) -> bool:
+    """Open file in the system's default text editor.
+    
+    Args:
+        file_path: Path to file to open
+        
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        system = platform.system()
+        file_str = str(file_path.absolute())
+        
+        if system == 'Windows':
+            # Try os.startfile first (uses default association)
+            try:
+                os.startfile(file_str)
+            except OSError:
+                # Fallback to notepad if no default association
+                subprocess.run(['notepad.exe', file_str], check=True)
+        elif system == 'Darwin':  # macOS
+            subprocess.run(['open', file_str], check=True)
+        else:  # Linux and others
+            subprocess.run(['xdg-open', file_str], check=True)
+        
+        return True
+    except Exception as e:
+        print(f"Warning: Could not open file in editor: {e}")
+        return False
+
+
+def create_env_file(open_in_editor: bool = False) -> bool:
     """Create .env template file.
+    
+    Args:
+        open_in_editor: If True, open the file in default editor after creation
     
     Returns:
         True if successful, False otherwise
@@ -108,6 +145,11 @@ def create_env_file() -> bool:
         print("  4. Adjust other settings as needed")
         print("  5. Run this application again")
         print("\nFor detailed configuration help, see: docs/configuration.md")
+        
+        if open_in_editor:
+            if open_file_in_editor(env_path):
+                print(f"\n✓ Opened {env_path.name} in your default text editor")
+        
         return True
     except Exception as e:
         print(f"\n✗ Failed to create .env file: {e}")
@@ -125,7 +167,12 @@ def check_first_run_cli() -> bool:
     
     # No .env found - offer to create one
     if prompt_create_env():
-        create_env_file()
+        if create_env_file():
+            # Ask if they want to open it now
+            response = input("\nOpen .env in your default text editor now? [Y/n]: ").strip().lower()
+            if response in ('', 'y', 'yes'):
+                open_file_in_editor(Path('.env'))
+        
         print("\nPlease configure your .env file and run the application again.")
         return False  # Exit so user can configure
     else:
@@ -179,6 +226,7 @@ def check_first_run_gui(parent_widget=None) -> bool:
         
         if clicked == create_btn:
             if create_env_file():
+                # Show success dialog with "Open File" option
                 info = QMessageBox(parent_widget)
                 info.setIcon(QMessageBox.Information)
                 info.setWindowTitle("Configuration Template Created")
@@ -190,7 +238,16 @@ def check_first_run_gui(parent_widget=None) -> bool:
                     "- Your music library paths\n\n"
                     "Then restart the application."
                 )
+                
+                open_btn = info.addButton("Open File", QMessageBox.AcceptRole)
+                ok_btn = info.addButton(QMessageBox.Ok)
+                info.setDefaultButton(open_btn)
+                
                 info.exec()
+                
+                if info.clickedButton() == open_btn:
+                    open_file_in_editor(Path('.env'))
+            
             return False  # Exit so user can configure
         elif clicked == continue_btn:
             return True  # User wants to try with env vars

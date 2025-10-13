@@ -8,7 +8,8 @@ from pathlib import Path
 from PySide6.QtWidgets import QApplication, QMessageBox
 from PySide6.QtCore import Qt
 
-from psm.cli.helpers import load_typed_config, get_db
+from psm.config import load_typed_config
+from psm.cli.shared import get_db
 from .main_window import MainWindow
 from .data_facade import DataFacade
 from .runner import CliExecutor

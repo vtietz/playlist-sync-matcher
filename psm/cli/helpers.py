@@ -9,6 +9,9 @@ from ..version import __version__
 from ..db import Database
 from ..providers import get_provider_instance
 
+# Import shared utilities (also used by GUI)
+from .shared import get_db
+
 
 def check_first_run() -> bool:
     """Check for first run and handle .env creation.
@@ -119,10 +122,6 @@ def cli(ctx: click.Context, config_file: str | None, progress: bool | None, prog
         ctx.obj.setdefault('logging', {})['progress_enabled'] = progress
     if progress_interval is not None:
         ctx.obj.setdefault('logging', {})['progress_interval'] = progress_interval
-
-
-def get_db(cfg):
-    return Database(Path(cfg['database']['path']))
 
 
 def build_auth(cfg):
