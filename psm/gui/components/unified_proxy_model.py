@@ -52,6 +52,9 @@ class UnifiedTracksProxyModel(QSortFilterProxyModel):
         self._quality_filter: Optional[str] = None
         self._search_text: str = ""
 
+        # Batch update flag (for performance optimization)
+        self._in_batch: bool = False
+
         # Cached column indices (populated on first filter)
         self._col_cache: Optional[dict] = None
 
@@ -87,6 +90,25 @@ class UnifiedTracksProxyModel(QSortFilterProxyModel):
         self._col_cache = cols
         return cols
 
+    def begin_batch(self):
+        """Begin batch filter update.
+
+        Suppresses individual invalidateFilter() calls until end_batch().
+        Used to optimize bulk filter changes (e.g., reset all filters).
+        """
+        self._in_batch = True
+
+    def end_batch(self):
+        """End batch filter update and trigger single invalidation.
+
+        Performs one consolidated invalidateFilter() for all changes
+        made during the batch.
+        """
+        self._in_batch = False
+        self.beginFilterChange()
+        self.invalidateFilter()
+        self.endFilterChange()
+
     def set_playlist_filter(self, playlist_name: Optional[str], track_ids: Optional[Set[str]] = None):
         """Set playlist filter.
 
@@ -94,12 +116,14 @@ class UnifiedTracksProxyModel(QSortFilterProxyModel):
             playlist_name: Playlist name to filter by, or None for all playlists
             track_ids: Set of track IDs in the playlist (for efficient filtering)
         """
-        self.beginFilterChange()
         self._playlist_filter = playlist_name
         self._playlist_track_ids = track_ids
         self._col_cache = None  # Invalidate cache when source model might change
-        self.invalidateFilter()
-        self.endFilterChange()
+
+        if not self._in_batch:
+            self.beginFilterChange()
+            self.invalidateFilter()
+            self.endFilterChange()
 
     def set_status_filter(self, status: str):
         """Set match status filter.
@@ -107,10 +131,12 @@ class UnifiedTracksProxyModel(QSortFilterProxyModel):
         Args:
             status: "all", "matched", or "unmatched"
         """
-        self.beginFilterChange()
         self._status_filter = status
-        self.invalidateFilter()
-        self.endFilterChange()
+
+        if not self._in_batch:
+            self.beginFilterChange()
+            self.invalidateFilter()
+            self.endFilterChange()
 
     def set_artist_filter(self, artist: Optional[str]):
         """Set artist filter.
@@ -118,10 +144,12 @@ class UnifiedTracksProxyModel(QSortFilterProxyModel):
         Args:
             artist: Artist name to filter by, or None for all artists
         """
-        self.beginFilterChange()
         self._artist_filter = artist
-        self.invalidateFilter()
-        self.endFilterChange()
+
+        if not self._in_batch:
+            self.beginFilterChange()
+            self.invalidateFilter()
+            self.endFilterChange()
 
     def set_album_filter(self, album: Optional[str]):
         """Set album filter.
@@ -129,10 +157,12 @@ class UnifiedTracksProxyModel(QSortFilterProxyModel):
         Args:
             album: Album name to filter by, or None for all albums
         """
-        self.beginFilterChange()
         self._album_filter = album
-        self.invalidateFilter()
-        self.endFilterChange()
+
+        if not self._in_batch:
+            self.beginFilterChange()
+            self.invalidateFilter()
+            self.endFilterChange()
 
     def set_year_filter(self, year: Optional[int]):
         """Set year filter.
@@ -140,10 +170,12 @@ class UnifiedTracksProxyModel(QSortFilterProxyModel):
         Args:
             year: Year to filter by, or None for all years
         """
-        self.beginFilterChange()
         self._year_filter = year
-        self.invalidateFilter()
-        self.endFilterChange()
+
+        if not self._in_batch:
+            self.beginFilterChange()
+            self.invalidateFilter()
+            self.endFilterChange()
 
     def set_confidence_filter(self, confidence: Optional[str]):
         """Set confidence filter.
@@ -151,11 +183,12 @@ class UnifiedTracksProxyModel(QSortFilterProxyModel):
         Args:
             confidence: Confidence level to filter by (CERTAIN/HIGH/MEDIUM/LOW), or None for all
         """
-        logger.debug(f"Setting confidence filter: {confidence}")
-        self.beginFilterChange()
         self._confidence_filter = confidence
-        self.invalidateFilter()
-        self.endFilterChange()
+
+        if not self._in_batch:
+            self.beginFilterChange()
+            self.invalidateFilter()
+            self.endFilterChange()
 
     def set_quality_filter(self, quality: Optional[str]):
         """Set quality filter.
@@ -163,11 +196,12 @@ class UnifiedTracksProxyModel(QSortFilterProxyModel):
         Args:
             quality: Quality level to filter by (EXCELLENT/GOOD/PARTIAL/POOR), or None for all
         """
-        logger.debug(f"Setting quality filter: {quality}")
-        self.beginFilterChange()
         self._quality_filter = quality
-        self.invalidateFilter()
-        self.endFilterChange()
+
+        if not self._in_batch:
+            self.beginFilterChange()
+            self.invalidateFilter()
+            self.endFilterChange()
 
     def set_search_text_debounced(self, text: str, delay_ms: int = 300):
         """Set search text with debouncing.
@@ -195,10 +229,12 @@ class UnifiedTracksProxyModel(QSortFilterProxyModel):
         Args:
             text: Search text
         """
-        self.beginFilterChange()
         self._search_text = text
-        self.invalidateFilter()
-        self.endFilterChange()
+
+        if not self._in_batch:
+            self.beginFilterChange()
+            self.invalidateFilter()
+            self.endFilterChange()
 
     def filterAcceptsRow(self, source_row: int, source_parent) -> bool:
         """Determine if row passes all filter criteria.
@@ -285,11 +321,6 @@ class UnifiedTracksProxyModel(QSortFilterProxyModel):
                     # Unmatched track - exclude from confidence filter
                     return False
                 confidence = extract_confidence(method)
-                logger.debug(
-                    f"Confidence filter check: method='{method}', "
-                    f"extracted='{confidence}', filter='{self._confidence_filter}', "
-                    f"match={confidence == self._confidence_filter}"
-                )
                 if confidence != self._confidence_filter:
                     return False
 
@@ -299,11 +330,6 @@ class UnifiedTracksProxyModel(QSortFilterProxyModel):
                 missing_count = row_data.get('missing_metadata_count', 0)
                 bitrate = row_data.get('bitrate_kbps')
                 quality = get_quality_status_text(missing_count, bitrate)
-                logger.debug(
-                    f"Quality filter check: missing_count={missing_count}, "
-                    f"bitrate={bitrate}, quality='{quality}', "
-                    f"filter='{self._quality_filter}', match={quality == self._quality_filter}"
-                )
                 if quality != self._quality_filter:
                     return False
 

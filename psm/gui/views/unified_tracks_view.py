@@ -118,6 +118,7 @@ class UnifiedTracksView(QWidget):
         self._playlist_fetch_callback: Optional[Callable[[List[str]], Dict[str, str]]] = None
         self._playlist_track_ids_callback: Optional[Callable[[str], Set[str]]] = None  # Get track IDs for playlist name
         self._playlists_loaded = False
+        self._is_resetting = False  # Flag to prevent lazy loading during filter reset
         self._lazy_load_timer = QTimer()
         self._lazy_load_timer.setSingleShot(True)
         self._lazy_load_timer.timeout.connect(self._load_visible_playlists)
@@ -239,14 +240,54 @@ class UnifiedTracksView(QWidget):
                     self.track_selected.emit(track_data['id'])
 
     def clear_filters(self):
-        """Reset all filters to default state."""
-        self.filter_bar.clear_filters()
-        self.proxy_model.set_playlist_filter(None, None)
-        self.proxy_model.set_status_filter("all")
-        self.proxy_model.set_artist_filter(None)
-        self.proxy_model.set_album_filter(None)
-        self.proxy_model.set_year_filter(None)
-        self.proxy_model.set_search_text_immediate("")
+        """Reset all filters to default state.
+
+        Performance optimized:
+        - Suspends table updates during reset
+        - Disables DynamicSortFilter to prevent repeated proxy evaluations
+        - Uses batch mode for proxy filter updates
+        - Temporarily disables sorting to avoid intermediate re-sorts
+        - Emits single filter change event from filter bar
+        """
+        # Set reset flag to prevent lazy playlist loading
+        self._is_resetting = True
+
+        try:
+            # Suspend table painting during reset
+            self.tracks_table.setUpdatesEnabled(False)
+
+            # Disable dynamic sort/filter to prevent repeated evaluations
+            self.proxy_model.setDynamicSortFilter(False)
+
+            # Temporarily disable sorting to avoid intermediate re-sorts
+            self.tracks_table.setSortingEnabled(False)
+
+            # Clear filter bar (emits single filter_changed signal)
+            self.filter_bar.clear_filters()
+
+            # Batch update proxy filters (single invalidateFilter)
+            self.proxy_model.begin_batch()
+            self.proxy_model.set_playlist_filter(None, None)
+            self.proxy_model.set_status_filter("all")
+            self.proxy_model.set_artist_filter(None)
+            self.proxy_model.set_album_filter(None)
+            self.proxy_model.set_year_filter(None)
+            self.proxy_model.set_confidence_filter(None)
+            self.proxy_model.set_quality_filter(None)
+            self.proxy_model.set_search_text_immediate("")
+            self.proxy_model.end_batch()
+
+            # Re-enable dynamic sort/filter
+            self.proxy_model.setDynamicSortFilter(True)
+
+            # Re-enable sorting and apply initial sort
+            self.tracks_table.setSortingEnabled(True)
+            self.tracks_table.sortByColumn(1, Qt.AscendingOrder)
+
+        finally:
+            # Re-enable table updates
+            self.tracks_table.setUpdatesEnabled(True)
+            self._is_resetting = False
 
     def populate_filter_options(
         self,
@@ -400,6 +441,10 @@ class UnifiedTracksView(QWidget):
 
     def _load_visible_playlists(self):
         """Load playlist names for currently visible rows (lazy loading)."""
+        # Skip if currently resetting filters
+        if self._is_resetting:
+            return
+
         # Skip if currently streaming data
         if getattr(self, '_is_streaming', False):
             return

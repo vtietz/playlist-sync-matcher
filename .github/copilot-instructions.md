@@ -96,7 +96,8 @@ return result
 6. ✅ Resources cleaned up properly (threads, sockets, files)
 7. ✅ README updated if functionality changed
 8. ✅ Any new workflow steps use virtualenv-safe invocation (`run.bat` or install + python -m) and avoid raw system Python when project dependencies are required.
-9. ✅ **Code quality analysis passed** - Run `run.bat analyze` after bigger implementations to check:
+9. ✅ **Code quality analysis passed** - Run code analysis after bigger implementations to check:
+   - **Command**: `run.bat py scripts\analyze_code.py` (or `run.bat py -m scripts.analyze_code`)
    - Complexity (Lizard): Functions should have CCN ≤ 15 and NLOC ≤ 100
    - Style (flake8): No style violations, max line length 120
    - Types (mypy - optional): Type hints where applicable
@@ -104,9 +105,9 @@ return result
 ## Code Quality Analysis
 * **When to Run**: After bigger implementations, refactorings, or before committing significant changes
 * **How to Run**:
-  - `run.bat analyze` - Analyze only changed files (default, quick)
-  - `run.bat analyze all` - Analyze entire project (comprehensive)
-  - `run.bat analyze files <path>` - Analyze specific files
+  - `run.bat py scripts\analyze_code.py` - Analyze only changed files (default, quick)
+  - `run.bat py scripts\analyze_code.py all` - Analyze entire project (comprehensive)
+  - `run.bat py scripts\analyze_code.py files <path>` - Analyze specific files
 * **What to Check**:
   - **Complexity (Lizard)**: Functions with CCN > 15 need refactoring. Extract logic into smaller functions.
   - **Function Length**: Functions > 100 lines (NLOC) should be split into smaller, focused functions.
@@ -119,17 +120,17 @@ return result
   - **Import Issues**: Remove unused imports, organize imports logically
 
 ## Code Cleanup
-* **Safe Automated Cleanup**: Use `run.bat cleanup` to fix low-hanging fruit automatically
+* **Safe Automated Cleanup**: Use the cleanup script to fix low-hanging fruit automatically
 * **What It Fixes**:
   - Trailing whitespace on lines
   - Whitespace-only blank lines
   - Missing newline at end of file
   - Unused imports (safe removal only)
 * **How to Use**:
-  - `run.bat cleanup --dry-run changed` - Preview changes before applying
-  - `run.bat cleanup changed` - Clean only changed files (safe for daily use)
-  - `run.bat cleanup all` - Clean entire project (use before major commits)
-  - `run.bat cleanup --skip-imports all` - Only clean whitespace, skip import removal
+  - `run.bat py scripts\cleanup_code.py --dry-run changed` - Preview changes before applying
+  - `run.bat py scripts\cleanup_code.py changed` - Clean only changed files (safe for daily use)
+  - `run.bat py scripts\cleanup_code.py all` - Clean entire project (use before major commits)
+  - `run.bat py scripts\cleanup_code.py --skip-imports all` - Only clean whitespace, skip import removal
 * **Safety**: Only performs safe, non-breaking transformations. Does NOT change code structure, line length, or indentation.
 
 # Required final actions

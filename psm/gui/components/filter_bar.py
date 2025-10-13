@@ -259,15 +259,32 @@ class FilterBar(QWidget):
         self.year_combo.populate_items(year_items, sort=False)
 
     def clear_filters(self):
-        """Reset all filters to default state."""
-        self.track_status_combo.setCurrentIndex(0)
-        self.playlist_combo.clear_selection()
-        self.artist_combo.clear_selection()
-        self.album_combo.clear_selection()
-        self.year_combo.clear_selection()
-        self.confidence_combo.setCurrentIndex(0)
-        self.quality_combo.setCurrentIndex(0)
-        self.search_field.clear()
+        """Reset all filters to default state.
+
+        Performance optimized: blocks signals during reset and emits
+        a single filter_changed event after all widgets are cleared.
+        """
+        # Block signals on all filter widgets during reset
+        with QSignalBlocker(self.track_status_combo), \
+             QSignalBlocker(self.playlist_combo), \
+             QSignalBlocker(self.artist_combo), \
+             QSignalBlocker(self.album_combo), \
+             QSignalBlocker(self.year_combo), \
+             QSignalBlocker(self.confidence_combo), \
+             QSignalBlocker(self.quality_combo), \
+             QSignalBlocker(self.search_field):
+            # Reset all widgets without emitting signals
+            self.track_status_combo.setCurrentIndex(0)
+            self.playlist_combo.clear_selection()
+            self.artist_combo.clear_selection()
+            self.album_combo.clear_selection()
+            self.year_combo.clear_selection()
+            self.confidence_combo.setCurrentIndex(0)
+            self.quality_combo.setCurrentIndex(0)
+            self.search_field.clear()
+
+        # Emit single filter_changed signal after all resets complete
+        self.filter_changed.emit()
 
     def set_playlist_filter(self, playlist_name: Optional[str]):
         """Programmatically set playlist filter (for bidirectional sync).

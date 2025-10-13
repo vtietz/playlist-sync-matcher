@@ -1,7 +1,7 @@
 """Controller for async data loading and refresh operations."""
 from __future__ import annotations
 from typing import TYPE_CHECKING, Optional, List, Dict, Any, Callable
-from PySide6.QtCore import QObject, QTimer
+from PySide6.QtCore import QObject, QTimer, Qt
 import logging
 
 from ..services import TrackStreamingService
@@ -193,17 +193,26 @@ class DataRefreshController(QObject):
             if 'tracks' in results:
                 # Use streaming for large datasets to avoid UI freeze
                 track_count = len(results['tracks'])
-                is_streaming = track_count > 5000
+                is_streaming = track_count > 2000  # Lowered threshold for better UX
 
                 if is_streaming:
                     logger.info(f"Using streaming mode for {track_count} tracks")
                     self._load_tracks_streaming(results['tracks'], results.get('playlists', []))
                 else:
                     logger.info(f"Using direct load for {track_count} tracks")
+                    # Disable sorting and dynamic filter during bulk update
+                    self.window.unified_tracks_view.tracks_table.setSortingEnabled(False)
+                    self.window.unified_tracks_view.proxy_model.setDynamicSortFilter(False)
+
                     self.window.update_unified_tracks(
                         results['tracks'],
                         results.get('playlists', [])
                     )
+
+                    # Re-enable and apply initial sort
+                    self.window.unified_tracks_view.proxy_model.setDynamicSortFilter(True)
+                    self.window.unified_tracks_view.tracks_table.setSortingEnabled(True)
+                    self.window.unified_tracks_view.tracks_table.sortByColumn(1, Qt.AscendingOrder)
 
             # Update filter options (no owners needed)
             if all(k in results for k in ['artists', 'albums', 'years']):
@@ -290,17 +299,26 @@ class DataRefreshController(QObject):
                 track_count = len(results['tracks'])
                 logger.info(f"Updating {track_count} tracks")
 
-                # Use streaming for very large datasets
-                if track_count > 5000:
+                # Use streaming for large datasets (lowered threshold)
+                if track_count > 2000:
                     logger.info(f"Using streaming mode for {track_count} tracks")
                     # Get current playlists from window state (no need to reload)
                     playlists = self.window.playlists_model.data_rows
                     self._load_tracks_streaming(results['tracks'], playlists)
                 else:
                     logger.info(f"Using direct load for {track_count} tracks")
+                    # Disable sorting and dynamic filter during bulk update
+                    self.window.unified_tracks_view.tracks_table.setSortingEnabled(False)
+                    self.window.unified_tracks_view.proxy_model.setDynamicSortFilter(False)
+
                     # Get current playlists from window state
                     playlists = self.window.playlists_model.data_rows
                     self.window.update_unified_tracks(results['tracks'], playlists)
+
+                    # Re-enable and apply initial sort
+                    self.window.unified_tracks_view.proxy_model.setDynamicSortFilter(True)
+                    self.window.unified_tracks_view.tracks_table.setSortingEnabled(True)
+                    self.window.unified_tracks_view.tracks_table.sortByColumn(1, Qt.AscendingOrder)
 
             # Update counts
             if 'counts' in results:
