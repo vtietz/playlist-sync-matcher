@@ -126,10 +126,6 @@ class SortFilterTable(QWidget):
 
         return None
 
-    def resize_columns_to_contents(self):
-        """Resize all columns to fit their contents."""
-        self.table_view.resizeColumnsToContents()
-
     def set_column_widths(self, widths: List[int]):
         """Set specific column widths.
 

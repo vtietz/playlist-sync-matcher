@@ -100,13 +100,13 @@ class TestUnifiedTracksModel:
         """Test model starts empty."""
         model = UnifiedTracksModel()
         assert model.rowCount() == 0
-        assert model.columnCount() == 10  # Track, Artist, Album, Year, Matched, Confidence, Quality, Local File, #PL, Playlists
+        assert model.columnCount() == 11  # Track, Liked, Artist, Album, Year, Matched, Confidence, Quality, Local File, #PL, Playlists
 
     def test_column_headers(self):
         """Test column headers are correct."""
         model = UnifiedTracksModel()
         expected_headers = [
-            'Track', 'Artist', 'Album', 'Year', 'Matched',
+            'Track', '❤️', 'Artist', 'Album', 'Year', 'Matched',
             'Confidence', 'Quality', 'Local File', '#PL', 'Playlists'
         ]
 
@@ -147,17 +147,18 @@ class TestUnifiedTracksModel:
 
         assert model.rowCount() == 2
 
-        # Check matched track (columns: Track, Artist, Album, Year, Matched, Confidence, Quality, Local File, Playlists)
+        # Check matched track (columns shifted by Liked column):
+        # 0=Track, 1=Liked, 2=Artist, 3=Album, 4=Year, 5=Matched, 6=Confidence, 7=Quality, 8=Local File, 9=#PL, 10=Playlists
         assert model.data(model.index(0, 0), Qt.DisplayRole) == 'Song 1'  # Track name
-        assert model.data(model.index(0, 1), Qt.DisplayRole) == 'Artist 1'  # Artist
-        assert model.data(model.index(0, 2), Qt.DisplayRole) == 'Album 1'  # Album
-        assert model.data(model.index(0, 3), Qt.DisplayRole) == '2020'  # Year
+        assert model.data(model.index(0, 2), Qt.DisplayRole) == 'Artist 1'  # Artist (shifted by Liked)
+        assert model.data(model.index(0, 3), Qt.DisplayRole) == 'Album 1'  # Album (shifted by Liked)
+        assert model.data(model.index(0, 4), Qt.DisplayRole) == '2020'  # Year (shifted by Liked)
         # Note: matched column shows ✓ or ✗, not 'True'/'False'
-        assert model.data(model.index(0, 7), Qt.DisplayRole) == '/music/song1.mp3'  # Local File
+        assert model.data(model.index(0, 8), Qt.DisplayRole) == '/music/song1.mp3'  # Local File (shifted by Liked)
 
         # Check unmatched track
         assert model.data(model.index(1, 0), Qt.DisplayRole) == 'Song 2'
-        assert model.data(model.index(1, 7), Qt.DisplayRole) in ['', None]  # No local file
+        assert model.data(model.index(1, 8), Qt.DisplayRole) in ['', None]  # No local file (shifted by Liked)
 
     def test_get_row_data(self):
         """Test retrieving row data by index."""

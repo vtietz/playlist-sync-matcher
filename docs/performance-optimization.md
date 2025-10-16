@@ -81,8 +81,11 @@ Complete rewrite of `filterAcceptsRow()` for performance:
 
 #### `psm/gui/views/unified_tracks_view.py`
 - **Fixed row heights**: Set `verticalHeader().setDefaultSectionSize(22)` for faster layout
-- **Gated `resizeColumnsToContents()`**: Only runs for datasets < 1000 rows (avoids expensive content scanning on large tables)
-- Added performance comment explaining deferred resizing strategy
+- **Interactive column headers**: Users manually resize columns (via `QHeaderView.Interactive` mode)
+- **Width persistence**: Column widths saved/restored via QSettings across sessions
+- **No auto-resize**: Eliminates expensive content-scanning operations, preserves user preferences
+
+**Benefits**: Avoids O(rows × columns) scanning on large datasets, respects user-set widths, prevents layout thrashing during updates
 
 ### 7. Controller Update
 

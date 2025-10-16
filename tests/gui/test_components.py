@@ -1,6 +1,6 @@
 """Tests for GUI components (SortFilterTable, LogPanel, FilterBar, etc.)."""
 import pytest
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QHeaderView
 from PySide6.QtCore import Qt
 from psm.gui.components import SortFilterTable, LogPanel, FilterBar, UnifiedTracksProxyModel
 from psm.gui.models import PlaylistsModel, UnifiedTracksModel
@@ -50,7 +50,11 @@ class TestSortFilterTable:
         ])
 
         table = SortFilterTable(model)
-        table.resize_columns_to_contents()  # Should not raise
+        
+        # Verify header is interactive and allows manual resizing
+        header = table.table_view.horizontalHeader()
+        assert header.sectionResizeMode(0) == QHeaderView.Interactive
+        assert header.stretchLastSection() is True
 
     def test_get_selected_row_data(self, qapp):
         """Test getting selected row data."""

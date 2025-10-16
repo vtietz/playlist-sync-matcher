@@ -362,20 +362,20 @@ class TestUpdateUnifiedTracks:
 
         coordinator.unified_tracks_model.set_data.assert_called_once_with(tracks)
 
-    def test_resizes_columns_when_view_set(self, qapp):
-        """Should NOT resize columns (behavior is now disabled to preserve user widths)."""
+    def test_preserves_column_widths_when_view_set(self, qapp):
+        """Should NOT auto-resize columns to preserve user-set widths."""
         coordinator = ModelCoordinator()
 
         mock_view = Mock()
-        mock_view.resize_columns_to_contents = Mock()
 
         coordinator.set_views(None, None, None, mock_view)
         coordinator.unified_tracks_model.set_data = Mock()
 
         coordinator.update_unified_tracks([{"title": "Track"}], [])
 
-        # resize_columns_to_contents should NOT be called (behavior disabled)
-        mock_view.resize_columns_to_contents.assert_not_called()
+        # Verify no auto-resize methods are called
+        assert not hasattr(mock_view, 'resize_columns_to_contents') or \
+               not mock_view.resize_columns_to_contents.called
 
     def test_handles_no_view_gracefully(self, qapp):
         """Should not crash when no view is set."""

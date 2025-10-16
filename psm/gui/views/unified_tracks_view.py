@@ -384,39 +384,6 @@ class UnifiedTracksView(QWidget):
         header.resizeSection(9, 50)   # #PL - very small (number)
         # Column 10 (Playlists) stretches to fill remaining space
 
-    def resize_columns_to_contents(self):
-        """Resize table columns to fit contents (with performance gating).
-
-        Only performs resize for small datasets to avoid performance hit.
-        For large datasets, relies on initial column widths and user resizing.
-        """
-        # Disabled: Don't auto-resize columns - preserve user's column widths
-        # Performance: Gate resizing for large datasets (> 1000 rows visible)
-        if self.proxy_model.rowCount() > 1000:
-            logger.debug(f"Skipping resizeColumnsToContents for {self.proxy_model.rowCount()} rows (performance)")
-            return
-
-        # Disabled: Auto-resize interferes with saved column widths
-        # User column widths are now preserved and restored from settings
-        logger.debug(f"Skipping resizeColumnsToContents - preserving user column widths")
-        return
-
-        # DISABLED CODE BELOW - kept for reference
-        # Only resize if we have data, otherwise keep initial widths
-        if self.proxy_model.rowCount() > 0:
-            self.tracks_table.resizeColumnsToContents()
-            # Re-apply maximum widths for small columns to prevent them getting too wide
-            header = self.tracks_table.horizontalHeader()
-            # Ensure Year, Matched, Confidence, and Quality columns don't get too wide
-            if header.sectionSize(3) > 80:
-                header.resizeSection(3, 80)   # Year max 80px
-            if header.sectionSize(4) > 70:
-                header.resizeSection(4, 70)   # Matched max 70px (✓/✗)
-            if header.sectionSize(5) > 110:
-                header.resizeSection(5, 110)  # Confidence max 110px
-            if header.sectionSize(6) > 110:
-                header.resizeSection(6, 110)  # Quality max 110px
-
     def show_loading(self):
         """Show loading overlay (removed - no longer needed)."""
 

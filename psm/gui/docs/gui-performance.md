@@ -235,18 +235,25 @@ QTimer.singleShot(100, view.trigger_lazy_load)
 
 ---
 
-### 6. Column Resize Gating
+### 6. User-Controlled Column Widths
 
-**Pattern**: Only resize columns for small datasets
+**Pattern**: Interactive headers with width persistence
 
 ```python
-def resize_columns_to_contents(self):
-    # Skip for large datasets (expensive operation)
-    if self.model.rowCount() > 1000:
-        return
-    
-    self.table.resizeColumnsToContents()
+# Set interactive mode - users can resize columns manually
+header = self.horizontalHeader()
+header.setSectionResizeMode(QHeaderView.Interactive)
+header.setStretchLastSection(True)
+
+# Column widths are saved/restored via QSettings
+# No auto-resize to preserve user preferences
 ```
+
+**Benefits**:
+- Eliminates expensive content-scanning operations
+- Preserves user-set column widths across sessions
+- Avoids unpredictable layout changes during updates
+- Improves performance with large datasets (>1000 rows)
 
 ---
 

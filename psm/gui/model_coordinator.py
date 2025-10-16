@@ -230,6 +230,3 @@ class ModelCoordinator(QObject):
 
         if self._unified_tracks_view is None:
             return
-
-        # Disabled: Don't auto-resize columns - preserve user's column widths
-        # self._unified_tracks_view.resize_columns_to_contents()

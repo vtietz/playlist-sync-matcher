@@ -237,8 +237,6 @@ class TracksPanel(QWidget):
             playlists: List of playlist dictionaries (for filter options)
         """
         self._model.set_data(tracks)
-        # Disabled: Don't auto-resize columns - preserve user's column widths
-        # self.unified_tracks_view.resize_columns_to_contents()
 
     def populate_filter_options(
         self,
