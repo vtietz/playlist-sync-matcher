@@ -3,7 +3,6 @@
 Detects if this is the first run and helps users create a .env file.
 """
 from pathlib import Path
-import sys
 import os
 import subprocess
 import platform
@@ -65,7 +64,7 @@ def check_env_exists() -> bool:
 
 def prompt_create_env() -> bool:
     """Prompt user to create .env file (CLI mode).
-    
+
     Returns:
         True if user wants to create .env, False otherwise
     """
@@ -80,7 +79,7 @@ def prompt_create_env() -> bool:
     print("\nWould you like to create a template .env file now?")
     print("(You'll need to edit it with your Spotify credentials)")
     print()
-    
+
     while True:
         response = input("Create .env template? [Y/n]: ").strip().lower()
         if response in ('', 'y', 'yes'):
@@ -92,17 +91,17 @@ def prompt_create_env() -> bool:
 
 def open_file_in_editor(file_path: Path) -> bool:
     """Open file in the system's default text editor.
-    
+
     Args:
         file_path: Path to file to open
-        
+
     Returns:
         True if successful, False otherwise
     """
     try:
         system = platform.system()
         file_str = str(file_path.absolute())
-        
+
         if system == 'Windows':
             # Try os.startfile first (uses default association)
             try:
@@ -114,7 +113,7 @@ def open_file_in_editor(file_path: Path) -> bool:
             subprocess.run(['open', file_str], check=True)
         else:  # Linux and others
             subprocess.run(['xdg-open', file_str], check=True)
-        
+
         return True
     except Exception as e:
         print(f"Warning: Could not open file in editor: {e}")
@@ -123,10 +122,10 @@ def open_file_in_editor(file_path: Path) -> bool:
 
 def create_env_file(open_in_editor: bool = False) -> bool:
     """Create .env template file.
-    
+
     Args:
         open_in_editor: If True, open the file in default editor after creation
-    
+
     Returns:
         True if successful, False otherwise
     """
@@ -135,7 +134,7 @@ def create_env_file(open_in_editor: bool = False) -> bool:
         if env_path.exists():
             print("Warning: .env file already exists. Not overwriting.")
             return False
-        
+
         env_path.write_text(get_env_template(), encoding='utf-8')
         print(f"\n✓ Created .env template at: {env_path.absolute()}")
         print("\nNext steps:")
@@ -145,11 +144,11 @@ def create_env_file(open_in_editor: bool = False) -> bool:
         print("  4. Adjust other settings as needed")
         print("  5. Run this application again")
         print("\nFor detailed configuration help, see: docs/configuration.md")
-        
+
         if open_in_editor:
             if open_file_in_editor(env_path):
                 print(f"\n✓ Opened {env_path.name} in your default text editor")
-        
+
         return True
     except Exception as e:
         print(f"\n✗ Failed to create .env file: {e}")
@@ -158,13 +157,13 @@ def create_env_file(open_in_editor: bool = False) -> bool:
 
 def check_first_run_cli() -> bool:
     """Check if this is first run and handle .env creation (CLI mode).
-    
+
     Returns:
         True if app should continue, False if it should exit (needs config)
     """
     if check_env_exists():
         return True  # Config exists, continue normally
-    
+
     # No .env found - offer to create one
     if prompt_create_env():
         if create_env_file():
@@ -172,7 +171,7 @@ def check_first_run_cli() -> bool:
             response = input("\nOpen .env in your default text editor now? [Y/n]: ").strip().lower()
             if response in ('', 'y', 'yes'):
                 open_file_in_editor(Path('.env'))
-        
+
         print("\nPlease configure your .env file and run the application again.")
         return False  # Exit so user can configure
     else:
@@ -180,7 +179,7 @@ def check_first_run_cli() -> bool:
         print("Example environment variable:")
         print("  PSM__PROVIDERS__SPOTIFY__CLIENT_ID=your_client_id")
         print("\nFor more information, see: docs/configuration.md")
-        
+
         # Ask if they want to continue anyway (might use env vars)
         response = input("\nContinue without .env file? [y/N]: ").strip().lower()
         if response in ('y', 'yes'):
@@ -188,71 +187,183 @@ def check_first_run_cli() -> bool:
         return False
 
 
+class FirstRunDialog:
+    """Stateful dialog for first-run .env creation workflow.
+
+    States:
+        PROMPT: Initial state - offer to create .env template
+        POST_CREATE: After successful creation - offer to open file
+    """
+
+    def __init__(self, parent=None):
+        """Initialize the dialog.
+
+        Args:
+            parent: Parent widget for the dialog
+        """
+        from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton, QHBoxLayout
+
+        self.dialog = QDialog(parent)
+        self.dialog.setWindowTitle("First Run - Configuration Needed")
+        self.dialog.setMinimumWidth(500)
+
+        # Main layout
+        layout = QVBoxLayout()
+        layout.setSpacing(15)
+
+        # Message area (will be updated based on state)
+        self.title_label = QLabel()
+        self.title_label.setWordWrap(True)
+        font = self.title_label.font()
+        font.setPointSize(font.pointSize() + 2)
+        font.setBold(True)
+        self.title_label.setFont(font)
+
+        self.info_label = QLabel()
+        self.info_label.setWordWrap(True)
+
+        self.error_label = QLabel()
+        self.error_label.setWordWrap(True)
+        self.error_label.setStyleSheet("color: red;")
+        self.error_label.hide()
+
+        layout.addWidget(self.title_label)
+        layout.addWidget(self.info_label)
+        layout.addWidget(self.error_label)
+
+        # Button area
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
+
+        self.create_btn = QPushButton("Create Template")
+        self.create_btn.clicked.connect(self._on_create_clicked)
+
+        self.open_btn = QPushButton("Open File")
+        self.open_btn.clicked.connect(self._on_open_file_clicked)
+        self.open_btn.hide()  # Hidden in initial state
+
+        self.continue_btn = QPushButton("Continue Anyway")
+        self.continue_btn.clicked.connect(self._on_continue_clicked)
+
+        self.exit_btn = QPushButton("Exit")
+        self.exit_btn.clicked.connect(self._on_exit_clicked)
+
+        button_layout.addWidget(self.create_btn)
+        button_layout.addWidget(self.open_btn)
+        button_layout.addWidget(self.continue_btn)
+        button_layout.addWidget(self.exit_btn)
+
+        layout.addLayout(button_layout)
+        self.dialog.setLayout(layout)
+
+        # Initialize to prompt state
+        self._init_prompt_state()
+
+        # Track whether file was created
+        self.env_path = None
+
+    def _init_prompt_state(self):
+        """Configure dialog for initial prompt state."""
+        self.title_label.setText("Welcome to Playlist Sync Matcher!")
+        self.info_label.setText(
+            "No .env configuration file found.\n\n"
+            "You need to:\n"
+            "  1. Get a Spotify Client ID from developer.spotify.com/dashboard\n"
+            "  2. Configure your music library paths\n"
+            "  3. Set other preferences (export format, matching settings, etc.)\n\n"
+            "Would you like to create a template .env file now?"
+        )
+        self.error_label.hide()
+        self.create_btn.show()
+        self.create_btn.setEnabled(True)
+        self.open_btn.hide()
+        self.create_btn.setDefault(True)
+
+    def _init_post_create_state(self):
+        """Configure dialog for post-creation state."""
+        self.title_label.setText("Configuration Template Created!")
+        self.info_label.setText(
+            f"Location: {self.env_path.absolute()}\n\n"
+            "Please edit this file with:\n"
+            "  • Your Spotify Client ID\n"
+            "  • Your music library paths\n"
+            "  • Other preferences as needed\n\n"
+            "Then restart the application.\n\n"
+            "For detailed configuration help, see: docs/configuration.md"
+        )
+        self.error_label.hide()
+        self.create_btn.hide()
+        self.open_btn.show()
+        self.open_btn.setDefault(True)
+
+    def _on_create_clicked(self):
+        """Handle Create Template button click."""
+        # Disable button to prevent double-clicks
+        self.create_btn.setEnabled(False)
+        self.error_label.hide()
+
+        try:
+            self.env_path = Path('.env')
+
+            # Check if file already exists
+            if self.env_path.exists():
+                # Treat as success - file exists, user can now open it
+                self._init_post_create_state()
+                return
+
+            # Create the file
+            self.env_path.write_text(get_env_template(), encoding='utf-8')
+
+            # Success - transition to post-create state
+            self._init_post_create_state()
+
+        except Exception as e:
+            # Show error inline and remain in prompt state
+            self.error_label.setText(f"Failed to create .env file: {e}")
+            self.error_label.show()
+            self.create_btn.setEnabled(True)
+
+    def _on_open_file_clicked(self):
+        """Handle Open File button click."""
+        if self.env_path:
+            open_file_in_editor(self.env_path)
+        # Keep dialog open so user can click Continue or Exit
+
+    def _on_continue_clicked(self):
+        """Handle Continue Anyway button click."""
+        self.dialog.accept()
+
+    def _on_exit_clicked(self):
+        """Handle Exit button click."""
+        self.dialog.reject()
+
+    def exec(self) -> bool:
+        """Execute the dialog and return result.
+
+        Returns:
+            True if app should continue, False if it should exit
+        """
+        from PySide6.QtWidgets import QDialog
+        result = self.dialog.exec()
+        return result == QDialog.Accepted
+
+
 def check_first_run_gui(parent_widget=None) -> bool:
     """Check if this is first run and handle .env creation (GUI mode).
-    
+
     Args:
         parent_widget: Parent widget for dialog (if using Qt)
-    
+
     Returns:
         True if app should continue, False if it should exit (needs config)
     """
     if check_env_exists():
         return True  # Config exists, continue normally
-    
-    # No .env found - show dialog
+
+    # No .env found - show stateful dialog
     try:
-        from PySide6.QtWidgets import QMessageBox, QPushButton
-        
-        msg = QMessageBox(parent_widget)
-        msg.setIcon(QMessageBox.Information)
-        msg.setWindowTitle("First Run - Configuration Needed")
-        msg.setText("Welcome to Playlist Sync Matcher!")
-        msg.setInformativeText(
-            "No .env configuration file found.\n\n"
-            "You need to:\n"
-            "1. Get a Spotify Client ID from developer.spotify.com\n"
-            "2. Configure your music library paths\n\n"
-            "Would you like to create a template .env file now?"
-        )
-        
-        create_btn = msg.addButton("Create Template", QMessageBox.AcceptRole)
-        continue_btn = msg.addButton("Continue Anyway", QMessageBox.RejectRole)
-        exit_btn = msg.addButton("Exit", QMessageBox.RejectRole)
-        msg.setDefaultButton(create_btn)
-        
-        msg.exec()
-        clicked = msg.clickedButton()
-        
-        if clicked == create_btn:
-            if create_env_file():
-                # Show success dialog with "Open File" option
-                info = QMessageBox(parent_widget)
-                info.setIcon(QMessageBox.Information)
-                info.setWindowTitle("Configuration Template Created")
-                info.setText("Template .env file created successfully!")
-                info.setInformativeText(
-                    f"Location: {Path('.env').absolute()}\n\n"
-                    "Please edit this file with:\n"
-                    "- Your Spotify Client ID\n"
-                    "- Your music library paths\n\n"
-                    "Then restart the application."
-                )
-                
-                open_btn = info.addButton("Open File", QMessageBox.AcceptRole)
-                ok_btn = info.addButton(QMessageBox.Ok)
-                info.setDefaultButton(open_btn)
-                
-                info.exec()
-                
-                if info.clickedButton() == open_btn:
-                    open_file_in_editor(Path('.env'))
-            
-            return False  # Exit so user can configure
-        elif clicked == continue_btn:
-            return True  # User wants to try with env vars
-        else:  # exit_btn
-            return False
+        dialog = FirstRunDialog(parent_widget)
+        return dialog.exec()
     except ImportError:
         # Fallback to CLI mode if Qt not available
         return check_first_run_cli()

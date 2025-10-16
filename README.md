@@ -155,7 +155,14 @@ You'll need a Spotify Developer app to access your playlists:
 
 ### 2. Configure the Tool
 
-**First Run Experience 🆕**: When you run any command for the first time, the tool will detect if `.env` is missing and offer to create a template for you with all necessary settings. The template will automatically open in your default text editor (or Notepad on Windows) so you can immediately start configuring.
+**First Run Experience 🆕**:
+
+- **CLI**: When you run any command for the first time without a `.env` file, the CLI will prompt you to create a template with all necessary settings. If you choose to create it, the template will automatically open in your default text editor so you can immediately start configuring.
+
+- **GUI**: When you launch the GUI for the first time without a `.env` file, a dialog will guide you through the setup:
+  1. **Initial Prompt**: Offers to create a template `.env` file, continue anyway (using environment variables), or exit
+  2. **After Creation**: If you create the template, the dialog updates to show the file location and offers to open it in your editor
+  3. **Continue or Exit**: After opening the file (or choosing not to), you can continue with the application or exit to configure the file first
 
 **Manual Setup**: Alternatively, create a `.env` file manually in the same directory as the executable (or project root):
 
