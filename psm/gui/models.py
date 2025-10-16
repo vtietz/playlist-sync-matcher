@@ -314,6 +314,7 @@ class UnifiedTracksModel(BaseTableModel):
     def __init__(self, parent=None):
         columns = [
             ('name', 'Track'),
+            ('is_liked', '❤️'),
             ('artist', 'Artist'),
             ('album', 'Album'),
             ('year', 'Year'),
@@ -464,8 +465,12 @@ class UnifiedTracksModel(BaseTableModel):
             row_data = self.data_rows[row]
 
             if role == Qt.DisplayRole:
+                # Format liked column with heart emoji
+                if col_name == 'is_liked':
+                    return "❤️" if value else ""
+
                 # Format matched column with check/cross
-                if col_name == 'matched':
+                elif col_name == 'matched':
                     if isinstance(value, bool):
                         return format_boolean_check(value)
                     return ""

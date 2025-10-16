@@ -268,10 +268,14 @@ class DataRefreshController(QObject):
                 results.get('playlists', [])
             )
 
-            # Re-enable and apply initial sort
+            # Re-enable and apply sort
             self.window.unified_tracks_view.proxy_model.setDynamicSortFilter(True)
             self.window.unified_tracks_view.tracks_table.setSortingEnabled(True)
-            self.window.unified_tracks_view.tracks_table.sortByColumn(1, Qt.AscendingOrder)
+            
+            # Only apply default sort if no saved sort exists
+            header = self.window.unified_tracks_view.tracks_table.horizontalHeader()
+            if header.sortIndicatorSection() == -1:
+                self.window.unified_tracks_view.tracks_table.sortByColumn(2, Qt.AscendingOrder)  # Artist (column shifted by Liked)
 
         return is_streaming
 
@@ -400,10 +404,14 @@ class DataRefreshController(QObject):
                     playlists = self.window.playlists_model.data_rows
                     self.window.update_unified_tracks(results['tracks'], playlists)
 
-                    # Re-enable and apply initial sort
+                    # Re-enable and apply sort
                     self.window.unified_tracks_view.proxy_model.setDynamicSortFilter(True)
                     self.window.unified_tracks_view.tracks_table.setSortingEnabled(True)
-                    self.window.unified_tracks_view.tracks_table.sortByColumn(1, Qt.AscendingOrder)
+                    
+                    # Only apply default sort if no saved sort exists
+                    header = self.window.unified_tracks_view.tracks_table.horizontalHeader()
+                    if header.sortIndicatorSection() == -1:
+                        self.window.unified_tracks_view.tracks_table.sortByColumn(2, Qt.AscendingOrder)  # Artist (column shifted by Liked)
 
             # Update counts
             if 'counts' in results:

@@ -109,8 +109,11 @@ class MainOrchestrator(QObject):
         # Wire watch mode controller to command controller for better messaging
         self.command.set_watch_mode_controller(self.watch_mode)
 
+        # Show welcome message first
+        QTimer.singleShot(0, self._show_welcome_message)
+        
         # Initial data load - use async to avoid blocking UI
-        QTimer.singleShot(0, self.data_refresh.refresh_all_async)
+        QTimer.singleShot(100, self.data_refresh.refresh_all_async)
 
     def _setup_db_monitor(self) -> Optional[DbAutoRefreshController]:
         """Set up automatic database change detection.
@@ -160,6 +163,39 @@ class MainOrchestrator(QObject):
 
         # Trigger fast refresh
         self.data_refresh.refresh_tracks_only_async()
+
+    def _show_welcome_message(self):
+        """Show welcome message with getting started instructions."""
+        welcome = """
+═══════════════════════════════════════════════════════════════════════════════
+  🎵 Playlist Sync Matcher - Getting Started
+═══════════════════════════════════════════════════════════════════════════════
+
+TYPICAL WORKFLOW:
+
+  1️⃣  Sync Your Music:
+      • [Pull]   - Download playlists from Spotify (triggers login if needed)
+      • [Scan]   - Index your local music library
+      • [Match]  - Match streaming tracks with your local files
+      • [Export] - Generate M3U playlist files
+      OR: [Build] - Run the full pipeline automatically
+
+  2️⃣  Review & Refine:
+      • [Reports] - View match statistics and unmatched tracks
+      • Filter playlists in left panel for focused actions
+      • Right-click tracks for per-track operations (Diagnose, Match)
+
+TIPS:
+  • First time? Just click [Build] - it handles everything automatically
+  • Select specific playlists in left panel to work with individual playlists
+  • Watch mode auto-syncs file changes (Scan button → watch mode)
+  • Database changes from CLI are auto-detected and refreshed
+  • Use [Analyze] to check library quality (bitrate, metadata issues)
+
+═══════════════════════════════════════════════════════════════════════════════
+Loading data from database...
+"""
+        self.window.append_log(welcome)
 
     # Compatibility methods for MainWindow and existing code
 

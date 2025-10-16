@@ -379,7 +379,6 @@ class ActionsToolbar(QToolBar):
             self._running_action = action_name
             self._apply_active_style(button)
             button.setEnabled(True)  # Keep button enabled for cancellation
-            button.setCursor(Qt.PointingHandCursor)
             original_tooltip = button.toolTip().replace(' (Click to cancel)', '')
             button.setToolTip(f"{original_tooltip} (Click to cancel)")
         elif state == 'error':

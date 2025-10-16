@@ -68,7 +68,8 @@ def list_unified_tracks_min(
         lf.album as file_album,
         lf.year as file_year,
         lf.bitrate_kbps,
-        COALESCE(pl_count.count, 0) as playlist_count
+        COALESCE(pl_count.count, 0) as playlist_count,
+        EXISTS(SELECT 1 FROM liked_tracks lt WHERE lt.track_id = t.id AND lt.provider = t.provider) as is_liked
     FROM tracks t
     LEFT JOIN (
         -- Get best match per track (highest score)
@@ -129,6 +130,7 @@ def list_unified_tracks_min(
             'missing_metadata_count': missing_count,  # For quality calculation
             'bitrate_kbps': row[15],  # For quality calculation
             'playlist_count': row[16],  # Number of playlists containing this track
+            'is_liked': bool(row[17]),  # Liked status (1/0 -> True/False)
         })
 
     return results

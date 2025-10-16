@@ -73,7 +73,7 @@ class UnifiedTracksView(QWidget):
         self.tracks_table.setObjectName("tracksTable")  # For stylesheet targeting
         self.tracks_table.setModel(self.proxy_model)
         self.tracks_table.setSortingEnabled(True)
-        self.tracks_table.sortByColumn(1, Qt.AscendingOrder)  # Initial sort: Artist A→Z
+        # Don't set initial sort here - will be restored from saved state or set by controller
         self.tracks_table.setSelectionBehavior(QTableView.SelectRows)
         self.tracks_table.setSelectionMode(QTableView.SingleSelection)
 
@@ -102,14 +102,14 @@ class UnifiedTracksView(QWidget):
 
         # Apply link delegate to linkable columns (Track, Artist, Album)
         link_delegate = LinkDelegate(provider="spotify", parent=self.tracks_table)
-        # Column 0 = Track, 1 = Artist, 2 = Album
+        # Column 0 = Track, 1 = Liked, 2 = Artist, 3 = Album
         self.tracks_table.setItemDelegateForColumn(0, link_delegate)  # Track
-        self.tracks_table.setItemDelegateForColumn(1, link_delegate)  # Artist
-        self.tracks_table.setItemDelegateForColumn(2, link_delegate)  # Album
+        self.tracks_table.setItemDelegateForColumn(2, link_delegate)  # Artist
+        self.tracks_table.setItemDelegateForColumn(3, link_delegate)  # Album
 
-        # Apply folder delegate to Local File column (column 7, was 5 before adding Confidence/Quality)
+        # Apply folder delegate to Local File column (column 8, shifted by Liked column)
         folder_delegate = FolderDelegate(parent=self.tracks_table)
-        self.tracks_table.setItemDelegateForColumn(7, folder_delegate)  # Local File
+        self.tracks_table.setItemDelegateForColumn(8, folder_delegate)  # Local File
 
         # Enable mouse tracking for hover effects
         self.tracks_table.setMouseTracking(True)
@@ -280,9 +280,13 @@ class UnifiedTracksView(QWidget):
             # Re-enable dynamic sort/filter
             self.proxy_model.setDynamicSortFilter(True)
 
-            # Re-enable sorting and apply initial sort
+            # Re-enable sorting and apply sort
             self.tracks_table.setSortingEnabled(True)
-            self.tracks_table.sortByColumn(1, Qt.AscendingOrder)
+            
+            # Only apply default sort if no saved sort exists
+            header = self.tracks_table.horizontalHeader()
+            if header.sortIndicatorSection() == -1:
+                self.tracks_table.sortByColumn(2, Qt.AscendingOrder)  # Artist (column shifted by Liked)
 
         finally:
             # Re-enable table updates
@@ -360,24 +364,25 @@ class UnifiedTracksView(QWidget):
 
         Column strategy:
         - Text fields (Track, Artist, Album, Local File, Playlists): More space
-        - Short fields (Year, Matched, Confidence, Quality, #PL): Less space
+        - Short fields (Liked, Year, Matched, Confidence, Quality, #PL): Less space
         """
         # Column indices from UnifiedTracksModel:
-        # 0: Track, 1: Artist, 2: Album, 3: Year, 4: Matched, 5: Confidence, 6: Quality, 7: Local File, 8: #PL, 9: Playlists
+        # 0: Track, 1: Liked, 2: Artist, 3: Album, 4: Year, 5: Matched, 6: Confidence, 7: Quality, 8: Local File, 9: #PL, 10: Playlists
         header = self.tracks_table.horizontalHeader()
 
         # Set initial widths (in pixels)
         # These are reasonable defaults that will be user-adjustable
         header.resizeSection(0, 250)  # Track - large (most important)
-        header.resizeSection(1, 180)  # Artist - medium
-        header.resizeSection(2, 200)  # Album - medium-large
-        header.resizeSection(3, 60)   # Year - small
-        header.resizeSection(4, 70)   # Matched - small (✓/✗)
-        header.resizeSection(5, 95)   # Confidence - small-medium (CERTAIN/HIGH/etc)
-        header.resizeSection(6, 95)   # Quality - small-medium (EXCELLENT/GOOD/etc)
-        header.resizeSection(7, 350)  # Local File - large (file paths)
-        header.resizeSection(8, 50)   # #PL - very small (number)
-        # Column 9 (Playlists) stretches to fill remaining space
+        header.resizeSection(1, 45)   # Liked - very small (just ❤️ icon)
+        header.resizeSection(2, 180)  # Artist - medium
+        header.resizeSection(3, 200)  # Album - medium-large
+        header.resizeSection(4, 60)   # Year - small
+        header.resizeSection(5, 70)   # Matched - small (✓/✗)
+        header.resizeSection(6, 95)   # Confidence - small-medium (CERTAIN/HIGH/etc)
+        header.resizeSection(7, 95)   # Quality - small-medium (EXCELLENT/GOOD/etc)
+        header.resizeSection(8, 350)  # Local File - large (file paths)
+        header.resizeSection(9, 50)   # #PL - very small (number)
+        # Column 10 (Playlists) stretches to fill remaining space
 
     def resize_columns_to_contents(self):
         """Resize table columns to fit contents (with performance gating).
