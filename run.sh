@@ -3,7 +3,7 @@
 
 set -e  # Exit on error
 
-VENV=".venv"
+VENV=".venv_pyo"
 
 # Create venv if it doesn't exist
 if [ ! -d "$VENV" ]; then

@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 def _get_cli_command() -> tuple[list[str], str | None]:
     """Get the appropriate CLI command based on frozen/source mode.
-    
+
     Returns:
         Tuple of (command_prefix, error_message)
         - command_prefix: List to prepend to CLI args (e.g., ['python', '-m', 'psm.cli'] or ['psm-cli.exe'])
@@ -29,16 +29,16 @@ def _get_cli_command() -> tuple[list[str], str | None]:
     if getattr(sys, 'frozen', False):
         # Running as frozen executable - need to find sibling CLI binary
         gui_exe = Path(sys.executable)
-        
+
         # Determine CLI binary name based on platform
         if platform.system() == 'Windows':
             cli_name = 'psm-cli.exe'
         else:
             cli_name = 'psm-cli'
-        
+
         # Look for CLI binary in same directory as GUI
         cli_path = gui_exe.parent / cli_name
-        
+
         if not cli_path.exists():
             error_msg = (
                 f"CLI executable not found: {cli_path}\n\n"
@@ -50,7 +50,7 @@ def _get_cli_command() -> tuple[list[str], str | None]:
                 f"See docs/quick-start-executables.md for more information."
             )
             return ([], error_msg)
-        
+
         logger.info(f"Using CLI executable: {cli_path}")
         return ([str(cli_path)], None)
     else:
@@ -84,14 +84,14 @@ class CliRunner(QThread):
         try:
             # Get CLI command based on frozen/source mode
             cli_prefix, error_msg = _get_cli_command()
-            
+
             if error_msg:
                 # CLI executable not found
                 logger.error(error_msg)
                 self.error.emit(error_msg)
                 self.finished.emit(1)
                 return
-            
+
             # Build full command: [cli_prefix...] + command_args
             cmd = cli_prefix + self.command_args
 
@@ -237,3 +237,13 @@ class CliExecutor:
         """Stop the currently running command."""
         if self.current_runner and self.current_runner.isRunning():
             self.current_runner.stop()
+
+    def was_cancelled(self) -> bool:
+        """Check if the last command was cancelled by user.
+
+        Returns:
+            True if command was stopped by user, False otherwise
+        """
+        if self.current_runner:
+            return self.current_runner._stop_requested
+        return False

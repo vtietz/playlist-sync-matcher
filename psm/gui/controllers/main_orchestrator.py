@@ -10,6 +10,7 @@ from .data_refresh_controller import DataRefreshController
 from .selection_sync_controller import SelectionSyncController
 from .command_controller import CommandController
 from .watch_mode_controller import WatchModeController
+from ..services.action_state_manager import ActionStateManager
 
 if TYPE_CHECKING:
     from ..main_window import MainWindow
@@ -61,6 +62,11 @@ class MainOrchestrator(QObject):
         # Set up database monitor
         self._db_monitor = self._setup_db_monitor()
 
+        # Create action state manager for button colorization
+        self.action_state_manager = ActionStateManager(
+            on_state_change=self._on_action_state_change
+        )
+
         # Initialize controllers
         self.data_refresh = DataRefreshController(
             window=window,
@@ -85,6 +91,9 @@ class MainOrchestrator(QObject):
             data_refresh=self.data_refresh,
             parent=self
         )
+
+        # Pass action state manager to command controller
+        self.command.command_service.action_state_manager = self.action_state_manager
 
         self.watch_mode = WatchModeController(
             window=window,
@@ -173,3 +182,128 @@ class MainOrchestrator(QObject):
     def set_playlist_filter_async(self, playlist_name: Optional[str]):
         """Set playlist filter async (compatibility method)."""
         self.selection_sync.set_playlist_filter_async(playlist_name)
+
+    def _on_action_state_change(self, action_name: str, state: str):
+        """Handle action state changes from ActionStateManager.
+
+        This callback is triggered when an action's state changes (running, success, error, idle).
+        It updates button colors in the toolbar and handles Build sub-step highlighting.
+
+        Args:
+            action_name: Action name ('pull', 'scan', etc.) or 'build:step' for sub-steps
+                        or 'playlist:action' for per-playlist actions
+            state: New state ('idle', 'running', 'success', 'error')
+        """
+        # Handle Build sub-step highlighting
+        if action_name.startswith('build:'):
+            sub_step = action_name.split(':', 1)[1]
+            if sub_step == 'clear':
+                # Clear all sub-step highlighting
+                self.window.toolbar.highlightBuildStep(None)
+            else:
+                # Highlight specific sub-step
+                self.window.toolbar.highlightBuildStep(sub_step)
+        # Handle per-playlist actions (left panel buttons)
+        elif action_name.startswith('playlist:'):
+            playlist_action = action_name.split(':', 1)[1]  # e.g., 'pull', 'match', 'export'
+            self._set_playlist_button_state(playlist_action, state)
+        # Handle per-track actions (tracks panel buttons)
+        elif action_name.endswith(':track'):
+            self._set_track_button_state(action_name, state)
+        else:
+            # Regular action state change - update toolbar button
+            self.window.toolbar.setActionState(action_name, state)
+
+    def _set_playlist_button_state(self, action: str, state: str):
+        """Set state styling for per-playlist action buttons.
+
+        Args:
+            action: Playlist action ('pull', 'match', 'export')
+            state: State ('idle', 'running', 'success', 'error')
+        """
+        # Get the playlists tab from left panel
+        if not hasattr(self.window, 'left_panel') or not hasattr(self.window.left_panel, 'playlists_tab'):
+            return
+
+        playlists_tab = self.window.left_panel.playlists_tab
+
+        # Map action to button
+        button_map = {
+            'pull': getattr(playlists_tab, 'btn_pull_one', None),
+            'match': getattr(playlists_tab, 'btn_match_one', None),
+            'export': getattr(playlists_tab, 'btn_export_one', None),
+        }
+
+        button = button_map.get(action)
+        if not button:
+            return
+
+        # Apply state styling (reuse toolbar styling logic)
+        if state == 'running':
+            button.setStyleSheet(self._get_button_running_style())
+        elif state == 'error':
+            button.setStyleSheet(self._get_button_error_style())
+        elif state == 'idle':
+            button.setStyleSheet("")  # Clear custom styling (return to default blue)
+
+    def _set_track_button_state(self, action_name: str, state: str):
+        """Set state styling for per-track action buttons in tracks panel.
+
+        Args:
+            action_name: Action name like 'match:track', 'diagnose:track'
+            state: State ('idle', 'running', 'error')
+        """
+        # Extract base action from 'match:track' → 'match'
+        base_action = action_name.split(':')[0]
+
+        # Get tracks panel from main window
+        if not hasattr(self.window, 'tracks_panel'):
+            return
+
+        tracks_panel = self.window.tracks_panel
+
+        # Map action to button
+        button_map = {
+            'match': getattr(tracks_panel, 'btn_match_one', None),
+            'diagnose': getattr(tracks_panel, 'btn_diagnose', None),
+        }
+
+        button = button_map.get(base_action)
+        if not button:
+            return
+
+        # Apply state styling (reuse same styles as playlist buttons)
+        if state == 'running':
+            button.setStyleSheet(self._get_button_running_style())
+        elif state == 'error':
+            button.setStyleSheet(self._get_button_error_style())
+        elif state == 'idle':
+            button.setStyleSheet("")  # Clear custom styling (return to default blue)
+
+    def _get_button_running_style(self) -> str:
+        """Get running (orange) button style."""
+        return """
+            QPushButton {
+                background-color: #ff8c00;
+                color: white;
+                font-weight: bold;
+            }
+            QPushButton:disabled {
+                background-color: #cc7000;
+                color: #f0f0f0;
+            }
+        """
+
+    def _get_button_error_style(self) -> str:
+        """Get error (red) button style."""
+        return """
+            QPushButton {
+                background-color: #d93025;
+                color: white;
+                font-weight: bold;
+            }
+            QPushButton:disabled {
+                background-color: #a52519;
+                color: #f0f0f0;
+            }
+        """

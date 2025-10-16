@@ -10,10 +10,10 @@ __pycache__/
 build/
 dist/
 *.manifest
-*.spec
 
 # Virtual environments
 .venv/
+.venv_pyo/
 venv/
 ENV/
 

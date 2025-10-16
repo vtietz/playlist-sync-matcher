@@ -1,8 +1,8 @@
 @echo off
 SETLOCAL ENABLEDELAYEDEXPANSION
-SET VENV=.venv
+SET VENV=.venv_pyo
 IF NOT EXIST %VENV% (
-  py -3 -m venv %VENV%
+  py -3.12 -m venv %VENV%
 )
 CALL %VENV%\Scripts\activate.bat
 

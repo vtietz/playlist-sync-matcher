@@ -145,10 +145,10 @@ class TestActionsToolbarEnablement:
         assert not toolbar._btn_match.isEnabled()
         assert not toolbar._btn_report.isEnabled()
         assert not toolbar._btn_export.isEnabled()
-        assert not toolbar._btn_watch.isEnabled()
 
-        # Open Reports should stay enabled
+        # Open Reports and Watch Mode should stay enabled
         assert toolbar._btn_open_reports.isEnabled()
+        assert toolbar._btn_watch.isEnabled()  # Watch can be toggled even during operations
 
     def test_set_enabled_for_workflow_enables_all(self, toolbar):
         """setEnabledForWorkflow(True) should enable all workflow buttons."""

@@ -214,6 +214,7 @@ class MainWindow(QMainWindow):
         self.toolbar.openReportsClicked.connect(self.on_open_reports_clicked.emit)
         self.toolbar.refreshClicked.connect(self.on_refresh_clicked.emit)
         self.toolbar.watchToggled.connect(self._on_watch_button_toggled)
+        self.toolbar.cancelClicked.connect(self.on_cancel_clicked.emit)
 
     def _create_playlists_widget(self) -> QWidget:
         """Create the left panel with tabs for Playlists, Albums, and Artists."""
@@ -753,4 +754,3 @@ class MainWindow(QMainWindow):
         if "artists" in pending_sorts:
             col, order = pending_sorts["artists"]
             self.model_coordinator.set_pending_artists_sort(col, order)
-

@@ -70,6 +70,10 @@ class DataRefreshController(QObject):
         """
         logger.info("Refreshing all data (async)...")
 
+        # Highlight Refresh button during data loading
+        if hasattr(self.window, 'toolbar'):
+            self.window.toolbar.setActionState('refresh', 'running')
+
         # Cancel any running loaders first
         if self._active_loaders:
             logger.info("Cancelling previous loader...")
@@ -117,6 +121,10 @@ class DataRefreshController(QObject):
         Much faster than refresh_all_async() when metadata hasn't changed.
         """
         logger.info("Fast refresh: tracks only (async)...")
+
+        # Highlight Refresh button during data loading
+        if hasattr(self.window, 'toolbar'):
+            self.window.toolbar.setActionState('refresh', 'running')
 
         # Cancel any running loaders first
         if self._active_loaders:
@@ -170,104 +178,20 @@ class DataRefreshController(QObject):
         # Save current filter state before updating data (will be restored after)
         saved_filter_state = self.window.filter_store.state
         saved_playlist_id = self.window.get_selected_playlist_id()
-        logger.debug(f"Saved filter state before reload: {saved_filter_state.active_dimension}, playlist_id: {saved_playlist_id}")
+        logger.debug(
+            f"Saved filter state before reload: {saved_filter_state.active_dimension}, "
+            f"playlist_id: {saved_playlist_id}"
+        )
 
         # Temporarily clear filter to prevent applying it to empty/partial data during reload
         self.window.filter_store.clear()
 
         try:
-            # Update playlists
-            if 'playlists' in results:
-                self.window.update_playlists(results['playlists'])
+            # Update all data models
+            is_streaming = self._update_all_models(results)
 
-            # Update albums
-            if 'albums_data' in results:
-                self.window.update_albums(results['albums_data'])
-
-            # Update artists
-            if 'artists_data' in results:
-                self.window.update_artists(results['artists_data'])
-
-            # Update tracks
-            is_streaming = False  # Track if we're using streaming mode
-            if 'tracks' in results:
-                # Use streaming for large datasets to avoid UI freeze
-                track_count = len(results['tracks'])
-                is_streaming = track_count > 2000  # Lowered threshold for better UX
-
-                if is_streaming:
-                    logger.info(f"Using streaming mode for {track_count} tracks")
-                    self._load_tracks_streaming(results['tracks'], results.get('playlists', []))
-                else:
-                    logger.info(f"Using direct load for {track_count} tracks")
-                    # Disable sorting and dynamic filter during bulk update
-                    self.window.unified_tracks_view.tracks_table.setSortingEnabled(False)
-                    self.window.unified_tracks_view.proxy_model.setDynamicSortFilter(False)
-
-                    self.window.update_unified_tracks(
-                        results['tracks'],
-                        results.get('playlists', [])
-                    )
-
-                    # Re-enable and apply initial sort
-                    self.window.unified_tracks_view.proxy_model.setDynamicSortFilter(True)
-                    self.window.unified_tracks_view.tracks_table.setSortingEnabled(True)
-                    self.window.unified_tracks_view.tracks_table.sortByColumn(1, Qt.AscendingOrder)
-
-            # Update filter options (no owners needed)
-            if all(k in results for k in ['artists', 'albums', 'years']):
-                self.window.populate_track_filter_options(
-                    results['artists'],
-                    results['albums'],
-                    results['years']
-                )
-                # Also populate albums view filter
-                if hasattr(self.window, 'albums_view'):
-                    self.window.albums_view.populate_filter_options()
-
-            # Update counts
-            if 'counts' in results:
-                self.window.update_status_counts(results['counts'])
-
-            # Clear execution status and hide loading overlay
-            # NOTE: Don't clear if streaming - let streaming service handle it via on_complete callback
-            if not is_streaming:
-                self.window.set_execution_status(False)
-                self.window.unified_tracks_view.hide_loading()
-            self.window.append_log("Data loaded successfully")
-
-            # Reapply active playlist filter if a playlist was selected before the reload
-            # This ensures the filter uses fresh track_ids after DB changes (e.g., "Pull Selected", "Match Selected")
-            logger.debug(f"After data load, saved_playlist_id: {saved_playlist_id}")
-            if saved_playlist_id:
-                # Fetch current playlist data to get name
-                playlist = self.facade.get_playlist_by_id(saved_playlist_id)
-                logger.debug(f"Fetched playlist data: {playlist.name if playlist else 'None'}")
-                if playlist:
-                    # Recompute filter with fresh track_ids from DB
-                    logger.info(f"Reapplying playlist filter for '{playlist.name}' after data refresh")
-                    # Import here to avoid circular dependency
-                    # Access via parent controller if available
-                    if hasattr(self, '_selection_sync'):
-                        self._selection_sync.set_playlist_filter(playlist.name)
-                else:
-                    # Playlist was deleted - clear filter and selection
-                    logger.warning(f"Playlist {saved_playlist_id} no longer exists - clearing selection")
-                    self.window.unified_tracks_view.clear_filters()
-                    self.window._selected_playlist_id = None
-            elif saved_filter_state.active_dimension:
-                # Restore non-playlist filter (artist/album) if it was active
-                logger.info(f"Restoring {saved_filter_state.active_dimension} filter after data refresh")
-                # Filter will be automatically restored by filter bar state
-            else:
-                logger.debug("No filter to reapply after data load")
-
-            # Trigger lazy playlist loading for visible rows
-            QTimer.singleShot(100, self.window.unified_tracks_view.trigger_lazy_playlist_load)
-
-            # Update database change tracking after refresh
-            if self._db_monitor:
-                self._db_monitor.update_tracking()
+            # Finalize UI after data load
+            self._finalize_data_load(is_streaming, saved_filter_state, saved_playlist_id)
 
         except Exception as e:
             logger.error(f"Error updating UI with loaded data: {e}", exc_info=True)
@@ -281,6 +205,167 @@ class DataRefreshController(QObject):
                 # Update database monitor with new loader count
                 if self._db_monitor:
                     self._db_monitor.set_loader_count(len(self._active_loaders))
+
+    def _update_all_models(self, results: dict) -> bool:
+        """Update all data models with loaded results.
+
+        Args:
+            results: Dict with all loaded data
+
+        Returns:
+            bool: True if using streaming mode for tracks, False otherwise
+        """
+        # Update playlists
+        if 'playlists' in results:
+            self.window.update_playlists(results['playlists'])
+
+        # Update albums
+        if 'albums_data' in results:
+            self.window.update_albums(results['albums_data'])
+
+        # Update artists
+        if 'artists_data' in results:
+            self.window.update_artists(results['artists_data'])
+
+        # Update tracks (may use streaming for large datasets)
+        is_streaming = self._update_tracks(results)
+
+        # Update filter options
+        self._update_filter_options(results)
+
+        # Update counts
+        if 'counts' in results:
+            self.window.update_status_counts(results['counts'])
+
+        return is_streaming
+
+    def _update_tracks(self, results: dict) -> bool:
+        """Update tracks model, using streaming for large datasets.
+
+        Args:
+            results: Dict with all loaded data
+
+        Returns:
+            bool: True if using streaming mode, False otherwise
+        """
+        if 'tracks' not in results:
+            return False
+
+        track_count = len(results['tracks'])
+        is_streaming = track_count > 2000  # Lowered threshold for better UX
+
+        if is_streaming:
+            logger.info(f"Using streaming mode for {track_count} tracks")
+            self._load_tracks_streaming(results['tracks'], results.get('playlists', []))
+        else:
+            logger.info(f"Using direct load for {track_count} tracks")
+            # Disable sorting and dynamic filter during bulk update
+            self.window.unified_tracks_view.tracks_table.setSortingEnabled(False)
+            self.window.unified_tracks_view.proxy_model.setDynamicSortFilter(False)
+
+            self.window.update_unified_tracks(
+                results['tracks'],
+                results.get('playlists', [])
+            )
+
+            # Re-enable and apply initial sort
+            self.window.unified_tracks_view.proxy_model.setDynamicSortFilter(True)
+            self.window.unified_tracks_view.tracks_table.setSortingEnabled(True)
+            self.window.unified_tracks_view.tracks_table.sortByColumn(1, Qt.AscendingOrder)
+
+        return is_streaming
+
+    def _update_filter_options(self, results: dict):
+        """Update filter options with loaded data.
+
+        Args:
+            results: Dict with all loaded data
+        """
+        if all(k in results for k in ['artists', 'albums', 'years']):
+            self.window.populate_track_filter_options(
+                results['artists'],
+                results['albums'],
+                results['years']
+            )
+            # Also populate albums view filter
+            if hasattr(self.window, 'albums_view'):
+                self.window.albums_view.populate_filter_options()
+
+    def _finalize_data_load(
+        self,
+        is_streaming: bool,
+        saved_filter_state,
+        saved_playlist_id: Optional[str]
+    ):
+        """Finalize UI after data load - clear status, restore filters.
+
+        Args:
+            is_streaming: Whether streaming mode was used for tracks
+            saved_filter_state: Filter state before reload
+            saved_playlist_id: Playlist ID before reload (None if no playlist selected)
+        """
+        # Clear execution status and hide loading overlay
+        # NOTE: Don't clear if streaming - let streaming service handle it via on_complete callback
+        if not is_streaming:
+            self.window.set_execution_status(False)
+            self.window.unified_tracks_view.hide_loading()
+        self.window.append_log("Data loaded successfully")
+
+        # Return Refresh button to idle state (original blue color)
+        if hasattr(self.window, 'toolbar'):
+            self.window.toolbar.setActionState('refresh', 'idle')
+
+        # Restore filter state
+        self._restore_filter_state(saved_filter_state, saved_playlist_id)
+
+        # Trigger lazy playlist loading for visible rows
+        QTimer.singleShot(100, self.window.unified_tracks_view.trigger_lazy_playlist_load)
+
+        # Update database change tracking after refresh
+        if self._db_monitor:
+            self._db_monitor.update_tracking()
+
+    def _restore_filter_state(self, saved_filter_state, saved_playlist_id: Optional[str]):
+        """Restore filter state after data reload.
+
+        Args:
+            saved_filter_state: Filter state before reload
+            saved_playlist_id: Playlist ID before reload (None if no playlist selected)
+        """
+        logger.debug(f"After data load, saved_playlist_id: {saved_playlist_id}")
+
+        if saved_playlist_id:
+            # Reapply playlist filter if one was active
+            self._restore_playlist_filter(saved_playlist_id)
+        elif saved_filter_state.active_dimension:
+            # Restore non-playlist filter (artist/album) if it was active
+            logger.info(f"Restoring {saved_filter_state.active_dimension} filter after data refresh")
+            # Filter will be automatically restored by filter bar state
+        else:
+            logger.debug("No filter to reapply after data load")
+
+    def _restore_playlist_filter(self, saved_playlist_id: str):
+        """Restore playlist filter after data reload.
+
+        Args:
+            saved_playlist_id: Playlist ID to restore
+        """
+        # Fetch current playlist data to get name
+        playlist = self.facade.get_playlist_by_id(saved_playlist_id)
+        logger.debug(f"Fetched playlist data: {playlist.name if playlist else 'None'}")
+
+        if playlist:
+            # Recompute filter with fresh track_ids from DB
+            logger.info(f"Reapplying playlist filter for '{playlist.name}' after data refresh")
+            # Import here to avoid circular dependency
+            # Access via parent controller if available
+            if hasattr(self, '_selection_sync'):
+                self._selection_sync.set_playlist_filter(playlist.name)
+        else:
+            # Playlist was deleted - clear filter and selection
+            logger.warning(f"Playlist {saved_playlist_id} no longer exists - clearing selection")
+            self.window.unified_tracks_view.clear_filters()
+            self.window._selected_playlist_id = None
 
     def _on_tracks_only_loaded(self, results: dict):
         """Handle tracks-only data loaded successfully (fast refresh).
@@ -325,6 +410,10 @@ class DataRefreshController(QObject):
                 self.window.update_status_counts(results['counts'])
 
             self.window.append_log("Tracks refreshed")
+
+            # Return Refresh button to idle state (original blue color)
+            if hasattr(self.window, 'toolbar'):
+                self.window.toolbar.setActionState('refresh', 'idle')
 
             # Update database change tracking after refresh
             if self._db_monitor:
@@ -397,6 +486,10 @@ class DataRefreshController(QObject):
         self.window.append_log(f"Error loading data: {error_msg}")
         self.window.set_execution_status(False)  # Set to Ready
         self.window.unified_tracks_view.hide_loading()
+
+        # Set Refresh button to error state
+        if hasattr(self.window, 'toolbar'):
+            self.window.toolbar.setActionState('refresh', 'error')
 
         # Clean up loader reference
         if self._active_loaders:

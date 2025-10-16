@@ -13,6 +13,8 @@ from typing import Callable, Optional
 from dataclasses import dataclass
 import logging
 
+from .action_state_manager import ActionStateManager
+
 logger = logging.getLogger(__name__)
 
 
@@ -62,7 +64,8 @@ class CommandService:
         self,
         executor,  # CliExecutor instance
         enable_actions: Callable[[bool], None],
-        watch_mode_controller = None  # Optional WatchModeController for state checking
+        watch_mode_controller=None,  # Optional WatchModeController for state checking
+        action_state_manager: Optional[ActionStateManager] = None  # Optional ActionStateManager for button states
     ):
         """Initialize command service.
 
@@ -70,10 +73,12 @@ class CommandService:
             executor: CliExecutor instance for running commands
             enable_actions: Callback to enable/disable UI actions
             watch_mode_controller: Optional watch mode controller to check if watch is active
+            action_state_manager: Optional action state manager for button colorization
         """
         self.executor = executor
         self.enable_actions = enable_actions
         self.watch_mode_controller = watch_mode_controller
+        self.action_state_manager = action_state_manager
         self._log_buffer = []  # Buffer to capture log output for error detection
 
     def _is_read_only_command(self, args: list[str]) -> bool:
@@ -92,6 +97,46 @@ class CommandService:
         command = args[0]
         return command in self.READ_ONLY_COMMANDS
 
+    def _extract_action_name(self, args: list[str]) -> Optional[str]:
+        """Extract semantic action name from CLI arguments.
+
+        Creates unique action names to distinguish between different button contexts:
+        - 'match' → Toolbar "Match All" button
+        - 'match:track' → Tracks panel "Match Selected Track" button
+        - 'playlist:match' → Left panel "Match Selected" button
+
+        Args:
+            args: Command arguments (e.g., ['match'], ['match', '--track-id', '123'])
+
+        Returns:
+            Action name string or None if no command
+        """
+        if not args:
+            return None
+
+        command = args[0]
+
+        # Handle playlist-scoped commands (already working correctly)
+        if command == 'playlist' and len(args) >= 2:
+            return f"playlist:{args[1]}"  # 'playlist:pull', 'playlist:match', 'playlist:export'
+
+        # Handle diagnose command (takes track_id as positional argument)
+        # Format: ['diagnose', 'track_id'] or ['diagnose', '--some-flag', 'track_id']
+        if command == 'diagnose' and len(args) >= 2:
+            # Has a positional argument (track_id) → per-track action
+            return "diagnose:track"
+
+        # Handle per-track commands (detected by --track-id flag)
+        if '--track-id' in args:
+            return f"{command}:track"  # 'match:track', etc.
+
+        # Handle per-playlist commands (detected by --playlist-id flag)
+        if '--playlist-id' in args:
+            return f"{command}:playlist"  # 'pull:playlist', 'match:playlist', etc.
+
+        # Generic command (toolbar buttons)
+        return command  # 'match', 'pull', 'scan', 'export', 'report', 'build', 'refresh'
+
     def execute(
         self,
         args: list[str],
@@ -109,6 +154,9 @@ class CommandService:
             on_success: Optional callback invoked after successful execution
             success_message: Message to log on success
         """
+        # Extract action name for state tracking (parameter-aware)
+        action_name = self._extract_action_name(args)
+
         # Check if this is a read-only command that can run during watch mode
         is_read_only = self._is_read_only_command(args)
 
@@ -122,7 +170,7 @@ class CommandService:
                     # Don't return - allow execution to proceed
                 else:
                     on_log("\n⌚ Watch mode is active. Stop watch to run commands that modify data.")
-                    on_log(f"💡 Tip: Read-only commands like 'diagnose' can run during watch mode.")
+                    on_log("💡 Tip: Read-only commands like 'diagnose' can run during watch mode.")
                     return
             else:
                 # Another command (not watch mode) is running
@@ -136,21 +184,43 @@ class CommandService:
         self.enable_actions(False)
         on_execution_status(True, ' '.join(args))  # Show command being run
 
+        # Notify ActionStateManager that action is starting
+        if self.action_state_manager and action_name:
+            self.action_state_manager.set_action_running(action_name)
+
         def on_log_with_capture(line: str):
             """Log callback that also captures to buffer for error analysis."""
             self._log_buffer.append(line)
             on_log(line)
+
+            # Forward to ActionStateManager for progress tracking
+            if self.action_state_manager:
+                self.action_state_manager.process_log_line(line)
 
         def on_finished(exit_code: int):
             """Handle command completion."""
             self.enable_actions(True)
             on_execution_status(False, "")  # Set to Ready
 
+            # Check if command was cancelled by user
+            was_cancelled = self.executor.was_cancelled()
+
+            # Notify ActionStateManager that action finished
+            if self.action_state_manager and action_name:
+                # Treat cancellation as success (return to idle, not error)
+                self.action_state_manager.set_action_finished(
+                    action_name,
+                    success=(exit_code == 0 or was_cancelled)
+                )
+
             if exit_code == 0:
                 # Success path
                 on_log(f"\n{success_message}")
                 if on_success:
                     on_success()
+            elif was_cancelled:
+                # Cancellation path - not an error
+                on_log("\n⚠ Command cancelled by user")
             else:
                 # Failure path with enhanced error messaging
                 on_log(f"\n✗ Command failed with exit code {exit_code}")
@@ -238,5 +308,3 @@ class CommandService:
                 "Close other applications accessing the database and try again."
             )
             return
-
-
