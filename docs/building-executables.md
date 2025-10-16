@@ -63,12 +63,12 @@ Or use the helper script:
 
 **Windows:**
 ```cmd
-run.bat build-all
+run.bat build
 ```
 
 **Linux/macOS:**
 ```bash
-./run.sh build-all
+./run.sh build
 ```
 
 ## Testing Executables

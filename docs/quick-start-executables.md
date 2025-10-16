@@ -64,16 +64,16 @@ pip install -r requirements.txt
 
 **Windows**:
 ```cmd
+run.bat build        REM Both CLI and GUI
 run.bat build-cli    REM CLI only
 run.bat build-gui    REM GUI only
-run.bat build-all    REM Both
 ```
 
 **Linux/macOS**:
 ```bash
+./run.sh build       # Both CLI and GUI
 ./run.sh build-cli   # CLI only
 ./run.sh build-gui   # GUI only
-./run.sh build-all   # Both
 ```
 
 ## Which One Do I Need?

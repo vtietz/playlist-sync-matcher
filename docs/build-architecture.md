@@ -150,7 +150,7 @@ Windows:                     Linux/macOS:
     dist/psm-gui (Linux/macOS)
 
 ┌─────────────────────┐     ┌─────────────────────┐
-│ run.bat build-all   │     │ ./run.sh build-all  │
+│ run.bat build       │     │ ./run.sh build      │
 └─────────────────────┘     └─────────────────────┘
           │                            │
           ▼                            ▼

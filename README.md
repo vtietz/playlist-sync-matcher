@@ -88,21 +88,21 @@ Requires **Python 3.9+**. The scripts will automatically set up a virtual enviro
 
 **Windows**:
 ```bash
-run.bat install   # Install dependencies (first time)
-run.bat build     # Run sync pipeline (after setup below)
-run.bat build-cli # Build CLI executable only
-run.bat build-gui # Build GUI executable only
-run.bat build-all # Build both executables
+run.bat install      # Install dependencies (first time)
+run.bat psm build    # Run sync pipeline (after setup below)
+run.bat build        # Build both CLI and GUI executables
+run.bat build-cli    # Build CLI executable only
+run.bat build-gui    # Build GUI executable only
 ```
 
 **Linux/Mac**:
 ```bash
 chmod +x run.sh
-./run.sh install  # Install dependencies (first time)
-./run.sh build    # Run sync pipeline (after setup)
-./run.sh build-cli # Build CLI executable only
-./run.sh build-gui # Build GUI executable only
-./run.sh build-all # Build both executables
+./run.sh install     # Install dependencies (first time)
+./run.sh psm build   # Run sync pipeline (after setup)
+./run.sh build       # Build both CLI and GUI executables
+./run.sh build-cli   # Build CLI executable only
+./run.sh build-gui   # Build GUI executable only
 ```
 
 > **First run**: The install script creates a `.venv` directory and installs all dependencies automatically.
@@ -178,9 +178,9 @@ PSM__EXPORT__ORGANIZE_BY_OWNER=true      # Group playlists by owner
 Run the login command to connect your Spotify account:
 
 ```bash
-run.bat login     # Windows
-./run.sh login    # Linux/Mac
-psm login         # Standalone executable
+run.bat psm login     # Windows
+./run.sh psm login    # Linux/Mac
+psm-cli login         # Standalone executable
 ```
 
 A browser window will open for Spotify authorization. After you approve, the tool saves your credentials to `tokens.json` (auto-refreshed).
@@ -190,9 +190,9 @@ A browser window will open for Spotify authorization. After you approve, the too
 Now run the complete data pipeline with a single command:
 
 ```bash
-run.bat build     # Windows
-./run.sh build    # Linux/Mac
-psm build         # Standalone executable
+run.bat psm build     # Windows
+./run.sh psm build    # Linux/Mac
+psm-cli build         # Standalone executable
 ```
 
 > **What does "build" mean?** The `build` command runs the complete sync pipeline (not compiling code). It executes all steps in sequence.

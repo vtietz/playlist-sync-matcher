@@ -6,20 +6,31 @@ IF NOT EXIST %VENV% (
 )
 CALL %VENV%\Scripts\activate.bat
 
+REM ============================================================================
+REM Dev Commands (only available via run.bat, not in built executables)
+REM ============================================================================
 IF /I "%~1"=="install" GOTO install
-
 IF /I "%~1"=="test" GOTO test
 IF /I "%~1"=="analyze" GOTO analyze
 IF /I "%~1"=="cleanup" GOTO cleanup
 IF /I "%~1"=="clear-cache" GOTO clear_cache
-IF /I "%~1"=="gui" GOTO gui
+IF /I "%~1"=="validate" GOTO validate
 IF /I "%~1"=="build-cli" GOTO build_cli
 IF /I "%~1"=="build-gui" GOTO build_gui
+IF /I "%~1"=="build" GOTO build_all
 IF /I "%~1"=="build-all" GOTO build_all
-IF /I "%~1"=="help" GOTO help
-IF /I "%~1"=="version" GOTO version
 IF /I "%~1"=="py" GOTO py
-GOTO cli
+
+REM ============================================================================
+REM App Commands (delegate to psm CLI or GUI)
+REM ============================================================================
+IF /I "%~1"=="psm" GOTO psm
+IF /I "%~1"=="gui" GOTO gui
+IF /I "%~1"=="help" GOTO help
+IF /I "%~1"=="" GOTO help
+
+REM Default: treat as psm CLI command (for backward compatibility)
+GOTO psm_implicit
 
 :install
 ECHO Installing dependencies from requirements.txt ...
@@ -110,8 +121,9 @@ FOR /R . %%f IN (*.pyc *.pyo) DO @IF EXIST "%%f" (
 ECHO Cache cleared!
 GOTO :EOF
 
-:gui
-python -m psm.gui
+:validate
+ECHO Running build validation...
+scripts\validate_builds.bat
 GOTO :EOF
 
 :build_cli
@@ -142,37 +154,44 @@ ECHO All builds complete!
 GOTO :EOF
 
 :help
-ECHO Usage: run.bat [command]
+ECHO ============================================================================
+ECHO playlist-sync-matcher Development Runner
+ECHO ============================================================================
 ECHO.
-ECHO Application Commands:
-ECHO   pull ^| scan ^| match ^| export ^| report ^| report-albums
-ECHO   build                 Build playlists (sync Spotify to M3U)
-ECHO   gui                   Launch desktop GUI
-ECHO   version               Show CLI version
+ECHO Usage: run.bat [command] [args]
 ECHO.
-ECHO Development Commands:
-ECHO   install               Install or update dependencies
-ECHO   test [pytest args]    Run test suite (e.g. run.bat test -q tests\unit\)
-ECHO   analyze [mode]        Run code quality analysis (changed^|all^|files)
-ECHO                         Examples: run.bat analyze          (changed files only)
-ECHO                                  run.bat analyze all      (entire project)
-ECHO                                  run.bat analyze files psm\cli\core.py
-ECHO   cleanup [mode]        Clean code (whitespace, unused imports)
-ECHO                         Examples: run.bat cleanup          (changed files only)
-ECHO                                  run.bat cleanup all      (entire project)
-ECHO                                  run.bat cleanup --dry-run all  (preview)
-ECHO   clear-cache           Remove all Python cache files (__pycache__, *.pyc)
-ECHO   py ^<args^>            Run python with args inside venv
+ECHO Application Commands (run via psm CLI):
+ECHO   run.bat psm [command]     Execute any psm CLI command
+ECHO   run.bat gui               Launch desktop GUI
 ECHO.
-ECHO Build/Distribution Commands:
-ECHO   build-cli             Build CLI executable (dist\psm-cli.exe)
-ECHO   build-gui             Build GUI executable (dist\psm-gui.exe)
-ECHO   build-all             Build both CLI and GUI executables
+ECHO   Examples:
+ECHO     run.bat psm pull        Pull Spotify playlists
+ECHO     run.bat psm scan        Scan local music library
+ECHO     run.bat psm match       Match tracks
+ECHO     run.bat psm build       Full sync pipeline
+ECHO     run.bat psm --help      Show all CLI commands
+ECHO     run.bat gui             Launch GUI application
+ECHO.
+ECHO Development Commands (only available via run.bat):
+ECHO   install                   Install or update dependencies
+ECHO   test [args]               Run pytest (e.g. run.bat test -q tests\unit\)
+ECHO   analyze [mode]            Code quality analysis (changed^|all^|files ^<paths^>)
+ECHO   cleanup [mode]            Code cleanup (whitespace, unused imports)
+ECHO   clear-cache               Remove Python cache files (__pycache__, *.pyc)
+ECHO   validate                  Validate built executables
+ECHO   py ^<args^>                Run python with args inside venv
+ECHO.
+ECHO Build Commands (create standalone executables):
+ECHO   build                     Build both CLI and GUI executables
+ECHO   build-cli                 Build CLI executable only (dist\psm-cli.exe)
+ECHO   build-gui                 Build GUI executable only (dist\psm-gui.exe)
+ECHO.
+ECHO ============================================================================
+ECHO For built executables (no venv needed):
+ECHO   psm-cli.exe [command]     Direct CLI execution (e.g. psm-cli.exe build)
+ECHO   psm-gui.exe               Direct GUI execution
+ECHO ============================================================================
 EXIT /B 0
-
-:version
-python -m psm.cli --version
-GOTO :EOF
 
 :py
 REM Run arbitrary python command inside the virtual environment
@@ -187,6 +206,33 @@ GOTO collect_py
 python %PARGS%
 GOTO :EOF
 
-:cli
+REM ============================================================================
+REM App Command Handlers
+REM ============================================================================
+
+:psm
+REM Explicit: run.bat psm <command>
+REM Remove 'psm' from args and build new command
+SHIFT
+SET PSM_ARGS=
+:collect_psm_args
+IF "%~1"=="" GOTO run_psm
+SET PSM_ARGS=%PSM_ARGS% %1
+SHIFT
+GOTO collect_psm_args
+:run_psm
+IF "%PSM_ARGS%"=="" (
+  python -m psm.cli --help
+) ELSE (
+  python -m psm.cli %PSM_ARGS%
+)
+GOTO :EOF
+
+:psm_implicit
+REM Implicit: run.bat <command> (backward compatibility)
 python -m psm.cli %*
+GOTO :EOF
+
+:gui
+python -m psm.gui
 GOTO :EOF
