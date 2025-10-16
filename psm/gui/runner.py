@@ -7,12 +7,55 @@ import os
 import subprocess
 import sys
 import logging
+import platform
+from pathlib import Path
 from typing import Optional, Callable, List
 from PySide6.QtCore import QObject, QThread, Signal
 
 from .progress_parser import parse_progress
 
 logger = logging.getLogger(__name__)
+
+
+def _get_cli_command() -> tuple[list[str], str | None]:
+    """Get the appropriate CLI command based on frozen/source mode.
+    
+    Returns:
+        Tuple of (command_prefix, error_message)
+        - command_prefix: List to prepend to CLI args (e.g., ['python', '-m', 'psm.cli'] or ['psm-cli.exe'])
+        - error_message: Error message if CLI cannot be found, None if OK
+    """
+    # Check if running as PyInstaller frozen executable
+    if getattr(sys, 'frozen', False):
+        # Running as frozen executable - need to find sibling CLI binary
+        gui_exe = Path(sys.executable)
+        
+        # Determine CLI binary name based on platform
+        if platform.system() == 'Windows':
+            cli_name = 'psm-cli.exe'
+        else:
+            cli_name = 'psm-cli'
+        
+        # Look for CLI binary in same directory as GUI
+        cli_path = gui_exe.parent / cli_name
+        
+        if not cli_path.exists():
+            error_msg = (
+                f"CLI executable not found: {cli_path}\n\n"
+                f"The GUI requires '{cli_name}' to be present in the same directory "
+                f"as the GUI executable.\n\n"
+                f"Please ensure both files are kept together:\n"
+                f"  - {gui_exe.name}\n"
+                f"  - {cli_name}\n\n"
+                f"See docs/quick-start-executables.md for more information."
+            )
+            return ([], error_msg)
+        
+        logger.info(f"Using CLI executable: {cli_path}")
+        return ([str(cli_path)], None)
+    else:
+        # Running from source - use python -m psm.cli
+        return ([sys.executable, '-m', 'psm.cli'], None)
 
 
 class CliRunner(QThread):
@@ -39,8 +82,18 @@ class CliRunner(QThread):
     def run(self):
         """Execute the CLI command and stream output."""
         try:
-            # Build command: python -m psm.cli <args>
-            cmd = [sys.executable, '-m', 'psm.cli'] + self.command_args
+            # Get CLI command based on frozen/source mode
+            cli_prefix, error_msg = _get_cli_command()
+            
+            if error_msg:
+                # CLI executable not found
+                logger.error(error_msg)
+                self.error.emit(error_msg)
+                self.finished.emit(1)
+                return
+            
+            # Build full command: [cli_prefix...] + command_args
+            cmd = cli_prefix + self.command_args
 
             logger.info(f"Running command: {' '.join(cmd)}")
 
@@ -48,6 +101,13 @@ class CliRunner(QThread):
             env = os.environ.copy()
             env['PYTHONIOENCODING'] = 'utf-8'  # Force UTF-8 encoding for Python subprocess
             env['PSM_SKIP_FIRST_RUN_CHECK'] = '1'  # Skip first-run .env check when running from GUI
+
+            # Platform-specific subprocess options
+            creation_flags = 0
+            if platform.system() == 'Windows' and getattr(sys, 'frozen', False):
+                # On Windows frozen mode, suppress console window
+                # Note: CLI spec must have console=True to allow stdout/stderr pipes
+                creation_flags = subprocess.CREATE_NO_WINDOW
 
             # Start subprocess with line-buffered output and UTF-8 encoding
             self.process = subprocess.Popen(
@@ -60,6 +120,7 @@ class CliRunner(QThread):
                 encoding='utf-8',  # Force UTF-8 to handle Unicode characters
                 errors='replace',  # Replace unencodable characters instead of crashing
                 env=env,  # Pass modified environment
+                creationflags=creation_flags,  # Suppress console on Windows frozen
             )
 
             # Stream output line by line

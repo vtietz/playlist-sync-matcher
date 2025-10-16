@@ -208,7 +208,9 @@ class SpotifyAuthProvider(AuthProvider):
         redirect_uri = self.build_redirect_uri()
         # Generate a state token (mitigate stale/cached session anomalies & CSRF)
         state = base64.urlsafe_b64encode(os.urandom(12)).decode().rstrip('=')
-        logger.debug(f"[auth] Beginning auth flow. Redirect URI: {redirect_uri} state={state}")
+        logger.info(f"Starting Spotify authentication flow...")
+        logger.info(f"Redirect URI: {redirect_uri}")
+        logger.debug(f"[auth] state={state}")
         # If HTTPS required, ensure cert BEFORE opening browser so user doesn't see invalid URL failure first.
         server = OAuthServer((self.redirect_host, self.redirect_port), OAuthHandler)
         if self.redirect_scheme.lower() == 'https':
@@ -246,11 +248,13 @@ class SpotifyAuthProvider(AuthProvider):
             "state": state,
         }
         url = f"{AUTH_URL}?{urlencode(params)}"
-        logger.debug(f"[auth] Opening browser to: {url}")
+        logger.info(f"Opening browser for Spotify authorization...")
+        logger.debug(f"[auth] Auth URL: {url}")
         webbrowser.open(url)
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
-        logger.debug(f"[auth] Local server started on port {self.redirect_port}, waiting for authorization code...")
+        logger.info(f"Waiting for authorization (listening on port {self.redirect_port})...")
+        logger.info("Please complete authorization in your browser.")
 
         try:
             start = time.time()
@@ -259,11 +263,31 @@ class SpotifyAuthProvider(AuthProvider):
                 if getattr(server, 'error', None):
                     err = server.error  # type: ignore[attr-defined]
                     desc = getattr(server, 'error_description', '')  # type: ignore[attr-defined]
-                    raise RuntimeError(f"Spotify authorization error: {err} {desc}".strip())
+                    error_msg = f"Spotify authorization error: {err}"
+                    if desc:
+                        error_msg += f" - {desc}"
+                    
+                    # Add helpful hints for common errors
+                    if 'redirect_uri' in desc.lower() or err == 'invalid_request':
+                        error_msg += (
+                            f"\n\nThe redirect URI might not be registered in your Spotify app."
+                            f"\nPlease add this EXACT URI to your Spotify Dashboard:"
+                            f"\n  {redirect_uri}"
+                            f"\n\nSteps:"
+                            f"\n1. Go to https://developer.spotify.com/dashboard"
+                            f"\n2. Select your app"
+                            f"\n3. Click 'Edit Settings'"
+                            f"\n4. Add '{redirect_uri}' to Redirect URIs"
+                            f"\n5. Click 'Save'"
+                        )
+                    
+                    logger.error(error_msg)
+                    raise RuntimeError(error_msg)
                 if time.time() - start > self.timeout_seconds:
                     raise TimeoutError("Authorization timeout expired.")
                 time.sleep(0.05)
-            logger.debug(f"[auth] Received authorization code: {server.code}")
+            logger.info("Authorization code received from Spotify")
+            logger.debug(f"[auth] Code: {server.code}")
             code = server.code
         finally:
             # Clean shutdown: stop server, join thread, close socket
@@ -282,14 +306,16 @@ class SpotifyAuthProvider(AuthProvider):
             "redirect_uri": redirect_uri,
             "code_verifier": verifier,
         }
-        logger.debug(f"[auth] Exchanging code for token at {TOKEN_URL}")
+        logger.info("Exchanging authorization code for access token...")
+        logger.debug(f"[auth] Token URL: {TOKEN_URL}")
         session = _get_oauth_session()
         resp = session.post(TOKEN_URL, data=data, timeout=30)
         resp.raise_for_status()
         tok = resp.json()
         tok['expires_at'] = time.time() + int(tok.get('expires_in', 3600))
         self._save_cache(tok)
-        logger.debug(f"[auth] Token acquired (expires_in={tok.get('expires_in')})")
+        logger.info(f"Successfully authenticated with Spotify (token expires in {tok.get('expires_in')} seconds)")
+        logger.debug(f"[auth] expires_in={tok.get('expires_in')}")
         return tok
 
     def build_redirect_uri(self) -> str:
