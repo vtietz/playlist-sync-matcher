@@ -159,8 +159,7 @@ jobs:
             cp artifacts/psm-cli-windows-amd64.exe/* bundle/windows/psm-cli.exe
             cp artifacts/psm-gui-windows-amd64.exe/* bundle/windows/psm-gui.exe
             (cd bundle/windows && zip -9 ../psm-windows-amd64.zip psm-cli.exe psm-gui.exe)
-            sha256sum bundle/psm-windows-amd64.zip > bundle/psm-windows-amd64.zip.sha256
-            mv bundle/psm-windows-amd64.zip* release-assets/
+            mv bundle/psm-windows-amd64.zip release-assets/
           fi
 
           # Linux tar.gz bundle (psm-linux-amd64.tar.gz)
@@ -171,13 +170,19 @@ jobs:
             cp artifacts/psm-gui-linux-amd64/* bundle/linux/psm-gui
             chmod +x bundle/linux/psm-cli bundle/linux/psm-gui || true
             tar -C bundle/linux -czf bundle/psm-linux-amd64.tar.gz psm-cli psm-gui
-            sha256sum bundle/psm-linux-amd64.tar.gz > bundle/psm-linux-amd64.tar.gz.sha256
-            mv bundle/psm-linux-amd64.tar.gz* release-assets/
+            mv bundle/psm-linux-amd64.tar.gz release-assets/
           fi
 
           # macOS tar.gz bundle (psm-macos-amd64.tar.gz)
           if [ -d "artifacts/psm-cli-macos-amd64" ] && [ -d "artifacts/psm-gui-macos-amd64" ]; then
             echo "Creating macOS bundle..."
+            rm -rf bundle/macos/*
+            cp artifacts/psm-cli-macos-amd64/* bundle/macos/psm-cli
+            cp artifacts/psm-gui-macos-amd64/* bundle/macos/psm-gui
+            chmod +x bundle/macos/psm-cli bundle/macos/psm-gui || true
+            tar -C bundle/macos -czf bundle/psm-macos-amd64.tar.gz psm-cli psm-gui
+            mv bundle/psm-macos-amd64.tar.gz release-assets/
+          fi
             rm -rf bundle/macos/*
             cp artifacts/psm-cli-macos-amd64/* bundle/macos/psm-cli
             cp artifacts/psm-gui-macos-amd64/* bundle/macos/psm-gui
