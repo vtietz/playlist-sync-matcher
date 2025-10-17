@@ -183,14 +183,6 @@ jobs:
             tar -C bundle/macos -czf bundle/psm-macos-amd64.tar.gz psm-cli psm-gui
             mv bundle/psm-macos-amd64.tar.gz release-assets/
           fi
-            rm -rf bundle/macos/*
-            cp artifacts/psm-cli-macos-amd64/* bundle/macos/psm-cli
-            cp artifacts/psm-gui-macos-amd64/* bundle/macos/psm-gui
-            chmod +x bundle/macos/psm-cli bundle/macos/psm-gui || true
-            tar -C bundle/macos -czf bundle/psm-macos-amd64.tar.gz psm-cli psm-gui
-            sha256sum bundle/psm-macos-amd64.tar.gz > bundle/psm-macos-amd64.tar.gz.sha256
-            mv bundle/psm-macos-amd64.tar.gz* release-assets/
-          fi
 
       - name: Remove existing assets (cleanup)
         shell: bash
