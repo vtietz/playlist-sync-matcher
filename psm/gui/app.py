@@ -50,7 +50,7 @@ def apply_app_icon(app: QApplication) -> None:
     Safe no‑op if files are missing.
     """
     resources_dir = Path(__file__).parent / 'resources'
-    for name in ("psm-icon.png", "psm-icon.ico", "icon.png", "icon.ico"):
+    for name in ("psm-icon.png", "psm-icon.ico", "ps-icon.ico", "icon.png", "icon.ico"):
         p = resources_dir / name
         if p.exists():
             try:

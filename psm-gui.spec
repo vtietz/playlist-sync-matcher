@@ -11,6 +11,7 @@ Output:
     dist/psm-gui (Linux/macOS)
 """
 import sys
+import os
 
 block_cipher = None
 
@@ -18,17 +19,39 @@ block_cipher = None
 # No manual DLL bundling needed
 binaries = []
 
+resource_dir = 'psm/gui/resources'
+
+# Collect only existing resources to avoid build failures
+data_files = []
+for rel in (
+    'style.qss',
+    'psm-icon.png',
+    'psm-icon.ico',
+    'ps-icon.ico',
+    'icon.png',
+    'icon.ico',
+):
+    p = os.path.join(resource_dir, rel)
+    if os.path.exists(p):
+        data_files.append((p, resource_dir))
+
+# Choose an executable icon if available (Windows only)
+icon_candidates = (
+    os.path.join(resource_dir, 'ps-icon.ico'),
+    os.path.join(resource_dir, 'psm-icon.ico'),
+    os.path.join(resource_dir, 'icon.ico'),
+)
+exe_icon = None
+for cand in icon_candidates:
+    if os.path.exists(cand):
+        exe_icon = cand
+        break
+
 a = Analysis(
     ['psm/gui/__main__.py'],
     pathex=['.'],
     binaries=binaries,
-    datas=[
-        ('psm/gui/resources/style.qss', 'psm/gui/resources'),
-        ('psm/gui/resources/icon.png', 'psm/gui/resources'),
-        ('psm/gui/resources/icon.ico', 'psm/gui/resources'),
-        ('psm/gui/resources/psm-icon.png', 'psm/gui/resources'),
-        ('psm/gui/resources/psm-icon.ico', 'psm/gui/resources'),
-    ],
+    datas=data_files,
     hiddenimports=[
         'psm',
         'psm.gui',
@@ -90,5 +113,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='psm/gui/resources/psm-icon.ico',  # Windows executable icon (optional)
+    icon=exe_icon,
 )

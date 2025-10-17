@@ -178,8 +178,11 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
           files: release-assets/*
           draft: false
           prerelease: false
+          make_latest: true
           body_path: ${{ (hashFiles(format('docs/releasenotes/{0}.md', github.ref_name)) != '' && format('docs/releasenotes/{0}.md', github.ref_name)) || '' }}
           generate_release_notes: ${{ hashFiles(format('docs/releasenotes/{0}.md', github.ref_name)) == '' }}

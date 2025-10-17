@@ -11,6 +11,7 @@ Output:
     dist/psm-cli (Linux/macOS)
 """
 import sys
+import os
 
 block_cipher = None
 
@@ -18,13 +19,21 @@ block_cipher = None
 # No manual DLL bundling needed
 binaries = []
 
+resource_dir = 'psm/gui/resources'
+data_files = []
+for rel in (
+    'ps-icon.ico',
+    'psm-icon.ico',
+):
+    p = os.path.join(resource_dir, rel)
+    if os.path.exists(p):
+        data_files.append((p, resource_dir))
+
 a = Analysis(
     ['psm/cli/__main__.py'],
     pathex=['.'],  # Add current directory to Python path
     binaries=binaries,
-    datas=[
-        ('psm/gui/resources/psm-icon.ico', 'psm/gui/resources'),
-    ],
+    datas=data_files,
     hiddenimports=[
         'psm',
         'psm.cli',
@@ -96,5 +105,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='psm/gui/resources/psm-icon.ico',  # Optional CLI icon (Windows)
+    icon=(os.path.join(resource_dir, 'ps-icon.ico') if os.path.exists(os.path.join(resource_dir, 'ps-icon.ico')
+          else (os.path.join(resource_dir, 'psm-icon.ico') if os.path.exists(os.path.join(resource_dir, 'psm-icon.ico')
+                else None)),
 )
