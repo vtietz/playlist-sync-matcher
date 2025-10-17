@@ -18,13 +18,13 @@ jobs:
         include:
           - os: windows-latest
             artifact_name: psm-cli.exe
-            asset_name: psm-cli-windows-amd64.exe
+            asset_name: playlist-sync-matcher-cli-${{ github.ref_name }}-Win64.exe
           - os: ubuntu-latest
             artifact_name: psm-cli
-            asset_name: psm-cli-linux-amd64
+            asset_name: playlist-sync-matcher-cli-${{ github.ref_name }}-Linux64
           - os: macos-latest
             artifact_name: psm-cli
-            asset_name: psm-cli-macos-amd64
+            asset_name: playlist-sync-matcher-cli-${{ github.ref_name }}-macOS-x64
 
     steps:
       - name: Checkout code
@@ -69,13 +69,13 @@ jobs:
         include:
           - os: windows-latest
             artifact_name: psm-gui.exe
-            asset_name: psm-gui-windows-amd64.exe
+            asset_name: playlist-sync-matcher-gui-${{ github.ref_name }}-Win64.exe
           - os: ubuntu-latest
             artifact_name: psm-gui
-            asset_name: psm-gui-linux-amd64
+            asset_name: playlist-sync-matcher-gui-${{ github.ref_name }}-Linux64
           - os: macos-latest
             artifact_name: psm-gui
-            asset_name: psm-gui-macos-amd64
+            asset_name: playlist-sync-matcher-gui-${{ github.ref_name }}-macOS-x64
 
     steps:
       - name: Checkout code
@@ -152,36 +152,43 @@ jobs:
           done
 
           # 2) Create bundled archives containing both CLI and GUI per-OS
-          # Windows zip bundle (psm-windows-amd64.zip)
-          if [ -d "artifacts/psm-cli-windows-amd64.exe" ] && [ -d "artifacts/psm-gui-windows-amd64.exe" ]; then
+          # Windows zip bundle (playlist-sync-matcher-${tag}-Win64.zip)
+          tag="${GITHUB_REF_NAME}"
+          cli_win="playlist-sync-matcher-cli-${tag}-Win64.exe"
+          gui_win="playlist-sync-matcher-gui-${tag}-Win64.exe"
+          if [ -d "artifacts/${cli_win}" ] && [ -d "artifacts/${gui_win}" ]; then
             echo "Creating Windows bundle..."
             rm -rf bundle/windows/*
-            cp artifacts/psm-cli-windows-amd64.exe/* bundle/windows/psm-cli.exe
-            cp artifacts/psm-gui-windows-amd64.exe/* bundle/windows/psm-gui.exe
-            (cd bundle/windows && zip -9 ../psm-windows-amd64.zip psm-cli.exe psm-gui.exe)
-            mv bundle/psm-windows-amd64.zip release-assets/
+            cp "artifacts/${cli_win}/"* bundle/windows/psm-cli.exe
+            cp "artifacts/${gui_win}/"* bundle/windows/psm-gui.exe
+            (cd bundle/windows && zip -9 "../playlist-sync-matcher-${tag}-Win64.zip" psm-cli.exe psm-gui.exe)
+            mv "bundle/playlist-sync-matcher-${tag}-Win64.zip" release-assets/
           fi
 
-          # Linux tar.gz bundle (psm-linux-amd64.tar.gz)
-          if [ -d "artifacts/psm-cli-linux-amd64" ] && [ -d "artifacts/psm-gui-linux-amd64" ]; then
+          # Linux tar.gz bundle (playlist-sync-matcher-${tag}-Linux64.tar.gz)
+          cli_linux="playlist-sync-matcher-cli-${tag}-Linux64"
+          gui_linux="playlist-sync-matcher-gui-${tag}-Linux64"
+          if [ -d "artifacts/${cli_linux}" ] && [ -d "artifacts/${gui_linux}" ]; then
             echo "Creating Linux bundle..."
             rm -rf bundle/linux/*
-            cp artifacts/psm-cli-linux-amd64/* bundle/linux/psm-cli
-            cp artifacts/psm-gui-linux-amd64/* bundle/linux/psm-gui
+            cp "artifacts/${cli_linux}/"* bundle/linux/psm-cli
+            cp "artifacts/${gui_linux}/"* bundle/linux/psm-gui
             chmod +x bundle/linux/psm-cli bundle/linux/psm-gui || true
-            tar -C bundle/linux -czf bundle/psm-linux-amd64.tar.gz psm-cli psm-gui
-            mv bundle/psm-linux-amd64.tar.gz release-assets/
+            tar -C bundle/linux -czf "bundle/playlist-sync-matcher-${tag}-Linux64.tar.gz" psm-cli psm-gui
+            mv "bundle/playlist-sync-matcher-${tag}-Linux64.tar.gz" release-assets/
           fi
 
-          # macOS tar.gz bundle (psm-macos-amd64.tar.gz)
-          if [ -d "artifacts/psm-cli-macos-amd64" ] && [ -d "artifacts/psm-gui-macos-amd64" ]; then
+          # macOS tar.gz bundle (playlist-sync-matcher-${tag}-macOS-x64.tar.gz)
+          cli_macos="playlist-sync-matcher-cli-${tag}-macOS-x64"
+          gui_macos="playlist-sync-matcher-gui-${tag}-macOS-x64"
+          if [ -d "artifacts/${cli_macos}" ] && [ -d "artifacts/${gui_macos}" ]; then
             echo "Creating macOS bundle..."
             rm -rf bundle/macos/*
-            cp artifacts/psm-cli-macos-amd64/* bundle/macos/psm-cli
-            cp artifacts/psm-gui-macos-amd64/* bundle/macos/psm-gui
+            cp "artifacts/${cli_macos}/"* bundle/macos/psm-cli
+            cp "artifacts/${gui_macos}/"* bundle/macos/psm-gui
             chmod +x bundle/macos/psm-cli bundle/macos/psm-gui || true
-            tar -C bundle/macos -czf bundle/psm-macos-amd64.tar.gz psm-cli psm-gui
-            mv bundle/psm-macos-amd64.tar.gz release-assets/
+            tar -C bundle/macos -czf "bundle/playlist-sync-matcher-${tag}-macOS-x64.tar.gz" psm-cli psm-gui
+            mv "bundle/playlist-sync-matcher-${tag}-macOS-x64.tar.gz" release-assets/
           fi
 
       - name: Remove existing assets (cleanup)
