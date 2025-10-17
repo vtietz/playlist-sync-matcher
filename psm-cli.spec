@@ -29,6 +29,15 @@ for rel in (
     if os.path.exists(p):
         data_files.append((p, resource_dir))
 
+# Prefer an icon if available (ps-icon.ico, then psm-icon.ico); set None if neither exists
+icon_candidates = ['ps-icon.ico', 'psm-icon.ico']
+icon_path = None
+for rel in icon_candidates:
+    p = os.path.join(resource_dir, rel)
+    if os.path.exists(p):
+        icon_path = p
+        break
+
 a = Analysis(
     ['psm/cli/__main__.py'],
     pathex=['.'],  # Add current directory to Python path
@@ -105,7 +114,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=(os.path.join(resource_dir, 'ps-icon.ico') if os.path.exists(os.path.join(resource_dir, 'ps-icon.ico')
-          else (os.path.join(resource_dir, 'psm-icon.ico') if os.path.exists(os.path.join(resource_dir, 'psm-icon.ico')
-                else None)),
+    icon=icon_path,
 )

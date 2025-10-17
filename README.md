@@ -7,26 +7,47 @@ Instead of just getting a list of song names, you get working playlists that:
 - **Link to your local files** – Each playlist entry points to the real MP3/FLAC file on your drive
 - **Show what's missing** – Missing tracks marked with ❌ emoji in mirrored mode, plus detailed reports
 - **Preserve your path format** – Network drives (Z:\) vs UNC paths (\\server\share) maintained automatically
-- **Keep playlists in sync** – Smart obsolete detection prompts you to clean up deleted playlists
+- **Keep playlists in sync** – Detects previously exported playlists that were deleted in Spotify and prompts you to remove obsolete files ([Smart Playlist Cleanup](#smart-playlist-cleanup); optional full clean before export)
 - **Work everywhere** – Standard M3U files that any music player can use (VLC, Foobar2000, etc.)
 
 Perfect for syncing to devices, offline listening, or just organizing your collection around your streaming habits.
 
-## Graphical Desktop App (GUI)
 
-Use the new cross‑platform GUI for a visual workflow. It runs the same underlying CLI engine and uses the same configuration.
+## Desktop GUI
 
 ![GUI](docs/screenshots/gui.png)
 
-Highlights:
-- Master–detail playlist browsing with instant track view
-- Action toolbar: Pull, Scan, Match, Export, Report, Build, Watch, per‑playlist actions
-- Filterable track grid with quick filters (Playlist, Artist, Album, Year, Matched, Confidence, Quality) and search
-- Live log panel shows CLI output; status bar shows totals (tracks, matched %, playlists)
-- Read‑only data layer; all heavy work is executed by the CLI (parity and reliability)
-- Works on Windows, macOS, and Linux
+Use the cross‑platform desktop app for a visual workflow. It runs the same underlying CLI engine and uses the same configuration.
 
-Getting started: download both the GUI and CLI for your OS from Releases and place them in the same folder, then launch the GUI executable (see Installation below).
+**Launch GUI**:
+```bash
+run.bat gui          # Windows (via run script)
+./run.sh gui         # Linux/Mac (via run script)
+
+# OR via CLI command:
+psm gui              # If installed globally
+python -m psm.cli gui   # Direct Python invocation
+```
+
+**Features**:
+- 📊 Master–Detail Playlists – Browse playlists on the left, view tracks on the right
+- 🔎 Powerful Filters – Quick filters for Playlist, Artist, Album, Year, Matched, Confidence, Quality + search boxes
+- ⚡ All CLI Actions – Pull, Scan, Match, Export, Report, Build, Open Reports, Refresh via toolbar buttons
+- 🔄 Watch Mode Toggle – Enable continuous monitoring with one click
+- 📝 Live Logs – Real-time CLI output streaming to a log panel
+- 🧭 Status Bar Metrics – Total tracks, matched count/percentage, and playlist count
+- 🎨 Professional UI – Dark-themed Qt interface (system theme aware)
+
+**Architecture**:
+- Zero changes to existing CLI/service code (isolated `psm/gui/` module)
+- Read-only data layer using `DatabaseInterface` only (no raw SQL)
+- All actions execute actual CLI commands as subprocesses (CLI parity)
+- Live log parsing from CLI stdout
+
+**Documentation**:
+- [`psm/gui/README.md`](psm/gui/README.md) - Detailed usage, keyboard shortcuts, and architecture
+- [`docs/gui-performance.md`](docs/gui-performance.md) - Performance optimization patterns for large datasets
+
 
 ## How it works
 1. **Reads your Spotify playlists** – Pulls all your playlist info  
@@ -43,7 +64,7 @@ Get comprehensive insights into your music collection with beautiful, interactiv
 
 ![Reports Dashboard](docs/screenshots/reports-overview.png)
 
-**What You Get:**
+**Highlights:**
 - 📊 **Sortable & Searchable Tables** – Click column headers to sort, use search to filter thousands of tracks instantly
 - 🔗 **Clickable Spotify Links** – Track names, playlists, and albums link directly to Spotify for easy reference
 - 📈 **Match Quality Insights** – Confidence scores, match strategies, and metadata comparison side-by-side
@@ -75,33 +96,33 @@ No Python required! Download pre-built binaries from [Releases](https://github.c
   - Linux: `psm-gui-linux-amd64` AND `psm-cli-linux-amd64`
 
 **Two components:**
-- **CLI (`psm-cli`)** – Command-line tool for automation and scripting (core engine)
 - **GUI (`psm-gui`)** – Desktop application that uses the CLI under the hood
+- **CLI (`psm-cli`)** – Command-line tool for automation and scripting (core engine)
 
 **Windows**:
 ```bash
+# GUI version (recommended for interactive use)
+# Download psm-gui-windows-amd64.exe AND psm-cli-windows-amd64.exe (same folder)
+psm-gui.exe           # Launches desktop application
+
 # CLI version (for automation/scripting)
 # Download psm-cli-windows-amd64.exe
 psm-cli.exe --version
 psm-cli.exe build     # Runs the sync pipeline (after setup below)
-
-# GUI version (for interactive use)
-# Download psm-gui-windows-amd64.exe AND psm-cli-windows-amd64.exe (same folder)
-psm-gui.exe           # Launches desktop application
 ```
 
 **Linux/Mac**:
 ```bash
+# GUI version (recommended for interactive use)
+# Download psm-gui-linux-amd64 or psm-gui-macos-amd64 AND the matching psm-cli
+chmod +x psm-gui-linux-amd64
+./psm-gui-linux-amd64
+
 # CLI version (for automation/scripting)
 # Download psm-cli-linux-amd64 or psm-cli-macos-amd64
 chmod +x psm-cli-linux-amd64
 ./psm-cli-linux-amd64 --version
 ./psm-cli-linux-amd64 build
-
-# GUI version (for interactive use)
-# Download psm-gui-linux-amd64 or psm-gui-macos-amd64 AND the matching psm-cli
-chmod +x psm-gui-linux-amd64
-./psm-gui-linux-amd64
 ```
 
 > **💡 Tip**: Rename executables for convenience (e.g., `mv psm-cli-linux-amd64 psm-cli`)
@@ -130,39 +151,6 @@ chmod +x run.sh
 
 > **First run**: The install script creates a `.venv` directory and installs all dependencies automatically.
 
-## Desktop GUI 🆕
-
-A fully-featured desktop GUI is now available with PySide6 (Qt for Python):
-
-**Launch GUI**:
-**Launch GUI**:
-```bash
-run.bat gui          # Windows (via run script)
-./run.sh gui         # Linux/Mac (via run script)
-
-# OR via CLI command:
-psm gui              # If installed globally
-python -m psm.cli gui   # Direct Python invocation
-```
-
-**Features**:
-- 📊 **Master–Detail Playlists** – Browse playlists on the left, view tracks on the right
-- �️ **Powerful Filters** – Quick filters for Playlist, Artist, Album, Year, Matched, Confidence, Quality + search boxes
-- ⚡ **All CLI Actions** – Pull, Scan, Match, Export, Report, Build, Open Reports, Refresh via toolbar buttons
-- 🔄 **Watch Mode Toggle** – Enable continuous monitoring with one click
-- 📝 **Live Logs** – Real-time CLI output streaming to a log panel
-- 🧭 **Status Bar Metrics** – Total tracks, matched count/percentage, and playlist count
-- 🎨 **Professional UI** – Dark-themed Qt interface (system theme aware)
-
-**Architecture**:
-- Zero changes to existing CLI/service code (isolated `psm/gui/` module)
-- Read-only data layer using `DatabaseInterface` only (no raw SQL)
-- All actions execute actual CLI commands as subprocesses (CLI parity)
-- Live log parsing from CLI stdout
-
-**Documentation**: 
-- [`psm/gui/README.md`](psm/gui/README.md) - Detailed usage, keyboard shortcuts, and architecture
-- [`docs/gui-performance.md`](docs/gui-performance.md) - Performance optimization patterns for large datasets
 
 ## Getting Started
 
@@ -178,7 +166,7 @@ You'll need a Spotify Developer app to access your playlists:
 
 ### 2. Configure the Tool
 
-**First Run Experience 🆕**:
+**First Run Experience**:
 
 - **CLI**: When you run any command for the first time without a `.env` file, the CLI will prompt you to create a template with all necessary settings. If you choose to create it, the template will automatically open in your default text editor so you can immediately start configuring.
 
@@ -262,8 +250,7 @@ xdg-open data/export/reports/index.html     # Linux
 | **Library Quality Analysis** | Surface metadata gaps & low bitrate files grouped by album |
 | **Fast Scan Mode** | Skips unchanged files (mtime+size) to save minutes on large libraries |
 | **Watch Mode** | Continuous monitoring of library and database with incremental updates |
-| **Provider-Ready Architecture** | Pluggable registry & namespaced schema for future multi-provider support |
-| **Clean Schema v1** | Composite (id, provider) keys for future multi-provider coexistence |
+| **Provider-Ready Architecture** | Pluggable registry with namespaced schema; multi-provider support planned (see [docs/providers.md](docs/providers.md:1)) |
 
 ## Common Commands
 
@@ -277,7 +264,7 @@ run.bat build         # Runs full pipeline: pull → scan → match → export
 ```
 > The `build` command runs the data sync pipeline, not software compilation.
 
-**Watch Mode** 🆕 (continuously monitor and rebuild):
+**Watch Mode** (continuously monitor and rebuild):
 ```bash
 run.bat build --watch             # Monitor library + database for changes
 run.bat build --watch --debounce 5  # Use 5-second debounce (default: 2)
@@ -363,7 +350,7 @@ run.bat scan --watch                      # Monitor filesystem and auto-update D
 - **Cleanup**: Automatically removes deleted files from database
 - **Debug Mode**: Set `LOG_LEVEL=DEBUG` to see current directory being scanned
 
-**Watch Mode** 🆕:
+**Watch Mode**:
 ```bash
 # Continuously monitor library for changes
 run.bat scan --watch --debounce 2
@@ -427,7 +414,7 @@ When matching tracks, you get:
 - Top 10 unmatched albums by occurrence frequency (configurable)
 - Quick summary of match quality and coverage
 
-### Liked Songs Support 🆕
+### Liked Songs Support 
 
 Your Spotify "Liked Songs" (Lieblingssongs/❤️) are automatically included:
 
@@ -571,7 +558,7 @@ The tool offers flexible M3U playlist export with smart features for managing yo
 - Maintains playlist order with physical files
 - Useful for scripting batch downloads
 
-#### **Smart Playlist Cleanup** 🆕
+#### **Smart Playlist Cleanup**
 
 Keep your export directory synchronized:
 
@@ -598,7 +585,7 @@ PSM__EXPORT__DETECT_OBSOLETE=true       # Default: detect and prompt
 PSM__EXPORT__CLEAN_BEFORE_EXPORT=false  # Default: keep existing files
 ```
 
-#### **Network Path Preservation** 🆕
+#### **Network Path Preservation**
 
 Automatically preserves your configured path format:
 
@@ -614,7 +601,7 @@ PSM__EXPORT__USE_LIBRARY_ROOTS=true              # Enable path reconstruction (d
 PSM__EXPORT__PATH_FORMAT=absolute                # absolute or relative (default: absolute)
 ```
 
-#### **Live Progress Indicators** 🆕
+#### **Live Progress Indicators**
 
 See export progress in real-time:
 ```
@@ -629,7 +616,7 @@ Exporting Liked Songs as virtual playlist (1624 tracks)
 ✓ Export complete
 ```
 
-#### **Visual Missing Track Indicators** 🆕
+#### **Visual Missing Track Indicators**
 
 Mirrored mode makes missing tracks obvious in any player:
 
@@ -701,17 +688,6 @@ PSM__PROVIDERS__SPOTIFY__REDIRECT_HOST=localhost
 ```
 Register `https://localhost:9876/callback` in Spotify Dashboard. Tool auto-generates cert if available.
 
-## Technical Details
-
-Brief overview (see `docs/architecture.md` for comprehensive details):
-
-- **Database**: SQLite with composite (id, provider) keys for multi-provider support
-- **Matching**: Weighted scoring system with confidence tiers (CERTAIN/HIGH/MEDIUM/LOW)
-- **Performance**: LRU caching, fast scan mode, bulk inserts, indexed columns
-- **Concurrency**: WAL mode enables safe parallel operations (pull + scan + match simultaneously)
-- **Schema**: Clean v1 baseline with provider namespacing
-
-For technical deep-dives, see `docs/architecture.md` and `docs/matching.md`.
 
 ## Troubleshooting
 
@@ -734,14 +710,7 @@ See `docs/troubleshooting.md` for complete troubleshooting guide.
 
 ## Multi-Provider Architecture
 
-Implemented: provider column + composite keys, provider registry, config key `provider`.
-Next steps (external contributions welcome):
-- Additional provider client(s)
-- Optional ISRC-centric canonical cross-provider table
-- Playlist cloning between providers
-- Rate limiting & unified error model
-
-See: `docs/providers.md` for full integration guide.
+Multi-provider support is planned; see [docs/providers.md](docs/providers.md:1).
 
 ## License
 
