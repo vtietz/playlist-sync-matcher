@@ -326,6 +326,37 @@ class MockDatabase(DatabaseInterface):
                 ))
         return rows
 
+    def get_library_file_by_path(self, path: str) -> Optional[LibraryFileRow]:
+        """Get a library file by its path."""
+        data = self.library_files.get(path)
+        if not data:
+            return None
+
+        # Find the file ID (1-based index)
+        file_id = None
+        for i, (stored_path, _) in enumerate(self.library_files.items(), start=1):
+            if stored_path == path:
+                file_id = i
+                break
+
+        if file_id is None:
+            return None
+
+        return LibraryFileRow(
+            id=file_id,
+            path=path,
+            title=data.get('title'),
+            artist=data.get('artist'),
+            album=data.get('album'),
+            year=data.get('year'),
+            duration=data.get('duration'),
+            normalized=data.get('normalized'),
+            size=data.get('size'),
+            mtime=data.get('mtime'),
+            partial_hash=data.get('partial_hash'),
+            bitrate_kbps=data.get('bitrate_kbps'),
+        )
+
     def get_unmatched_tracks(self, provider: str | None = None) -> List[TrackRow]:
         """Get all tracks that don't have matches yet."""
         matched_ids = {m['track_id'] for m in self.matches}
