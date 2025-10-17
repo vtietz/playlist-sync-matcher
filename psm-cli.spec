@@ -22,7 +22,9 @@ a = Analysis(
     ['psm/cli/__main__.py'],
     pathex=['.'],  # Add current directory to Python path
     binaries=binaries,
-    datas=[],
+    datas=[
+        ('psm/gui/resources/psm-icon.ico', 'psm/gui/resources'),
+    ],
     hiddenimports=[
         'psm',
         'psm.cli',
@@ -94,5 +96,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=None,  # Optional: add CLI icon
+    icon='psm/gui/resources/psm-icon.ico',  # Optional CLI icon (Windows)
 )

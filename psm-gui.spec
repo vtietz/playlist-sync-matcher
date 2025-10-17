@@ -20,9 +20,15 @@ binaries = []
 
 a = Analysis(
     ['psm/gui/__main__.py'],
-    pathex=[],
+    pathex=['.'],
     binaries=binaries,
-    datas=[],
+    datas=[
+        ('psm/gui/resources/style.qss', 'psm/gui/resources'),
+        ('psm/gui/resources/icon.png', 'psm/gui/resources'),
+        ('psm/gui/resources/icon.ico', 'psm/gui/resources'),
+        ('psm/gui/resources/psm-icon.png', 'psm/gui/resources'),
+        ('psm/gui/resources/psm-icon.ico', 'psm/gui/resources'),
+    ],
     hiddenimports=[
         'psm',
         'psm.gui',
@@ -84,5 +90,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=None,  # Optional: add GUI icon (e.g., 'resources/icon.ico')
+    icon='psm/gui/resources/psm-icon.ico',  # Windows executable icon (optional)
 )

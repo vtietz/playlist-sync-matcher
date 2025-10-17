@@ -7,6 +7,7 @@ import logging
 from pathlib import Path
 from PySide6.QtWidgets import QApplication, QMessageBox
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QIcon
 
 from psm.config import load_typed_config
 from psm.cli.shared import get_db
@@ -40,6 +41,23 @@ def load_resources():
             logger.warning(f"Failed to load stylesheet: {e}")
 
     return ""
+
+
+def apply_app_icon(app: QApplication) -> None:
+    """Set application/window icon if available.
+
+    Looks for `psm/gui/resources/icon.png` (preferred cross‑platform) or `icon.ico`.
+    Safe no‑op if files are missing.
+    """
+    resources_dir = Path(__file__).parent / 'resources'
+    for name in ("psm-icon.png", "psm-icon.ico", "icon.png", "icon.ico"):
+        p = resources_dir / name
+        if p.exists():
+            try:
+                app.setWindowIcon(QIcon(str(p)))
+                break
+            except Exception as e:
+                logger.warning(f"Failed to set window icon from {p}: {e}")
 
 
 def main() -> int:
@@ -79,6 +97,10 @@ def main() -> int:
     if stylesheet:
         app.setStyleSheet(stylesheet)
 
+    # Set application/window icon if provided in resources
+    apply_app_icon(app)
+
+    db = None
     try:
         # Load config and database
         logger.info("Loading configuration...")
@@ -132,7 +154,7 @@ def main() -> int:
         return 1
     finally:
         # Cleanup
-        if 'db' in locals():
+        if db is not None:
             db.close()
 
 
