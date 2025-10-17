@@ -21,6 +21,10 @@ Created two new helper modules to keep `sqlite_impl.py` clean:
 - **`list_unified_tracks_min()`**: Fast query returning one row per track with minimal fields (id, name, artist, album, year, matched bool, local_path)
 - Defers expensive playlist aggregation to lazy loading
 - Supports sorting and pagination (LIMIT/OFFSET) for future paging implementation
+- **Manual match prioritization**: Uses SQL ranking to prefer `confidence='MANUAL'` matches first, then highest score
+  - Window function path (SQLite ≥ 3.25): `ROW_NUMBER() OVER (PARTITION BY track_id, provider ORDER BY (CASE WHEN confidence = 'MANUAL' THEN 1 ELSE 0 END) DESC, score DESC)`
+  - Fallback path (older SQLite): Correlated subquery with EXISTS check for MANUAL confidence
+  - No score manipulation required - clean SQL-based prioritization (M1 solution)
 
 ### 2. Database Interface & Implementation
 

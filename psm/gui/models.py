@@ -49,53 +49,72 @@ class BaseTableModel(QAbstractTableModel):
 
     def data(self, index, role=Qt.DisplayRole):
         """Get cell data."""
-        if not index.isValid():
-            return None
-
+        # Pure bounds check - avoid isValid() which can trigger re-entrancy during streaming
         row = index.row()
         col = index.column()
+        
+        if row < 0 or col < 0 or row >= len(self.data_rows) or col >= len(self.columns):
+            return None
 
-        if 0 <= row < len(self.data_rows) and 0 <= col < len(self.columns):
-            col_name = self.columns[col][0]
-            value = self.data_rows[row].get(col_name)
+        return self._format_cell(row, col, role)
 
-            if role == Qt.DisplayRole:
-                # Format for display
-                if isinstance(value, float):
-                    return f"{value:.1f}"
-                elif value is None:
-                    return ""
-                return str(value)
+    def _format_cell(self, row: int, col: int, role=Qt.DisplayRole):
+        """Format cell data for display, tooltip, sorting, or delegate use.
+        
+        Protected helper that can be called by subclasses to get base formatting
+        without triggering the data() call path (avoiding tail-call recursion).
+        
+        Args:
+            row: Row index (already bounds-checked)
+            col: Column index (already bounds-checked)
+            role: Qt data role
+            
+        Returns:
+            Formatted cell value or None
+        """
+        if not (0 <= row < len(self.data_rows) and 0 <= col < len(self.columns)):
+            return None
+            
+        col_name = self.columns[col][0]
+        value = self.data_rows[row].get(col_name)
 
-            elif role == Qt.ToolTipRole:
-                # Show full text in tooltip for long strings
-                if isinstance(value, str) and len(value) > 50:
-                    return value
-                return None
+        if role == Qt.DisplayRole:
+            # Format for display
+            if isinstance(value, float):
+                return f"{value:.1f}"
+            elif value is None:
+                return ""
+            return str(value)
 
-            elif role == Qt.UserRole:
-                # Return raw value for sorting
-                # Convert None to empty string for consistent sorting
-                if value is None:
-                    return ""
-                # Keep numbers as numbers for numeric sorting
-                if isinstance(value, (int, float)):
-                    return value
-                # Keep booleans as booleans for filtering
-                if isinstance(value, bool):
-                    return value
-                # Strings as lowercase for case-insensitive sorting
-                if isinstance(value, str):
-                    return value.lower()
+        elif role == Qt.ToolTipRole:
+            # Show full text in tooltip for long strings
+            if isinstance(value, str) and len(value) > 50:
                 return value
+            return None
 
-            elif role == Qt.UserRole + 1:
-                # Return link item type for delegate
-                return self._get_link_type(col_name)
+        elif role == Qt.UserRole:
+            # Return raw value for sorting
+            # Convert None to empty string for consistent sorting
+            if value is None:
+                return ""
+            # Keep numbers as numbers for numeric sorting
+            if isinstance(value, (int, float)):
+                return value
+            # Keep booleans as booleans for filtering
+            if isinstance(value, bool):
+                return value
+            # Strings as lowercase for case-insensitive sorting
+            if isinstance(value, str):
+                return value.lower()
+            return value
 
-            elif role == Qt.UserRole + 2:
-                # Return link item ID for delegate
-                return self._get_link_id(col_name, row)
+        elif role == Qt.UserRole + 1:
+            # Return link item type for delegate
+            return self._get_link_type(col_name)
+
+        elif role == Qt.UserRole + 2:
+            # Return link item ID for delegate
+            return self._get_link_id(col_name, row)
 
         return None
 
@@ -453,89 +472,89 @@ class UnifiedTracksModel(BaseTableModel):
 
     def data(self, index, role=Qt.DisplayRole):
         """Get cell data with special formatting for matched, confidence, and quality columns."""
-        if not index.isValid():
-            return None
-
+        # Pure bounds check - avoid isValid() and boolean truthiness which trigger re-entrancy
         row = index.row()
         col = index.column()
+        
+        if row < 0 or col < 0 or row >= len(self.data_rows) or col >= len(self.columns):
+            return None
 
-        if 0 <= row < len(self.data_rows) and 0 <= col < len(self.columns):
-            col_name = self.columns[col][0]
-            value = self.data_rows[row].get(col_name)
-            row_data = self.data_rows[row]
+        col_name = self.columns[col][0]
+        value = self.data_rows[row].get(col_name)
+        row_data = self.data_rows[row]
 
-            if role == Qt.DisplayRole:
-                # Format liked column with heart emoji
-                if col_name == 'is_liked':
-                    return "❤️" if value else ""
+        if role == Qt.DisplayRole:
+            # Format liked column with heart emoji
+            if col_name == 'is_liked':
+                return "❤️" if value else ""
 
-                # Format matched column with check/cross
-                elif col_name == 'matched':
-                    if isinstance(value, bool):
-                        return format_boolean_check(value)
-                    return ""
+            # Format matched column with check/cross
+            elif col_name == 'matched':
+                if isinstance(value, bool):
+                    return format_boolean_check(value)
+                return ""
 
-                # Format confidence column
-                elif col_name == 'confidence':
-                    # Only show confidence if track is matched
-                    if row_data.get('matched'):
-                        method = row_data.get('method')
-                        if method:
-                            return extract_confidence(method)
-                    return ""
-
-                # Format quality column (only for matched tracks)
-                elif col_name == 'quality':
-                    if row_data.get('matched'):
-                        missing_count = row_data.get('missing_metadata_count', 0)
-                        bitrate_kbps = row_data.get('bitrate_kbps')
-                        return get_quality_status_text(missing_count, bitrate_kbps)
-                    return ""
-
-            # UserRole returns raw values for filtering/sorting
-            elif role == Qt.UserRole:
-                # For confidence, return the extracted value for sorting
-                if col_name == 'confidence':
-                    if row_data.get('matched'):
-                        method = row_data.get('method')
-                        if method:
-                            return extract_confidence(method)
-                    return ""
-
-                # For quality, return the text for sorting
-                elif col_name == 'quality':
-                    if row_data.get('matched'):
-                        missing_count = row_data.get('missing_metadata_count', 0)
-                        bitrate_kbps = row_data.get('bitrate_kbps')
-                        return get_quality_status_text(missing_count, bitrate_kbps)
-                    return ""
-
-            # ToolTipRole provides helpful hints
-            elif role == Qt.ToolTipRole:
-                # Confidence tooltip
-                if col_name == 'confidence' and row_data.get('matched'):
+            # Format confidence column
+            elif col_name == 'confidence':
+                # Only show confidence if track is matched
+                if row_data.get('matched'):
                     method = row_data.get('method')
                     if method:
-                        return get_confidence_tooltip(method)
+                        return extract_confidence(method)
+                return ""
 
-                # Quality tooltip
-                elif col_name == 'quality' and row_data.get('matched'):
+            # Format quality column (only for matched tracks)
+            elif col_name == 'quality':
+                if row_data.get('matched'):
                     missing_count = row_data.get('missing_metadata_count', 0)
                     bitrate_kbps = row_data.get('bitrate_kbps')
-                    # Try to determine which fields are missing
-                    missing_fields = []
-                    if not row_data.get('title'):
-                        missing_fields.append('title')
-                    if not row_data.get('artist'):
-                        missing_fields.append('artist')
-                    if not row_data.get('album'):
-                        missing_fields.append('album')
-                    if not row_data.get('year'):
-                        missing_fields.append('year')
-                    return get_quality_tooltip(missing_count, bitrate_kbps, missing_fields)
+                    return get_quality_status_text(missing_count, bitrate_kbps)
+                return ""
 
-        # Fall back to base implementation for all other columns
-        return super().data(index, role)
+        # UserRole returns raw values for filtering/sorting
+        elif role == Qt.UserRole:
+            # For confidence, return the extracted value for sorting
+            if col_name == 'confidence':
+                if row_data.get('matched'):
+                    method = row_data.get('method')
+                    if method:
+                        return extract_confidence(method)
+                return ""
+
+            # For quality, return the text for sorting
+            elif col_name == 'quality':
+                if row_data.get('matched'):
+                    missing_count = row_data.get('missing_metadata_count', 0)
+                    bitrate_kbps = row_data.get('bitrate_kbps')
+                    return get_quality_status_text(missing_count, bitrate_kbps)
+                return ""
+
+        # ToolTipRole provides helpful hints
+        elif role == Qt.ToolTipRole:
+            # Confidence tooltip
+            if col_name == 'confidence' and row_data.get('matched'):
+                method = row_data.get('method')
+                if method:
+                    return get_confidence_tooltip(method)
+
+            # Quality tooltip
+            elif col_name == 'quality' and row_data.get('matched'):
+                missing_count = row_data.get('missing_metadata_count', 0)
+                bitrate_kbps = row_data.get('bitrate_kbps')
+                # Try to determine which fields are missing
+                missing_fields = []
+                if not row_data.get('title'):
+                    missing_fields.append('title')
+                if not row_data.get('artist'):
+                    missing_fields.append('artist')
+                if not row_data.get('album'):
+                    missing_fields.append('album')
+                if not row_data.get('year'):
+                    missing_fields.append('year')
+                return get_quality_tooltip(missing_count, bitrate_kbps, missing_fields)
+
+        # For other columns, use base formatting helper (no tail-call to avoid re-entrancy)
+        return self._format_cell(row, col, role)
 
 
 class AlbumsModel(BaseTableModel):

@@ -423,6 +423,16 @@ class Database(DatabaseInterface):
         rows = self.conn.execute(sql, file_ids).fetchall()
         return [LibraryFileRow.from_row(row) for row in rows]
 
+    def get_library_file_by_path(self, path: str) -> Optional[LibraryFileRow]:
+        """Get a library file by its path."""
+        sql = """
+        SELECT id, path, title, artist, album, year, duration, normalized, size, mtime, partial_hash, bitrate_kbps
+        FROM library_files
+        WHERE path = ?
+        """
+        row = self.conn.execute(sql, (path,)).fetchone()
+        return LibraryFileRow.from_row(row) if row else None
+
     def get_unmatched_tracks(self, provider: str | None = None) -> List[TrackRow]:
         """Get all tracks that don't have matches yet."""
         if provider:
@@ -602,7 +612,7 @@ class Database(DatabaseInterface):
             provider = 'spotify'  # Default for backward compat
 
         if self._supports_window_functions:
-            # Use window function to rank matches by score (highest first)
+            # Use window function to rank matches: prefer MANUAL confidence, then highest score (M1)
             # Then filter to only the best match (rn=1) in the outer query
             sql = """
             WITH ranked_matches AS (
@@ -610,7 +620,10 @@ class Database(DatabaseInterface):
                     m.track_id,
                     m.file_id,
                     m.score,
-                    ROW_NUMBER() OVER (PARTITION BY m.track_id ORDER BY m.score DESC) AS rn
+                    ROW_NUMBER() OVER (
+                        PARTITION BY m.track_id
+                        ORDER BY (CASE WHEN m.confidence = 'MANUAL' THEN 1 ELSE 0 END) DESC, m.score DESC
+                    ) AS rn
                 FROM matches m
                 WHERE m.provider = ?
             )
@@ -632,7 +645,7 @@ class Database(DatabaseInterface):
             """
             rows = self.conn.execute(sql, (provider, playlist_id, provider)).fetchall()
         else:
-            # Fallback for SQLite < 3.25: use correlated subquery for best match
+            # Fallback for SQLite < 3.25: prefer MANUAL confidence, then highest score
             sql = """
             SELECT
                 pt.position,
@@ -647,16 +660,35 @@ class Database(DatabaseInterface):
             LEFT JOIN tracks t ON t.id = pt.track_id AND t.provider = pt.provider
             LEFT JOIN matches m ON m.track_id = pt.track_id
                 AND m.provider = ?
+                AND (
+                    m.confidence = 'MANUAL'
+                    OR NOT EXISTS (
+                        SELECT 1 FROM matches m_manual
+                        WHERE m_manual.track_id = m.track_id
+                            AND m_manual.provider = ?
+                            AND m_manual.confidence = 'MANUAL'
+                    )
+                )
                 AND m.score = (
                     SELECT MAX(m2.score)
                     FROM matches m2
-                    WHERE m2.track_id = m.track_id AND m2.provider = ?
+                    WHERE m2.track_id = m.track_id
+                        AND m2.provider = ?
+                        AND (
+                            m.confidence = 'MANUAL'
+                            OR NOT EXISTS (
+                                SELECT 1 FROM matches m_manual2
+                                WHERE m_manual2.track_id = m2.track_id
+                                    AND m_manual2.provider = ?
+                                    AND m_manual2.confidence = 'MANUAL'
+                            )
+                        )
                 )
             LEFT JOIN library_files lf ON lf.id = m.file_id
             WHERE pt.playlist_id = ? AND pt.provider = ?
             ORDER BY pt.position
             """
-            rows = self.conn.execute(sql, (provider, provider, playlist_id, provider)).fetchall()
+            rows = self.conn.execute(sql, (provider, provider, provider, provider, playlist_id, provider)).fetchall()
 
         return [dict(row) | {'position': row['position']} for row in rows]
 
@@ -671,7 +703,7 @@ class Database(DatabaseInterface):
             provider = 'spotify'  # Default for backward compat
 
         if self._supports_window_functions:
-            # Use window function to rank matches by score (highest first)
+            # Use window function to rank matches: prefer MANUAL confidence, then highest score (M1)
             # Then filter to only the best match (rn=1) in the outer query
             sql = """
             WITH ranked_matches AS (
@@ -679,7 +711,10 @@ class Database(DatabaseInterface):
                     m.track_id,
                     m.file_id,
                     m.score,
-                    ROW_NUMBER() OVER (PARTITION BY m.track_id ORDER BY m.score DESC) AS rn
+                    ROW_NUMBER() OVER (
+                        PARTITION BY m.track_id
+                        ORDER BY (CASE WHEN m.confidence = 'MANUAL' THEN 1 ELSE 0 END) DESC, m.score DESC
+                    ) AS rn
                 FROM matches m
                 WHERE m.provider = ?
             )
@@ -700,7 +735,7 @@ class Database(DatabaseInterface):
             """
             rows = self.conn.execute(sql, (provider, provider)).fetchall()
         else:
-            # Fallback for SQLite < 3.25: use correlated subquery for best match
+            # Fallback for SQLite < 3.25: prefer MANUAL confidence, then highest score
             sql = """
             SELECT
                 lt.added_at,
@@ -714,16 +749,35 @@ class Database(DatabaseInterface):
             LEFT JOIN tracks t ON t.id = lt.track_id AND t.provider = lt.provider
             LEFT JOIN matches m ON m.track_id = lt.track_id
                 AND m.provider = ?
+                AND (
+                    m.confidence = 'MANUAL'
+                    OR NOT EXISTS (
+                        SELECT 1 FROM matches m_manual
+                        WHERE m_manual.track_id = m.track_id
+                            AND m_manual.provider = ?
+                            AND m_manual.confidence = 'MANUAL'
+                    )
+                )
                 AND m.score = (
                     SELECT MAX(m2.score)
                     FROM matches m2
-                    WHERE m2.track_id = m.track_id AND m2.provider = ?
+                    WHERE m2.track_id = m.track_id
+                        AND m2.provider = ?
+                        AND (
+                            m.confidence = 'MANUAL'
+                            OR NOT EXISTS (
+                                SELECT 1 FROM matches m_manual2
+                                WHERE m_manual2.track_id = m2.track_id
+                                    AND m_manual2.provider = ?
+                                    AND m_manual2.confidence = 'MANUAL'
+                            )
+                        )
                 )
             LEFT JOIN library_files lf ON lf.id = m.file_id
             WHERE lt.provider = ?
             ORDER BY lt.added_at DESC
             """
-            rows = self.conn.execute(sql, (provider, provider, provider)).fetchall()
+            rows = self.conn.execute(sql, (provider, provider, provider, provider, provider)).fetchall()
 
         return [dict(row) for row in rows]
 
@@ -750,6 +804,7 @@ class Database(DatabaseInterface):
             m.file_id,
             m.score,
             m.method,
+            m.confidence,
             f.path,
             f.title,
             f.artist,

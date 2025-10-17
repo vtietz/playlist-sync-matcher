@@ -7,6 +7,10 @@ from __future__ import annotations
 import sqlite3
 from typing import List, Dict, Any, Optional, Set
 
+# Detect SQLite version for window function support
+_SQLITE_VERSION = tuple(map(int, sqlite3.sqlite_version.split('.')))
+_SUPPORTS_WINDOW_FUNCTIONS = _SQLITE_VERSION >= (3, 25, 0)
+
 
 def list_unified_tracks_min(
     conn: sqlite3.Connection,
@@ -50,55 +54,132 @@ def list_unified_tracks_min(
 
     # Main query: one row per track with EXISTS check for matches and playlist count
     # Use window function or subquery to get best local_path per track
-    query = f"""
-    SELECT
-        t.id,
-        t.name,
-        t.artist,
-        t.album,
-        t.year,
-        CASE WHEN m.track_id IS NOT NULL THEN 1 ELSE 0 END as matched,
-        COALESCE(lf.path, '') as local_path,
-        t.artist_id,
-        t.album_id,
-        m.score,
-        m.method,
-        lf.title,
-        lf.artist as file_artist,
-        lf.album as file_album,
-        lf.year as file_year,
-        lf.bitrate_kbps,
-        COALESCE(pl_count.count, 0) as playlist_count,
-        EXISTS(SELECT 1 FROM liked_tracks lt WHERE lt.track_id = t.id AND lt.provider = t.provider) as is_liked
-    FROM tracks t
-    LEFT JOIN (
-        -- Get best match per track (highest score)
+    # Prefer MANUAL confidence first, then highest score (M1 solution)
+
+    if _SUPPORTS_WINDOW_FUNCTIONS:
+        # Modern SQLite with window functions
+        query = f"""
         SELECT
-            m1.track_id,
-            m1.provider,
-            m1.file_id,
-            m1.score,
-            m1.method
-        FROM matches m1
-        INNER JOIN (
-            SELECT track_id, provider, MAX(score) as max_score
-            FROM matches
+            t.id,
+            t.name,
+            t.artist,
+            t.album,
+            t.year,
+            CASE WHEN m.track_id IS NOT NULL THEN 1 ELSE 0 END as matched,
+            COALESCE(lf.path, '') as local_path,
+            t.artist_id,
+            t.album_id,
+            m.score,
+            m.method,
+            lf.title,
+            lf.artist as file_artist,
+            lf.album as file_album,
+            lf.year as file_year,
+            lf.bitrate_kbps,
+            COALESCE(pl_count.count, 0) as playlist_count,
+            EXISTS(SELECT 1 FROM liked_tracks lt WHERE lt.track_id = t.id AND lt.provider = t.provider) as is_liked
+        FROM tracks t
+        LEFT JOIN (
+            -- Get best match per track: prefer MANUAL confidence, then highest score
+            SELECT
+                track_id,
+                provider,
+                file_id,
+                score,
+                method
+            FROM (
+                SELECT
+                    track_id,
+                    provider,
+                    file_id,
+                    score,
+                    method,
+                    confidence,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY track_id, provider
+                        ORDER BY (CASE WHEN confidence = 'MANUAL' THEN 1 ELSE 0 END) DESC, score DESC
+                    ) as rn
+                FROM matches
+            ) ranked
+            WHERE rn = 1
+        ) m ON t.id = m.track_id AND t.provider = m.provider
+        LEFT JOIN library_files lf ON m.file_id = lf.id
+        LEFT JOIN (
+            -- Count playlists per track
+            SELECT track_id, provider, COUNT(DISTINCT playlist_id) as count
+            FROM playlist_tracks
             GROUP BY track_id, provider
-        ) m2 ON m1.track_id = m2.track_id
-            AND m1.provider = m2.provider
-            AND m1.score = m2.max_score
-    ) m ON t.id = m.track_id AND t.provider = m.provider
-    LEFT JOIN library_files lf ON m.file_id = lf.id
-    LEFT JOIN (
-        -- Count playlists per track
-        SELECT track_id, provider, COUNT(DISTINCT playlist_id) as count
-        FROM playlist_tracks
-        GROUP BY track_id, provider
-    ) pl_count ON t.id = pl_count.track_id AND t.provider = pl_count.provider
-    WHERE t.provider = ?
-    {order_by}
-    {limit_clause}
-    """
+        ) pl_count ON t.id = pl_count.track_id AND t.provider = pl_count.provider
+        WHERE t.provider = ?
+        {order_by}
+        {limit_clause}
+        """
+    else:
+        # Fallback for older SQLite without window functions
+        query = f"""
+        SELECT
+            t.id,
+            t.name,
+            t.artist,
+            t.album,
+            t.year,
+            CASE WHEN m.track_id IS NOT NULL THEN 1 ELSE 0 END as matched,
+            COALESCE(lf.path, '') as local_path,
+            t.artist_id,
+            t.album_id,
+            m.score,
+            m.method,
+            lf.title,
+            lf.artist as file_artist,
+            lf.album as file_album,
+            lf.year as file_year,
+            lf.bitrate_kbps,
+            COALESCE(pl_count.count, 0) as playlist_count,
+            EXISTS(SELECT 1 FROM liked_tracks lt WHERE lt.track_id = t.id AND lt.provider = t.provider) as is_liked
+        FROM tracks t
+        LEFT JOIN (
+            -- Get best match per track: prefer MANUAL confidence, then highest score
+            SELECT
+                m1.track_id,
+                m1.provider,
+                m1.file_id,
+                m1.score,
+                m1.method
+            FROM matches m1
+            WHERE m1.confidence = 'MANUAL'
+                OR NOT EXISTS (
+                    SELECT 1 FROM matches m2
+                    WHERE m2.track_id = m1.track_id
+                        AND m2.provider = m1.provider
+                        AND m2.confidence = 'MANUAL'
+                )
+            AND m1.score = (
+                SELECT MAX(score)
+                FROM matches m3
+                WHERE m3.track_id = m1.track_id
+                    AND m3.provider = m1.provider
+                    AND (
+                        m1.confidence = 'MANUAL'
+                        OR NOT EXISTS (
+                            SELECT 1 FROM matches m4
+                            WHERE m4.track_id = m3.track_id
+                                AND m4.provider = m3.provider
+                                AND m4.confidence = 'MANUAL'
+                        )
+                    )
+            )
+        ) m ON t.id = m.track_id AND t.provider = m.provider
+        LEFT JOIN library_files lf ON m.file_id = lf.id
+        LEFT JOIN (
+            -- Count playlists per track
+            SELECT track_id, provider, COUNT(DISTINCT playlist_id) as count
+            FROM playlist_tracks
+            GROUP BY track_id, provider
+        ) pl_count ON t.id = pl_count.track_id AND t.provider = pl_count.provider
+        WHERE t.provider = ?
+        {order_by}
+        {limit_clause}
+        """
 
     cursor = conn.execute(query, (provider,))
 

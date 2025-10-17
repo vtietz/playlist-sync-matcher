@@ -21,6 +21,7 @@ class DiagnosticResult:
         matched_file: Dict[str, Any] | None = None,
         match_score: float = 0.0,
         match_method: str = "",
+        match_confidence: str | None = None,
         closest_files: List[Tuple[Dict[str, Any], float]] = None,
         total_files: int = 0,
         fuzzy_threshold: float = 0.78
@@ -31,6 +32,7 @@ class DiagnosticResult:
         self.matched_file = matched_file
         self.match_score = match_score
         self.match_method = match_method
+        self.match_confidence = match_confidence
         self.closest_files = closest_files or []
         self.total_files = total_files
         self.fuzzy_threshold = fuzzy_threshold
@@ -90,6 +92,7 @@ def diagnose_track(
             matched_file=match_info,
             match_score=match_info['score'],
             match_method=match_info['method'],
+            match_confidence=match_info.get('confidence'),
             fuzzy_threshold=fuzzy_threshold
         )
 
@@ -317,9 +320,12 @@ def format_diagnostic_output(result: DiagnosticResult) -> str:
         lines.append(f"Matched to:  {matched['path']}")
         lines.append(f"Score:       {result.match_score:.2%} ({result.match_method})")
 
-        # Add confidence information
-        confidence_info = _get_confidence_info(result.match_method)
-        lines.append(f"Confidence:  {confidence_info['level']} - {confidence_info['description']}")
+        # Add confidence information (prioritize explicit MANUAL confidence)
+        if result.match_confidence == 'MANUAL':
+            lines.append("Confidence:  MANUAL - User-selected override")
+        else:
+            confidence_info = _get_confidence_info(result.match_method)
+            lines.append(f"Confidence:  {confidence_info['level']} - {confidence_info['description']}")
 
         # Add quality information
         quality_info = _get_quality_info(matched)

@@ -13,19 +13,22 @@ class TracksTab(QWidget):
 
     Encapsulates:
     - UnifiedTracksView (table with filtering)
-    - Track action buttons (Diagnose Selected Track)
+    - Track action buttons (Diagnose Selected Track, Manual Match)
 
     Exposes:
     - unified_tracks_view: Reference to the view
     - btn_diagnose: Diagnose button reference
+    - btn_manual_match: Manual Match button reference
 
     Signals:
         diagnose_clicked: User clicked diagnose button
+        manual_match_clicked: User clicked manual match button
         track_selected(track_id): Track selected in table (passthrough from view)
     """
 
     # Signals
     diagnose_clicked = Signal()
+    manual_match_clicked = Signal()
     track_selected = Signal(str)  # track_id
 
     def __init__(self, unified_tracks_model, parent=None):
@@ -55,13 +58,19 @@ class TracksTab(QWidget):
         self.btn_diagnose = QPushButton("Diagnose Selected Track")
         self.btn_diagnose.setEnabled(False)  # Disabled until track selected
 
+        self.btn_manual_match = QPushButton("Manual Match")
+        self.btn_manual_match.setEnabled(False)  # Disabled until track selected
+        self.btn_manual_match.setToolTip("Manually override the matched file for the selected track")
+
         buttons_layout.addWidget(self.btn_diagnose)
+        buttons_layout.addWidget(self.btn_manual_match)
         buttons_layout.addStretch()
 
         layout.addLayout(buttons_layout)
 
         # Connect signals
         self.btn_diagnose.clicked.connect(self.diagnose_clicked.emit)
+        self.btn_manual_match.clicked.connect(self.manual_match_clicked.emit)
 
         # Forward track_selected signal from view
         self.unified_tracks_view.track_selected.connect(self.track_selected.emit)
@@ -73,3 +82,4 @@ class TracksTab(QWidget):
             enabled: True to enable, False to disable
         """
         self.btn_diagnose.setEnabled(enabled)
+        self.btn_manual_match.setEnabled(enabled)

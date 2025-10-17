@@ -281,6 +281,113 @@ psm match --min-confidence HIGH   # Only HIGH and CERTAIN matches
 **See Also:**
 - [docs/matching.md](matching.md) - Match algorithm deep-dive
 - `psm diagnose TRACK_ID` - Debug specific match failures
+- `psm set-match` - Manually override matches
+- `psm remove-match` - Remove matches
+
+---
+
+### set-match
+
+Manually override the automatic match for a track.
+
+**Usage:**
+```bash
+psm set-match --track-id TRACK_ID [--file-path PATH | --file-id ID]
+```
+
+**Arguments:**
+```
+--track-id TEXT      Spotify track ID to manually match  [required]
+--file-path PATH     Absolute path to the local file to match to
+--file-id INTEGER    Library file ID to match to (alternative to --file-path)
+```
+
+**What it does:**
+1. Validates track exists in database
+2. Resolves file (by path or ID)
+3. Adds file to library if not present
+4. Deletes any existing matches for the track
+5. Creates manual match with confidence=MANUAL
+6. Updates metadata to trigger GUI refresh
+
+**Manual Match Priority:**
+Manual matches are ALWAYS preferred over automatic matches in:
+- Unified tracks view (SQL ranking)
+- Playlist exports (.m3u files)
+- Liked songs exports
+- Diagnostics display
+
+**Examples:**
+```bash
+# Manual match using file path
+psm set-match --track-id 3n3Ppam7vgaVa1iaRUc9Lp --file-path "C:\Music\song.mp3"
+
+# Manual match using file ID from library
+psm set-match --track-id 3n3Ppam7vgaVa1iaRUc9Lp --file-id 12345
+
+# Verify manual match
+psm diagnose 3n3Ppam7vgaVa1iaRUc9Lp
+```
+
+**Use cases:**
+- Automatic matcher picked wrong version (live vs studio, remaster, etc.)
+- Better quality file at different location
+- Metadata doesn't match but you know it's correct
+- Override fuzzy matching when certain
+
+**See Also:**
+- `psm remove-match` - Remove manual or automatic matches
+- `psm diagnose TRACK_ID` - Verify match confidence
+
+---
+
+### remove-match
+
+Remove the match for a track (manual or automatic).
+
+**Usage:**
+```bash
+psm remove-match --track-id TRACK_ID
+```
+
+**Arguments:**
+```
+--track-id TEXT    Track ID to remove match for  [required]
+```
+
+**What it does:**
+1. Validates track exists in database
+2. Checks if track has existing match
+3. Displays current match details (file, confidence, score)
+4. Deletes all matches for the track
+5. Updates metadata to trigger GUI refresh
+
+**After Removal:**
+Track will appear as unmatched until you:
+- Run `psm match --track-id <id>` for new automatic match
+- Run `psm set-match --track-id <id> --file-path <path>` for manual match
+
+**Examples:**
+```bash
+# Remove match (shows current match details)
+psm remove-match --track-id 3n3Ppam7vgaVa1iaRUc9Lp
+
+# Verify track is unmatched
+psm diagnose 3n3Ppam7vgaVa1iaRUc9Lp
+
+# Re-match automatically
+psm match --track-id 3n3Ppam7vgaVa1iaRUc9Lp
+```
+
+**Use cases:**
+- Removing incorrect manual matches
+- Clearing matches before setting new manual ones
+- Resetting tracks to allow re-matching with updated rules
+- Troubleshooting matching issues
+
+**See Also:**
+- `psm set-match` - Create manual match override
+- `psm match --track-id <id>` - Create new automatic match
 
 ---
 

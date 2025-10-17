@@ -1,7 +1,7 @@
 """Controller for CLI command execution and action handlers."""
 from __future__ import annotations
 from typing import TYPE_CHECKING, Optional
-from PySide6.QtCore import QObject, QTimer
+from PySide6.QtCore import QObject, QTimer, Qt
 import logging
 import webbrowser
 from pathlib import Path
@@ -87,11 +87,76 @@ class CommandController(QObject):
 
         # Per-track actions
         self.window.on_match_track_clicked.connect(self._on_match_track)
+        self.window.on_manual_match_clicked.connect(self._on_manual_match)
+        self.window.on_remove_match_clicked.connect(self._on_remove_match)
 
         # Cancel command
         self.window.on_cancel_clicked.connect(self._on_cancel)
 
-    def _execute_command(self, args: list, success_message: str, refresh_after: bool = True, fast_refresh: bool = False):
+    def _patch_track_match_state(
+        self, track_id: str, matched: bool,
+        local_path: str = "", method: Optional[str] = None
+    ):
+        """Optimistically update a single track's match state in the GUI.
+
+        Finds the track row in the unified model and updates match-related fields,
+        then emits dataChanged for affected columns. Avoids full DB refresh.
+
+        Args:
+            track_id: Track ID to update
+            matched: New matched state (True if matched, False if unmatched)
+            local_path: Path to local file (empty if unmatched)
+            method: Match method string (None if unmatched)
+        """
+        model = self.window.unified_tracks_model
+        if not model:
+            logger.warning("Cannot patch track state: unified model not available")
+            return
+
+        # Find the row with this track_id
+        row_idx = None
+        for i, row_data in enumerate(model.data_rows):
+            if row_data.get('id') == track_id or row_data.get('track_id') == track_id:
+                row_idx = i
+                break
+
+        if row_idx is None:
+            logger.warning(
+                f"Cannot patch track state: track_id {track_id} not found in model"
+            )
+            return
+
+        # Update row data
+        row_data = model.data_rows[row_idx]
+        row_data['matched'] = matched
+        row_data['local_path'] = local_path
+        row_data['method'] = method
+
+        # Emit dataChanged for affected columns
+        # Columns: matched(5), confidence(6), quality(7), local_path(8)
+        matched_col = 5
+        local_path_col = 8
+
+        top_left = model.index(row_idx, matched_col)
+        bottom_right = model.index(row_idx, local_path_col)
+        model.dataChanged.emit(
+            top_left, bottom_right,
+            [Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.UserRole,
+             Qt.ItemDataRole.ToolTipRole]
+        )
+
+        logger.debug(
+            f"Patched track {track_id}: matched={matched}, local_path='{local_path}'"
+        )
+
+        # Refresh button states to update Remove Match button availability
+        if hasattr(self.window, 'ui_state') and self.window.ui_state:
+            self.window.ui_state.on_track_selection_changed(True)
+
+    def _execute_command(
+        self, args: list, success_message: str,
+        refresh_after: bool = True, fast_refresh: bool = False
+    ):
         """Execute a CLI command using CommandService.
 
         Args:
@@ -109,7 +174,10 @@ class CommandController(QObject):
 
         # Choose refresh method
         if refresh_after and self._data_refresh:
-            refresh_callback = self._data_refresh.refresh_tracks_only_async if fast_refresh else self._data_refresh.refresh_all_async
+            refresh_callback = (
+                self._data_refresh.refresh_tracks_only_async if fast_refresh
+                else self._data_refresh.refresh_all_async
+            )
         else:
             refresh_callback = None
 
@@ -146,7 +214,11 @@ class CommandController(QObject):
 
                 # Schedule suppression clear after ignore window expires
                 if self._db_monitor:
-                    QTimer.singleShot(2500, lambda: self._db_monitor.set_suppression(False))
+                    QTimer.singleShot(
+                        2500,
+                        lambda: self._db_monitor.set_suppression(False)
+                        if self._db_monitor else None
+                    )
 
         try:
             # Execute via command service with standardized lifecycle
@@ -230,12 +302,18 @@ class CommandController(QObject):
             track_id: ID of the track to diagnose
         """
         # Add visible log message to confirm click is received
-        self.window.append_log(f"🔍 Diagnose button clicked - track ID: {track_id}")
+        self.window.append_log(
+            f"🔍 Diagnose button clicked - track ID: {track_id}"
+        )
         # Set ignore window to cover the operation plus brief aftermath
         if self._db_monitor:
             self._db_monitor.set_ignore_window(2.5)
             self._db_monitor.set_suppression(True)
-        self._execute_command(['diagnose', track_id], f"✓ Diagnosis completed for track {track_id}", refresh_after=False)
+        self._execute_command(
+            ['diagnose', track_id],
+            f"✓ Diagnosis completed for track {track_id}",
+            refresh_after=False
+        )
 
     def _on_open_reports(self):
         """Handle opening reports index page in web browser."""
@@ -256,7 +334,7 @@ class CommandController(QObject):
             if not index_file.exists():
                 logger.warning(f"Reports index not found: {index_file}")
                 self.window.append_log(
-                    f"⚠ Reports index.html not found\n"
+                    "⚠ Reports index.html not found\n"
                     "Generate reports first with: psm report"
                 )
                 return
@@ -264,7 +342,7 @@ class CommandController(QObject):
             # Open index.html in default web browser
             webbrowser.open(index_file.as_uri())
             logger.info(f"Opened reports index in browser: {index_file}")
-            self.window.append_log(f"✓ Opened reports in browser")
+            self.window.append_log("✓ Opened reports in browser")
 
         except Exception as e:
             logger.exception("Failed to open reports")
@@ -353,3 +431,65 @@ class CommandController(QObject):
             logger.warning("Match track clicked but no track ID provided")
             self.window.append_log("⚠ No track selected")
 
+    def _on_manual_match(self, track_id: str, file_path: str):
+        """Handle manual match track to local file.
+
+        Args:
+            track_id: ID of track to match
+            file_path: Path to local file
+        """
+        logger.info(f"Manual match requested: track_id={track_id}, file_path={file_path}")
+        if track_id and file_path:
+            # Suppress DB monitor during command execution
+            if self._db_monitor:
+                self._db_monitor.set_ignore_window(2.5)
+                self._db_monitor.set_suppression(True)
+
+            # Use standard CLI command execution with optimistic UI update
+            self._execute_command(
+                ['set-match', '--track-id', track_id, '--file-path', file_path],
+                f"✓ Manual match set for track {track_id}",
+                refresh_after=False  # Optimistic update - no full refresh
+            )
+
+            # Patch GUI row directly after suppression clears
+            QTimer.singleShot(2500, lambda: self._patch_track_match_state(
+                track_id=track_id,
+                matched=True,
+                local_path=file_path,
+                method="score:MANUAL:manual-selected"
+            ))
+        else:
+            logger.warning(f"Manual match called with missing parameters: track_id={track_id}, file_path={file_path}")
+            self.window.append_log("⚠ Invalid manual match parameters")
+
+    def _on_remove_match(self, track_id: str):
+        """Handle remove match for track.
+
+        Args:
+            track_id: ID of track to remove match for
+        """
+        logger.info(f"Remove match requested: track_id={track_id}")
+        if track_id:
+            # Suppress DB monitor during command execution
+            if self._db_monitor:
+                self._db_monitor.set_ignore_window(2.5)
+                self._db_monitor.set_suppression(True)
+
+            # Use standard CLI command execution with optimistic UI update
+            self._execute_command(
+                ['remove-match', '--track-id', track_id],
+                f"✓ Match removed for track {track_id}",
+                refresh_after=False  # Optimistic update - no full refresh
+            )
+
+            # Patch GUI row directly after suppression clears
+            QTimer.singleShot(2500, lambda: self._patch_track_match_state(
+                track_id=track_id,
+                matched=False,
+                local_path="",
+                method=None
+            ))
+        else:
+            logger.warning("Remove match called with no track_id")
+            self.window.append_log("⚠ No track selected")

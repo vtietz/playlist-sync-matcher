@@ -555,6 +555,32 @@ xdg-open data/export/reports/index.html     # Linux
 
 See `docs/matching.md` and `docs/library_analysis.md` for detailed report documentation.
 
+### Manual Match Override 🎯
+
+When automatic matching picks the wrong file or you want explicit control, manually override track-to-file assignments:
+
+```bash
+# Set manual match using file path or file ID
+psm set-match --track-id <spotify_track_id> --file-path <path>
+psm set-match --track-id <spotify_track_id> --file-id <file_id>
+
+# Remove any match (manual or automatic)
+psm remove-match --track-id <spotify_track_id>
+```
+
+**Features:**
+- Manual matches ALWAYS prioritized over automatic matches
+- Files not in library are automatically added
+- Works with CLI and GUI (via buttons in tracks panel)
+- Instantly reflected in reports, exports, and watch mode
+
+**Use cases:**
+- Wrong version matched (live vs studio, remaster, different quality)
+- Metadata doesn't match but you know it's the right track
+- Override fuzzy matching when you're certain
+
+See [docs/cli-reference.md](docs/cli-reference.md) for detailed examples and workflows.
+
 ### Single Playlist Operations
 
 Work with individual playlists instead of syncing everything:

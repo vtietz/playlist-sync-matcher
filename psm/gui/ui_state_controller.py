@@ -46,22 +46,31 @@ class UiStateController:
         self,
         toolbar=None,
         playlists_tab=None,
+        tracks_panel=None,
         btn_diagnose=None,
-        btn_match_one=None
+        btn_match_one=None,
+        btn_manual_match=None,
+        btn_remove_match=None
     ):
         """Initialize UI state controller.
 
         Args:
             toolbar: ActionsToolbar instance (for workflow buttons)
             playlists_tab: PlaylistsTab instance (for per-playlist buttons)
+            tracks_panel: TracksPanel instance (for refreshing button states)
             btn_diagnose: QPushButton for track diagnosis
             btn_match_one: QPushButton for matching single track
+            btn_manual_match: QPushButton for manual match override
+            btn_remove_match: QPushButton for removing matches
         """
         # Component references
         self._toolbar = toolbar
         self._playlists_tab = playlists_tab
+        self._tracks_panel = tracks_panel
         self._btn_diagnose = btn_diagnose
         self._btn_match_one = btn_match_one
+        self._btn_manual_match = btn_manual_match
+        self._btn_remove_match = btn_remove_match
 
         # State flags (single source of truth)
         self._is_running: bool = False
@@ -164,6 +173,7 @@ class UiStateController:
         Track actions enabled when:
         1. Not running
         2. Track is selected
+        3. For remove-match: also requires track to have an existing match
         """
         should_enable = not self._is_running and self._has_track_selection
 
@@ -171,6 +181,15 @@ class UiStateController:
             self._btn_diagnose.setEnabled(should_enable)
         if self._btn_match_one:
             self._btn_match_one.setEnabled(should_enable)
+        if self._btn_manual_match:
+            self._btn_manual_match.setEnabled(should_enable)
+        
+        # Remove Match has additional condition: track must have an existing match
+        if self._btn_remove_match:
+            has_match = False
+            if self._tracks_panel and self._has_track_selection:
+                has_match = self._tracks_panel._selected_track_has_match()
+            self._btn_remove_match.setEnabled(not self._is_running and self._has_track_selection and has_match)
 
         logger.debug(f"Track actions: enabled={should_enable} (running={self._is_running}, has_selection={self._has_track_selection})")
 
@@ -192,9 +211,14 @@ class UiStateController:
         Convenience method that:
         1. Sets running state to False
         2. Updates all button states (respecting selection states)
+        3. Refreshes TracksPanel button states (e.g., btn_remove_match needs match check)
         """
         self.set_running(False)
         self.update_all_states()
+        
+        # TracksPanel needs to re-evaluate btn_remove_match based on current selection
+        if self._tracks_panel:
+            self._tracks_panel.refresh_button_states()
 
     def on_playlist_selected(self, playlist_id: Optional[str]):
         """Handle playlist selection change.

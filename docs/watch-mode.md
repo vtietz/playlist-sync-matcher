@@ -448,9 +448,16 @@ Spotify track: "Wish You Were Here"
 - `pull` - Fetches from Spotify (writes to DB)
 - `scan` - Scans library (writes to DB)
 - `match` - Creates matches (writes to DB)
+- `set-match` - Creates manual match overrides (writes to DB)
 - `export` - Writes M3U files
 - `report` - Writes HTML reports
 - `build` - Runs full pipeline (writes everything)
+
+**Manual match overrides and watch mode:**
+- Manual overrides created with `set-match` update the `last_write_epoch` and `last_write_source` metadata
+- This triggers GUI refresh just like any other database change
+- The GUI and exports will automatically reflect the manual match when the database monitor detects the change
+- Manual matches are always prioritized over automatic matches (confidence='MANUAL')
 
 **Why these restrictions exist:**
 - **Database lock conflicts**: SQLite is single-writer; concurrent writes cause lock errors

@@ -115,6 +115,18 @@ class DatabaseInterface(ABC):
         ...
 
     @abstractmethod
+    def get_library_file_by_path(self, path: str) -> Optional[LibraryFileRow]:
+        """Get a library file by its path.
+
+        Args:
+            path: Absolute file path to look up
+
+        Returns:
+            LibraryFileRow if found, None otherwise
+        """
+        ...
+
+    @abstractmethod
     def get_unmatched_tracks(self, provider: str | None = None) -> List[TrackRow]:
         """Get all tracks that don't have matches yet.
 

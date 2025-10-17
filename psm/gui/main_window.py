@@ -49,6 +49,8 @@ class MainWindow(QMainWindow):
     on_pull_one_clicked = Signal()
     on_match_one_clicked = Signal()  # Match one playlist
     on_match_track_clicked = Signal(str)  # NEW: Match single track (track_id)
+    on_manual_match_clicked = Signal(str, str)  # NEW: Manual match (track_id, file_path)
+    on_remove_match_clicked = Signal(str)  # NEW: Remove match (track_id)
     on_export_one_clicked = Signal()
     on_watch_toggled = Signal(bool)
     on_cancel_clicked = Signal()  # Cancel current command
@@ -187,8 +189,11 @@ class MainWindow(QMainWindow):
         self.ui_state = UiStateController(
             toolbar=self.toolbar,
             playlists_tab=self.playlists_tab,
+            tracks_panel=self.tracks_panel,
             btn_diagnose=self.btn_diagnose,
-            btn_match_one=self.tracks_panel.btn_match_one
+            btn_match_one=self.tracks_panel.btn_match_one,
+            btn_manual_match=self.btn_manual_match,
+            btn_remove_match=self.btn_remove_match
         )
 
         # Wire up ModelCoordinator with views for sorting/resizing
@@ -281,6 +286,8 @@ class MainWindow(QMainWindow):
         # Store references to child components for backward compatibility
         self.unified_tracks_view = self.tracks_panel.unified_tracks_view
         self.btn_diagnose = self.tracks_panel.btn_diagnose
+        self.btn_manual_match = self.tracks_panel.btn_manual_match
+        self.btn_remove_match = self.tracks_panel.btn_remove_match
 
         # Wire FilterBar user actions to FilterStore (bidirectional filtering)
         # When user changes filter dropdowns, update FilterStore → emits filterChanged → view updates
@@ -294,6 +301,8 @@ class MainWindow(QMainWindow):
         self.tracks_panel.track_selected.connect(self._on_track_auto_diagnose)
         self.tracks_panel.diagnose_clicked.connect(self.on_diagnose_clicked.emit)
         self.tracks_panel.match_one_clicked.connect(self._on_match_one_track)
+        self.tracks_panel.manual_match_clicked.connect(self._on_manual_match_track)
+        self.tracks_panel.remove_match_clicked.connect(self._on_remove_match_track)
 
         return self.tracks_panel
 
@@ -323,6 +332,59 @@ class MainWindow(QMainWindow):
             # Emit match_track signal with track_id
             self.on_match_track_clicked.emit(track_id)
             logger.info(f"Match track requested: {track_id}")
+
+    def _on_manual_match_track(self, track_id: str):
+        """Handle manual match button click - open file picker and emit signal.
+
+        Args:
+            track_id: ID of track to manually match
+        """
+        if not track_id:
+            logger.warning("Manual match clicked but no track_id provided")
+            return
+
+        from PySide6.QtWidgets import QFileDialog
+        import os
+
+        logger.info(f"Opening file picker for manual match: track_id={track_id}")
+
+        # Get music library paths from config for default directory
+        config = self.controller_manager.get_config() if hasattr(self, 'controller_manager') else {}
+        library_paths = config.get('library', {}).get('paths', [])
+        default_dir = library_paths[0] if library_paths else os.path.expanduser('~')
+
+        # Open file picker dialog
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select Local Music File",
+            default_dir,
+            "Audio Files (*.mp3 *.flac *.m4a *.ogg *.wav *.aac);;All Files (*.*)"
+        )
+
+        if not file_path:
+            # User cancelled
+            logger.info("Manual match cancelled - no file selected")
+            return
+
+        logger.info(f"File selected for manual match: track_id={track_id}, file_path={file_path}")
+
+        # Emit signal with track_id and file_path - CommandController will handle execution
+        self.on_manual_match_clicked.emit(track_id, file_path)
+
+    def _on_remove_match_track(self, track_id: str):
+        """Handle remove match button click - emit signal to remove match.
+
+        Args:
+            track_id: ID of track to remove match for
+        """
+        if not track_id:
+            logger.warning("Remove match clicked but no track_id provided")
+            return
+
+        logger.info(f"Remove match requested for track_id={track_id}")
+
+        # Emit signal with track_id - CommandController will handle execution
+        self.on_remove_match_clicked.emit(track_id)
 
     def _create_playlist_detail_widget(self) -> QWidget:
         """Create the playlist detail widget."""
