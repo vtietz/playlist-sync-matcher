@@ -123,7 +123,8 @@ jobs:
     needs: [build-cli, build-gui]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
-    
+    permissions:
+      contents: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -136,9 +137,8 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
+          token: ${{ secrets.GITHUB_TOKEN }}
           files: artifacts/**/*
           draft: false
           prerelease: false
           generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
