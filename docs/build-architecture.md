@@ -266,4 +266,4 @@ psm-minimal.spec  ─► Minimal core (no matching)
 
 - [Building Executables Guide](building-executables.md)
 - [Implementation Summary](separate-executables-summary.md)
-- [Quick Start](quick-start-executables.md)
+- [README Installation](../README.md#installation)

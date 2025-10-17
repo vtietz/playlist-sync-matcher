@@ -10,15 +10,24 @@
 
 Go to [Releases](https://github.com/vtietz/playlist-sync-matcher/releases) and download:
 
-### For Automation/Scripting
+### Option 1: Bundles (Recommended)
+Each bundle contains **both** GUI and CLI:
+- **Windows**: `psm-windows-amd64.zip` → contains `psm-gui.exe` and `psm-cli.exe`
+- **Linux**: `psm-linux-amd64.tar.gz` → contains `psm-gui` and `psm-cli`
+- **macOS**: `psm-macos-amd64.tar.gz` → contains `psm-gui` and `psm-cli`
+
+### Option 2: Individual Binaries
+For automation/scripting (CLI only):
 - Windows: `psm-cli-windows-amd64.exe`
 - Linux: `psm-cli-linux-amd64`
 - macOS: `psm-cli-macos-amd64`
 
-### For Desktop Use
-- Windows: `psm-gui-windows-amd64.exe`
-- Linux: `psm-gui-linux-amd64`
-- macOS: `psm-gui-macos-amd64`
+For desktop use (GUI + CLI required):
+- Windows: `psm-gui-windows-amd64.exe` AND `psm-cli-windows-amd64.exe`
+- Linux: `psm-gui-linux-amd64` AND `psm-cli-linux-amd64`
+- macOS: `psm-gui-macos-amd64` AND `psm-cli-macos-amd64`
+
+**Note**: GUI requires CLI. Keep both in the same folder.
 
 ## Quick Commands
 
@@ -39,16 +48,31 @@ psm-gui.exe
 
 ### Linux/macOS
 
-**CLI**:
+**Using Bundle** (recommended):
 ```bash
+# Extract bundle
+tar -xzf psm-linux-amd64.tar.gz  # or psm-macos-amd64.tar.gz
+
+# CLI
+chmod +x psm-cli
+./psm-cli --version
+./psm-cli login
+./psm-cli build
+
+# GUI
+chmod +x psm-gui
+./psm-gui
+```
+
+**Using Individual Binaries**:
+```bash
+# CLI
 chmod +x psm-cli-linux-amd64
 ./psm-cli-linux-amd64 --version
 ./psm-cli-linux-amd64 login
 ./psm-cli-linux-amd64 build
-```
 
-**GUI**:
-```bash
+# GUI (requires CLI in same folder)
 chmod +x psm-gui-linux-amd64
 ./psm-gui-linux-amd64
 ```

@@ -164,34 +164,55 @@ Typical build sizes (approximate):
 
 **Recommended Downloads:**
 
-- **Desktop Users**: Download GUI executable for your platform
-- **Server/Automation**: Download CLI executable for your platform
-- **Power Users**: Download both executables
+- **Most Users**: Download the bundle for your platform (contains both GUI and CLI)
+  - Windows: `psm-windows-amd64.zip`
+  - Linux: `psm-linux-amd64.tar.gz`
+  - macOS: `psm-macos-amd64.tar.gz`
+- **Server/Automation Only**: Download individual CLI executable
+- **Advanced**: Download individual binaries separately
 
 ### Package Naming Conventions:
 
+**Bundles:**
+- `psm-{platform}-{arch}.zip` (Windows) - Contains both GUI and CLI
+- `psm-{platform}-{arch}.tar.gz` (Linux/macOS) - Contains both GUI and CLI
+
+**Individual Binaries:**
 - `psm-cli-{platform}-{arch}` - Command-line tool
-- `psm-gui-{platform}-{arch}` - Graphical interface
+- `psm-gui-{platform}-{arch}` - Graphical interface (requires CLI)
 
 ### Installation Instructions (Include in Release Notes):
 
-**CLI:**
+**Using Bundles (Recommended):**
 ```bash
-# Download and make executable (Linux/macOS)
+# Windows - extract zip
+# Contains: psm-gui.exe and psm-cli.exe
+
+# Linux/macOS - extract tar.gz
+tar -xzf psm-linux-amd64.tar.gz
+# Contains: psm-gui and psm-cli
+
+# Make executable and run
+chmod +x psm-cli psm-gui
+./psm-cli --version
+./psm-gui
+```
+
+**Using Individual Binaries:**
+```bash
+# CLI only (Linux/macOS)
 chmod +x psm-cli-linux-amd64
 ./psm-cli-linux-amd64 --version
 
-# Windows - just double-click or run from cmd
+# CLI only (Windows)
 psm-cli-windows-amd64.exe --version
-```
 
-**GUI:**
-```bash
-# Download and make executable (Linux/macOS)
-chmod +x psm-gui-linux-amd64
+# GUI (requires CLI in same folder)
+chmod +x psm-gui-linux-amd64  # Linux/macOS
 ./psm-gui-linux-amd64
 
-# Windows - double-click the .exe file
+# GUI (Windows)
+psm-gui-windows-amd64.exe
 ```
 
 ## Advanced Configuration

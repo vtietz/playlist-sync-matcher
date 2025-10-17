@@ -47,7 +47,7 @@ def _get_cli_command() -> tuple[list[str], str | None]:
                 f"Please ensure both files are kept together:\n"
                 f"  - {gui_exe.name}\n"
                 f"  - {cli_name}\n\n"
-                f"See docs/quick-start-executables.md for more information."
+                f"See README.md Installation section for download instructions."
             )
             return ([], error_msg)
 

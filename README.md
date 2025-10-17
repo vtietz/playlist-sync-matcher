@@ -85,28 +85,35 @@ All reports export as both CSV (for spreadsheets) and interactive HTML (for expl
 
 ## Installation
 
-### Option 1: Standalone Executables (Easiest)
-No Python required! Download pre-built binaries from [Releases](https://github.com/vtietz/playlist-sync-matcher/releases):
+### Option 1: Prebuilt Bundles (Easiest)
+No Python required! Download a platform bundle from [Releases](https://github.com/vtietz/playlist-sync-matcher/releases). Each bundle contains both the GUI and the CLI:
 
-**Important: GUI requires CLI**
-- The GUI is a thin wrapper around the CLI and needs the CLI executable next to it.
-- Download BOTH files for your platform and keep them in the same folder:
-  - Windows: `psm-gui-windows-amd64.exe` AND `psm-cli-windows-amd64.exe`
-  - macOS: `psm-gui-macos-amd64` AND `psm-cli-macos-amd64`
-  - Linux: `psm-gui-linux-amd64` AND `psm-cli-linux-amd64`
+- Windows: `psm-windows-amd64.zip` → contains `psm-gui.exe` and `psm-cli.exe`
+- macOS: `psm-macos-amd64.tar.gz` → contains `psm-gui` and `psm-cli`
+- Linux: `psm-linux-amd64.tar.gz` → contains `psm-gui` and `psm-cli`
 
-**Two components:**
-- **GUI (`psm-gui`)** – Desktop application that uses the CLI under the hood
-- **CLI (`psm-cli`)** – Command-line tool for automation and scripting (core engine)
+Why bundles?
+- Ensures the GUI and CLI versions match
+- Clear names inside the archive (no OS/arch suffix on the internal binary)
+- Includes checksums alongside archives for verification
+
+You can still download individual binaries if you prefer (backward-compatible assets remain available):
+- Windows: `psm-gui-windows-amd64.exe`, `psm-cli-windows-amd64.exe`
+- macOS: `psm-gui-macos-amd64`, `psm-cli-macos-amd64`
+- Linux: `psm-gui-linux-amd64`, `psm-cli-linux-amd64`
+
+Notes:
+- On Linux/macOS, executables typically don’t have a file extension – that’s normal. Make them executable with `chmod +x`.
+- The `amd64` suffix denotes CPU architecture (x86_64). It helps avoid confusion if ARM builds are added later.
 
 **Windows**:
 ```bash
 # GUI version (recommended for interactive use)
-# Download psm-gui-windows-amd64.exe AND psm-cli-windows-amd64.exe (same folder)
+# Download and extract psm-windows-amd64.zip (contains psm-gui.exe and psm-cli.exe)
 psm-gui.exe           # Launches desktop application
 
 # CLI version (for automation/scripting)
-# Download psm-cli-windows-amd64.exe
+# Or download individual: psm-cli-windows-amd64.exe
 psm-cli.exe --version
 psm-cli.exe build     # Runs the sync pipeline (after setup below)
 ```
@@ -114,15 +121,16 @@ psm-cli.exe build     # Runs the sync pipeline (after setup below)
 **Linux/Mac**:
 ```bash
 # GUI version (recommended for interactive use)
-# Download psm-gui-linux-amd64 or psm-gui-macos-amd64 AND the matching psm-cli
-chmod +x psm-gui-linux-amd64
-./psm-gui-linux-amd64
+# Download and extract the bundle (psm-linux-amd64.tar.gz or psm-macos-amd64.tar.gz)
+# Then run the internal binaries:
+chmod +x psm-gui
+./psm-gui
 
 # CLI version (for automation/scripting)
-# Download psm-cli-linux-amd64 or psm-cli-macos-amd64
-chmod +x psm-cli-linux-amd64
-./psm-cli-linux-amd64 --version
-./psm-cli-linux-amd64 build
+# Or download individual binaries (then chmod +x): psm-cli-linux-amd64 or psm-cli-macos-amd64
+chmod +x psm-cli
+./psm-cli --version
+./psm-cli build
 ```
 
 > **💡 Tip**: Rename executables for convenience (e.g., `mv psm-cli-linux-amd64 psm-cli`)

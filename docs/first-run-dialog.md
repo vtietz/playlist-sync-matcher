@@ -240,5 +240,5 @@ Potential improvements (not currently implemented):
 ## Related Documentation
 
 - [Configuration Guide](configuration.md) - Full `.env` reference
-- [Quick Start with Executables](quick-start-executables.md) - End-user onboarding
+- [README Installation](../README.md#installation) - Download and setup instructions
 - [Architecture Overview](architecture.md) - Overall system design
