@@ -12,6 +12,22 @@ Instead of just getting a list of song names, you get working playlists that:
 
 Perfect for syncing to devices, offline listening, or just organizing your collection around your streaming habits.
 
+## Graphical Desktop App (GUI)
+
+Use the new cross‑platform GUI for a visual workflow. It runs the same underlying CLI engine and uses the same configuration.
+
+![GUI](docs/screenshots/gui.png)
+
+Highlights:
+- Master–detail playlist browsing with instant track view
+- Action toolbar: Pull, Scan, Match, Export, Report, Build, Watch, per‑playlist actions
+- Filterable track grid with quick filters (Playlist, Artist, Album, Year, Matched, Confidence, Quality) and search
+- Live log panel shows CLI output; status bar shows totals (tracks, matched %, playlists)
+- Read‑only data layer; all heavy work is executed by the CLI (parity and reliability)
+- Works on Windows, macOS, and Linux
+
+Getting started: download both the GUI and CLI for your OS from Releases and place them in the same folder, then launch the GUI executable (see Installation below).
+
 ## How it works
 1. **Reads your Spotify playlists** – Pulls all your playlist info  
 2. **Scans your music folders** – Finds all the music files you own
@@ -51,9 +67,16 @@ All reports export as both CSV (for spreadsheets) and interactive HTML (for expl
 ### Option 1: Standalone Executables (Easiest)
 No Python required! Download pre-built binaries from [Releases](https://github.com/vtietz/playlist-sync-matcher/releases):
 
-**Two versions available:**
-- **CLI (`psm-cli`)** – Command-line tool for automation and scripting (smaller, no GUI dependencies)
-- **GUI (`psm-gui`)** – Desktop application with visual interface (larger, includes tkinter)
+**Important: GUI requires CLI**
+- The GUI is a thin wrapper around the CLI and needs the CLI executable next to it.
+- Download BOTH files for your platform and keep them in the same folder:
+  - Windows: `psm-gui-windows-amd64.exe` AND `psm-cli-windows-amd64.exe`
+  - macOS: `psm-gui-macos-amd64` AND `psm-cli-macos-amd64`
+  - Linux: `psm-gui-linux-amd64` AND `psm-cli-linux-amd64`
+
+**Two components:**
+- **CLI (`psm-cli`)** – Command-line tool for automation and scripting (core engine)
+- **GUI (`psm-gui`)** – Desktop application that uses the CLI under the hood
 
 **Windows**:
 ```bash
@@ -63,7 +86,7 @@ psm-cli.exe --version
 psm-cli.exe build     # Runs the sync pipeline (after setup below)
 
 # GUI version (for interactive use)
-# Download psm-gui-windows-amd64.exe  
+# Download psm-gui-windows-amd64.exe AND psm-cli-windows-amd64.exe (same folder)
 psm-gui.exe           # Launches desktop application
 ```
 
@@ -76,7 +99,7 @@ chmod +x psm-cli-linux-amd64
 ./psm-cli-linux-amd64 build
 
 # GUI version (for interactive use)
-# Download psm-gui-linux-amd64 or psm-gui-macos-amd64
+# Download psm-gui-linux-amd64 or psm-gui-macos-amd64 AND the matching psm-cli
 chmod +x psm-gui-linux-amd64
 ./psm-gui-linux-amd64
 ```
@@ -84,7 +107,7 @@ chmod +x psm-gui-linux-amd64
 > **💡 Tip**: Rename executables for convenience (e.g., `mv psm-cli-linux-amd64 psm-cli`)
 
 ### Option 2: Python Source (Recommended for Development)
-Requires **Python 3.9+**. The scripts will automatically set up a virtual environment:
+Requires **Python 3.10+** (CI builds on 3.12). The scripts will automatically set up a virtual environment:
 
 **Windows**:
 ```bash
@@ -123,19 +146,19 @@ python -m psm.cli gui   # Direct Python invocation
 ```
 
 **Features**:
-- 📊 **Master-Detail Playlists** – Browse all playlists, click to see tracks with local paths
-- 🎯 **Actionable Views** – Tabs for Unmatched Tracks, Matched Tracks, Coverage, Unmatched Albums, Liked Songs
-- ⚡ **All CLI Actions** – Pull, Scan, Match, Export, Report, Build via toolbar buttons
+- 📊 **Master–Detail Playlists** – Browse playlists on the left, view tracks on the right
+- �️ **Powerful Filters** – Quick filters for Playlist, Artist, Album, Year, Matched, Confidence, Quality + search boxes
+- ⚡ **All CLI Actions** – Pull, Scan, Match, Export, Report, Build, Open Reports, Refresh via toolbar buttons
 - 🔄 **Watch Mode Toggle** – Enable continuous monitoring with one click
-- 📝 **Live Logs** – Real-time CLI output streaming to log window
-- 📈 **Progress Tracking** – Live progress bar with percentage and action labels
-- 🎨 **Professional UI** – Dark-themed Qt interface with hover effects
+- 📝 **Live Logs** – Real-time CLI output streaming to a log panel
+- 🧭 **Status Bar Metrics** – Total tracks, matched count/percentage, and playlist count
+- 🎨 **Professional UI** – Dark-themed Qt interface (system theme aware)
 
 **Architecture**:
 - Zero changes to existing CLI/service code (isolated `psm/gui/` module)
 - Read-only data layer using `DatabaseInterface` only (no raw SQL)
 - All actions execute actual CLI commands as subprocesses (CLI parity)
-- Live progress parsing from CLI stdout
+- Live log parsing from CLI stdout
 
 **Documentation**: 
 - [`psm/gui/README.md`](psm/gui/README.md) - Detailed usage, keyboard shortcuts, and architecture

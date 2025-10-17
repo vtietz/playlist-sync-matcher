@@ -164,11 +164,22 @@ jobs:
             echo "Deleting existing asset if present: $asset"
             gh release delete-asset "$tag" "$asset" -y || true
           done
+          # Also clean up any previously uploaded raw artifact filenames (e.g., psm-cli, psm-cli.exe, psm-gui, psm-gui.exe)
+          for dir in artifacts/*; do
+            [ -d "$dir" ] || continue
+            for f in "$dir"/*; do
+              raw_asset="$(basename "$f")"
+              echo "Deleting possibly lingering raw asset: $raw_asset"
+              gh release delete-asset "$tag" "$raw_asset" -y || true
+            done
+          done
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           files: release-assets/*
+          draft: false
           prerelease: false
-          generate_release_notes: true
+          body_path: ${{ (hashFiles(format('docs/releasenotes/{0}.md', github.ref_name)) != '' && format('docs/releasenotes/{0}.md', github.ref_name)) || '' }}
+          generate_release_notes: ${{ hashFiles(format('docs/releasenotes/{0}.md', github.ref_name)) == '' }}

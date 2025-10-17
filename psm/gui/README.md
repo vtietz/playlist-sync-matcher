@@ -8,7 +8,7 @@ Desktop GUI for Spotify M3U Sync built with PySide6 (Qt for Python).
 - **Zero Impact**: GUI module is completely isolated - no changes to existing CLI/service code
 - **Read-Only Data Layer**: `DataFacade` uses only `DatabaseInterface` methods, no raw SQL
 - **CLI Parity**: All actions execute actual CLI commands as subprocesses
-- **Live Progress**: Real-time log streaming and progress bar updates from CLI output
+- **Live Output**: Real-time CLI logs and status updates
 
 ### Module Structure
 
@@ -56,36 +56,26 @@ psm/gui/
 - `LikedTracksTableModel` - Liked songs
 
 **main_window.py** (MainWindow)
-- **Toolbar**: 11 action buttons
-  - Pull | Scan | Match | Export | Report | Build | Watch | Refresh
-  - Export Playlist | Report Playlist | Build Playlist
-- **Left Panel**: Playlists master table
-- **Right Panel**: Tabbed detail views
-  - Playlist Detail
-  - Unmatched Tracks
-  - Matched Tracks
-  - Coverage
-  - Unmatched Albums
-  - Liked Tracks
-- **Bottom Panel**: Log window + Progress bar + Status bar
+- **Toolbar**: Action buttons
+  - Build (all steps) | Pull | Scan | Match | Export | Report | Open Reports | Refresh | Watch Mode
+  - Per‑playlist actions: Match Selected | Export Selected
+- **Left Panel**: Playlists table with owner filter and search
+- **Right Panel**: Tracks table with quick filters (Playlist, Artist, Album, Year, Matched, Confidence, Quality) and search
+- **Bottom Panel**: Log window + Status bar (totals: tracks, matched %, playlists)
 
 **controllers.py** (MainController)
 - Connects UI signals to actions
 - Handles playlist selection → detail loading
 - Executes CLI commands via `CliExecutor`
-- Updates progress bar from CLI output
+- Updates status and log from CLI output
 
 **runner.py** (CliRunner + CliExecutor)
 - `CliRunner` (QThread): Subprocess execution with stdout streaming
-- `CliExecutor`: High-level action interface with progress callbacks
+- `CliExecutor`: High-level action interface with status/log callbacks
 
 **progress_parser.py**
-- Regex patterns for parsing CLI output
-- Standardized formats from `psm.utils.progress`:
-  - `[1/4] Step name` → step progress  
-  - `Progress: 123/456 items (27%)` → item progress
-  - `✓ Operation completed in 1.2s` → completion
-  - `→ Status message` → status updates
+- Regex patterns for parsing CLI output into status/log messages
+- Standardized formats from `psm.utils.progress` (where available)
 - Backward compatible with legacy formats
 
 ## Installation
@@ -154,32 +144,12 @@ python -m psm.gui        # Bypasses CLI
 - **Report Playlist**: Generate HTML report for one playlist
 - **Build Playlist**: Full workflow for single playlist
 
-### Tabs
+### Views & Filters
 
-**Playlist Detail**
-- Shows tracks in selected playlist
-- Columns: Title | Artist | Album | Local Path | Matched
-
-**Unmatched Tracks**
-- All tracks without local matches across all playlists
-- Sortable by playlist, artist, album, title
-
-**Matched Tracks**
-- All successfully matched tracks
-- Shows local file paths
-
-**Coverage**
-- Per-playlist statistics
-- Total tracks | Matched | Coverage % | Unmatched
-
-**Unmatched Albums**
-- Albums with at least one unmatched track
-- Groups by (Artist, Album)
-- Shows total tracks vs unmatched count
-
-**Liked Tracks**
-- Tracks from "Liked Songs" playlist
-- Same format as Playlist Detail
+The right panel provides a single tracks grid with:
+- Quick filters: Playlist, Artist, Album, Year, Matched, Confidence, Quality
+- Free‑text search for tracks/albums/artists
+- Columns include: Track, Artist, Album, Year, Matched, Confidence, Quality, Local Path
 
 ### Log Window
 
@@ -197,11 +167,10 @@ The GUI automatically adapts to your system's theme (dark/light mode):
 
 The stylesheet uses Qt palette colors (`palette(base)`, `palette(text)`, etc.) which automatically change based on system theme. The log window uses inverted colors for a terminal-like appearance in any theme.
 
-### Progress Bar
+### Status Bar
 
-- **Percentage**: Shows 0-100% progress
-- **Label**: Current action description
-- **Live Updates**: Parsed from CLI output
+- Shows total tracks, matched count/percentage, and playlist count
+- Updates after operations complete
 
 ## Keyboard Shortcuts
 

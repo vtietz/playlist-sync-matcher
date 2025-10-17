@@ -4,13 +4,15 @@ Have you ever wondered which tracks in your streaming playlists you already own,
 
 GitHub: https://github.com/vtietz/playlist-sync-matcher
 
-### What It Does
-PSM automates the process of syncing streaming playlists with your local library:
+### What It Does (and What It Doesn't)
+PSM automates mapping your streaming playlists to the music files you already have locally:
 - **Links to your local files** – Each playlist entry points to the real MP3/FLAC file on your drive.
 - **Shows what's missing** – Clear reports of tracks and albums you don't have locally.
 - **Creates standard M3U playlists** – Compatible with any music player.
 
-This tool is perfect for music collectors who want to organize their collection around their streaming habits, sync playlists to devices, or enjoy offline listening.
+> Important: PSM does not download, copy, or sync audio files. It only creates playlists that reference files already on your disk and highlights gaps. If a track is missing, you'll see it in the reports so you can acquire it yourself.
+
+This tool is for music collectors who want to organize their collection around their streaming habits and use their existing local files in standard players.
 
 ### Key Features
 - **Spotify Integration**: Playlists + liked tracks ingestion via OAuth.
@@ -20,6 +22,8 @@ This tool is perfect for music collectors who want to organize their collection 
   - Early exit optimization on high-confidence matches.
 - **Flexible Export**: Three modes (strict | mirrored | placeholders) with collision-safe filenames.
 - **Optional Organization**: Group playlists by owner into folders.
+- **Optional GUI**: A simple desktop app that runs the same engine with a visual interface (see below).
+- **Lean Watch Mode**: Continuously monitors your library and database for changes and applies incremental updates. Avoids full rebuilds; typically reacts in seconds with a small debounce.
 - **Rich Interactive Reports**: Comprehensive HTML + CSV reports with sorting, search, pagination.
   - Matched tracks with confidence scores and match strategies.
   - Unmatched tracks/albums sorted by popularity for smart acquisition decisions.
@@ -46,6 +50,11 @@ psm build      # Runs full pipeline: pull → scan → match → export
 ```
 > Note: `build` runs the data sync pipeline, not software compilation.
 
+For continuous updates while you change your library or pull new data:
+```bash
+psm build --watch   # Lean watch mode with incremental updates
+```
+
 **Explore Results:**
 ```bash
 # Open the interactive report dashboard
@@ -62,8 +71,22 @@ open data/export/reports/index.html   # Mac/Linux
 
 All reports are sortable, searchable, and include clickable Spotify links powered by jQuery DataTables.
 
+### GUI (Optional)
+
+There's also a small desktop app if you prefer a visual workflow. It uses the same underlying CLI and configuration.
+
+![GUI](screenshots/gui.png)
+
+What it offers:
+- Master–detail view: playlists on the left, tracks on the right
+- Toolbar actions: Build, Pull, Scan, Match, Export, Report, Open Reports, Refresh, Watch Mode
+- Quick filters: Playlist, Artist, Album, Year, Matched, Confidence, Quality, plus search
+- Live log panel and a status bar with totals (tracks, matched %, playlists)
+The GUI is optional; the CLI remains the primary interface.
 ### Technical Notes
-- SQLite schema v1 with indices on normalized + ISRC fields.
+- Implemented in Python (3.10+) with standalone executables built via PyInstaller (CI currently builds with Python 3.12).
+- GUI built with PySide6 (Qt for Python); uses CLI subprocesses for actions and streams logs/status to the UI.
+- SQLite database with indexes on normalized text and ISRC fields for fast lookups.
 - Service layer keeps CLI thin (separation of concerns).
 - Environment/.env-based configuration (`PSM__SECTION__KEY` pattern).
 - Caching + batching for performance (normalization cache, batched commits).
