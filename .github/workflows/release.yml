@@ -134,11 +134,41 @@ jobs:
         with:
           path: artifacts
 
+      - name: Prepare release assets (unique names)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets
+          shopt -s nullglob
+          for dir in artifacts/*; do
+            if [ -d "$dir" ]; then
+              base="$(basename "$dir")"
+              for f in "$dir"/*; do
+                # Copy each artifact file to a flattened folder using the artifact name as the file name
+                cp "$f" "release-assets/$base"
+              done
+            fi
+          done
+
+      - name: Remove existing assets (cleanup)
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          shopt -s nullglob
+          for f in release-assets/*; do
+            [ -e "$f" ] || continue
+            asset="$(basename "$f")"
+            echo "Deleting existing asset if present: $asset"
+            gh release delete-asset "$tag" "$asset" -y || true
+          done
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          files: artifacts/**/*
-          draft: false
+          files: release-assets/*
           prerelease: false
           generate_release_notes: true
