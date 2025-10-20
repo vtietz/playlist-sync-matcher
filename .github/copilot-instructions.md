@@ -31,6 +31,7 @@
 * **Finally remove all backward compatibility code**: If a feature or code path is deprecated, remove it entirely rather than leaving it commented out or behind flags.
 
 ## Style Guidelines (PEP 8 + Project Rules)
+* **Code Formatting**: Use Black formatter with 120 character line length. All code must pass Black formatting checks.
 * **Line Length**: Max 120 characters (not 80). Break long lines at logical points.
 * **Blank Lines**: 2 blank lines after top-level class/function definitions, 1 blank line before nested functions.
 * **Whitespace**: No trailing whitespace, space after commas `[a, b, c]`, spaces around operators `x = y + 1`.
@@ -97,31 +98,35 @@ return result
 7. ✅ README updated if functionality changed
 8. ✅ Any new workflow steps use virtualenv-safe invocation (`run.bat` or install + python -m) and avoid raw system Python when project dependencies are required.
 9. ✅ **Code quality analysis passed** - Run code analysis after bigger implementations to check:
-   - **Command**: `run.bat py scripts\analyze_code.py` (or `run.bat py -m scripts.analyze_code`)
+   - **Command**: `run.bat py scripts\analyze_code.py changed` (or `run.bat py -m scripts.analyze_code`)
    - Complexity (Lizard): Functions should have CCN ≤ 15 and NLOC ≤ 100
    - Style (flake8): No style violations, max line length 120
+   - Formatting (Black): Code must be formatted with Black (120 char line length)
    - Types (mypy - optional): Type hints where applicable
 
 ## Code Quality Analysis
 * **When to Run**: After bigger implementations, refactorings, or before committing significant changes
 * **How to Run**:
-  - `run.bat py scripts\analyze_code.py` - Analyze only changed files (default, quick)
+  - `run.bat py scripts\analyze_code.py changed` - Analyze only changed files (default, quick)
   - `run.bat py scripts\analyze_code.py all` - Analyze entire project (comprehensive)
   - `run.bat py scripts\analyze_code.py files <path>` - Analyze specific files
 * **What to Check**:
   - **Complexity (Lizard)**: Functions with CCN > 15 need refactoring. Extract logic into smaller functions.
   - **Function Length**: Functions > 100 lines (NLOC) should be split into smaller, focused functions.
-  - **Style (flake8)**: Fix any reported style issues. Project uses 120 char line length.
+  - **Style (flake8)**: Fix any reported style issues. Project uses 120 char line length, Black-compatible ignores (E203, W503).
+  - **Formatting (Black)**: All code must be formatted with Black. Run cleanup script to auto-format.
   - **Types (mypy)**: Optional but helpful. Add type hints to new functions.
 * **Addressing Issues**:
   - **High Complexity**: Extract nested logic into helper functions, use early returns to reduce nesting
   - **Long Functions**: Split into multiple functions with clear single responsibilities
   - **Style Issues**: Follow PEP 8 with project-specific rules (120 char line length, Black-compatible)
+  - **Formatting Issues**: Run `run.bat py scripts\cleanup_code.py changed` to auto-format with Black
   - **Import Issues**: Remove unused imports, organize imports logically
 
 ## Code Cleanup
 * **Safe Automated Cleanup**: Use the cleanup script to fix low-hanging fruit automatically
 * **What It Fixes**:
+  - Code formatting with Black (PEP 8 compliant, 120 char line length)
   - Trailing whitespace on lines
   - Whitespace-only blank lines
   - Missing newline at end of file
@@ -130,8 +135,10 @@ return result
   - `run.bat py scripts\cleanup_code.py --dry-run changed` - Preview changes before applying
   - `run.bat py scripts\cleanup_code.py changed` - Clean only changed files (safe for daily use)
   - `run.bat py scripts\cleanup_code.py all` - Clean entire project (use before major commits)
-  - `run.bat py scripts\cleanup_code.py --skip-imports all` - Only clean whitespace, skip import removal
-* **Safety**: Only performs safe, non-breaking transformations. Does NOT change code structure, line length, or indentation.
+  - `run.bat py scripts\cleanup_code.py --skip-formatting all` - Skip Black formatting, only whitespace/imports
+  - `run.bat py scripts\cleanup_code.py --skip-imports all` - Skip import removal, only formatting/whitespace
+* **Order of Operations**: The script runs in this order: 1) Whitespace cleanup, 2) Unused import removal, 3) Black formatting
+* **Safety**: Black is opinionated but safe - it only changes formatting, never logic. Other operations are also safe and non-breaking.
 
 # Required final actions
 * Run tests to ensure all changes pass.

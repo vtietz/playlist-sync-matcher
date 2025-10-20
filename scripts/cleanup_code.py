@@ -239,6 +239,79 @@ def remove_unused_imports(files: List[Path], dry_run: bool = False) -> int:
         return 0
 
 
+def format_code_with_black(files: List[Path], dry_run: bool = False) -> int:
+    """Format code using Black.
+
+    Args:
+        files: List of files to format
+        dry_run: If True, don't modify files
+
+    Returns:
+        Number of files that would be/were reformatted
+    """
+    # Check if black is available
+    try:
+        subprocess.run(
+            [sys.executable, "-m", "black", "--version"],
+            capture_output=True,
+            check=True
+        )
+    except subprocess.CalledProcessError:
+        print("ℹ️  black not installed, skipping code formatting")
+        print("   Install with: pip install black")
+        return 0
+
+    if not files:
+        return 0
+
+    # Build black command
+    cmd = [
+        sys.executable, "-m", "black",
+    ]
+
+    if dry_run:
+        cmd.extend(["--check", "--diff"])
+
+    # Add all files
+    cmd.extend([str(f) for f in files])
+
+    try:
+        result = subprocess.run(
+            cmd,
+            cwd=PROJECT_ROOT,
+            capture_output=True,
+            text=True,
+            check=False
+        )
+
+        # Parse output
+        output = result.stdout + result.stderr
+
+        if dry_run:
+            # In check mode, Black returns exit code 1 if files would be reformatted
+            if result.returncode == 0:
+                return 0
+            # Count "would reformat" messages
+            reformatted_count = output.count("would reformat")
+            if reformatted_count > 0:
+                print(f"ℹ️  Would reformat {reformatted_count} file(s)")
+                print(output)
+            return reformatted_count
+        else:
+            # Count "reformatted" messages
+            reformatted_count = output.count("reformatted")
+            if reformatted_count > 0:
+                print(f"✅ Reformatted {reformatted_count} file(s)")
+            elif "file" in output.lower() and "left unchanged" in output.lower():
+                # All files were already formatted
+                pass
+            return reformatted_count
+
+    except Exception as e:
+        print(f"⚠️  Error running black: {e}")
+        return 0
+
+
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(
@@ -278,6 +351,11 @@ Examples:
         '--skip-whitespace',
         action='store_true',
         help='Skip whitespace cleanup'
+    )
+    parser.add_argument(
+        '--skip-formatting',
+        action='store_true',
+        help='Skip Black code formatting'
     )
 
     args = parser.parse_args()
@@ -353,6 +431,17 @@ Examples:
 
         if removed_count == 0:
             print("✅ No unused imports found!")
+
+    # Format code with Black
+    if not args.skip_formatting:
+        print(f"\n{'=' * 80}")
+        print("🎨 Formatting Code with Black")
+        print(f"{'=' * 80}")
+
+        formatted_count = format_code_with_black(files_to_clean, dry_run=args.dry_run)
+
+        if formatted_count == 0:
+            print("✅ Code is already properly formatted!")
 
     # Summary
     print(f"\n{'=' * 80}")

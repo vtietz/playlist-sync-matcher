@@ -219,6 +219,46 @@ def analyze_style(files: List[str] = None) -> tuple:
         return 1, output
 
 
+def analyze_formatting(files: List[str] = None) -> tuple:
+    """Run Black formatting check.
+
+    Args:
+        files: Specific files to analyze, or None for all
+
+    Returns:
+        Tuple of (exit_code, output_text)
+    """
+    # Check if black is available
+    try:
+        subprocess.run([sys.executable, "-m", "black", "--version"],
+                       capture_output=True, check=True)
+    except subprocess.CalledProcessError:
+        print("⚠️  black not installed, skipping formatting analysis")
+        print("   Install with: pip install black")
+        return 0, ""
+
+    cmd = [
+        sys.executable, "-m", "black",
+        "--check",  # Check only, don't modify
+        "--diff",   # Show what would change
+        "--color",  # Colorize diff output
+    ]
+
+    if files:
+        cmd.extend(files)
+    else:
+        cmd.extend(PYTHON_DIRS)
+
+    exit_code, output = run_command(cmd, "Formatting Check (Black)")
+
+    if exit_code == 0:
+        print("✅ Code is properly formatted!")
+        return 0, output
+    else:
+        print("⚠️  Found formatting issues (run cleanup script to fix)")
+        return 1, output
+
+
 def analyze_types(files: List[str] = None) -> tuple:
     """Run mypy type checking (optional).
 
@@ -413,6 +453,11 @@ Examples:
         help='Skip Lizard complexity analysis'
     )
     parser.add_argument(
+        '--skip-formatting',
+        action='store_true',
+        help='Skip Black formatting check'
+    )
+    parser.add_argument(
         '--skip-types',
         action='store_true',
         help='Skip mypy type analysis'
@@ -454,6 +499,10 @@ Examples:
         exit_code, output = analyze_style(files_to_analyze)
         results['Style'] = exit_code
         style_output = output
+
+    if not args.skip_formatting:
+        exit_code, output = analyze_formatting(files_to_analyze)
+        results['Formatting'] = exit_code
 
     if not args.skip_types:
         exit_code, output = analyze_types(files_to_analyze)
