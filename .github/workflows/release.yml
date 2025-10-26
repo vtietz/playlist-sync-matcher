@@ -34,14 +34,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Cache pip
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-3.12-${{ hashFiles('requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-3.12-
-            ${{ runner.os }}-pip-
+          cache: 'pip'
 
       - name: Install dependencies
         run: |
@@ -85,15 +78,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      
-      - name: Cache pip
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-3.12-${{ hashFiles('requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-3.12-
-            ${{ runner.os }}-pip-
+          cache: 'pip'
 
       - name: Install dependencies
         run: |
@@ -128,6 +113,22 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Detect pre-release
+        id: detect_prerelease
+        run: |
+          TAG_NAME="${GITHUB_REF_NAME}"
+          echo "TAG_NAME=${TAG_NAME}" >> $GITHUB_ENV
+          echo "Release tag: ${TAG_NAME}"
+          
+          # Detect pre-release from tag name (rc, beta, alpha)
+          if [[ "${TAG_NAME}" =~ -(rc|beta|alpha) ]]; then
+            echo "IS_PRERELEASE=true" >> $GITHUB_ENV
+            echo "🔖 Pre-release detected from tag: ${TAG_NAME}"
+          else
+            echo "IS_PRERELEASE=false" >> $GITHUB_ENV
+            echo "📦 Regular release: ${TAG_NAME}"
+          fi
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -180,29 +181,72 @@ jobs:
             mv "bundle/playlist-sync-matcher-${tag}-macOS-x64.tar.gz" release-assets/
           fi
 
-      - name: Remove existing assets (cleanup)
-        shell: bash
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Generate release notes
         run: |
-          set -euo pipefail
           tag="${GITHUB_REF_NAME}"
-          shopt -s nullglob
-          for f in release-assets/*; do
-            [ -e "$f" ] || continue
-            asset="$(basename "$f")"
-            echo "Deleting existing asset if present: $asset"
-            gh release delete-asset "$tag" "$asset" -y || true
-          done
-          # Also clean up any previously uploaded raw artifact filenames (e.g., psm-cli, psm-cli.exe, psm-gui, psm-gui.exe)
-          for dir in artifacts/*; do
-            [ -d "$dir" ] || continue
-            for f in "$dir"/*; do
-              raw_asset="$(basename "$f")"
-              echo "Deleting possibly lingering raw asset: $raw_asset"
-              gh release delete-asset "$tag" "$raw_asset" -y || true
-            done
-          done
+          NOTES_FILE="docs/releasenotes/${tag}.md"
+          
+          if [ -f "$NOTES_FILE" ]; then
+            echo "✅ Using release notes from: $NOTES_FILE"
+            cat "$NOTES_FILE" > release_notes.md
+          else
+            echo "⚠️  No release notes found at $NOTES_FILE"
+            echo "Generating default release notes for tag: $tag"
+            cat > release_notes.md << EOF
+          # Release ${tag}
+
+          ## Downloads
+
+          ### Windows
+          - **Bundle (CLI + GUI)**: \`playlist-sync-matcher-${tag}-Win64.zip\`
+
+          ### Linux
+          - **Bundle (CLI + GUI)**: \`playlist-sync-matcher-${tag}-Linux64.tar.gz\`
+
+          ### macOS
+          - **Bundle (CLI + GUI)**: \`playlist-sync-matcher-${tag}-macOS-x64.tar.gz\`
+
+          ## Installation
+
+          ### Windows
+          1. Download \`playlist-sync-matcher-${tag}-Win64.zip\`
+          2. Extract the zip file
+          3. Run \`psm-gui.exe\` for the graphical interface or \`psm-cli.exe\` for command-line usage
+
+          ### Linux
+          \`\`\`bash
+          # Download and extract
+          tar -xzf playlist-sync-matcher-${tag}-Linux64.tar.gz
+
+          # Make executables runnable
+          chmod +x psm-cli psm-gui
+
+          # Run GUI or CLI
+          ./psm-gui  # Graphical interface
+          ./psm-cli  # Command-line interface
+          \`\`\`
+
+          ### macOS
+          \`\`\`bash
+          # Download and extract
+          tar -xzf playlist-sync-matcher-${tag}-macOS-x64.tar.gz
+
+          # Make executables runnable
+          chmod +x psm-cli psm-gui
+
+          # Run GUI or CLI
+          ./psm-gui  # Graphical interface
+          ./psm-cli  # Command-line interface
+          \`\`\`
+
+          ## Notes
+
+          This is an automated release. For detailed changelog, see the commit history.
+          EOF
+          fi
+
+          echo "📝 Release Notes Preview:"
+          head -n 20 release_notes.md
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -212,7 +256,6 @@ jobs:
           name: ${{ github.ref_name }}
           files: release-assets/*
           draft: false
-          prerelease: false
-          make_latest: true
-          body_path: ${{ (hashFiles(format('docs/releasenotes/{0}.md', github.ref_name)) != '' && format('docs/releasenotes/{0}.md', github.ref_name)) || '' }}
-          generate_release_notes: ${{ hashFiles(format('docs/releasenotes/{0}.md', github.ref_name)) == '' }}
+          prerelease: ${{ env.IS_PRERELEASE == 'true' }}
+          make_latest: ${{ env.IS_PRERELEASE == 'false' }}
+          body_path: release_notes.md

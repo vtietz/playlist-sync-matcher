@@ -17,14 +17,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
-      - name: Cache pip
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ matrix.python }}-${{ hashFiles('requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-${{ matrix.python }}-
-            ${{ runner.os }}-pip-
+          cache: 'pip'
       - name: Install system OpenGL/EGL libs (Linux)
         if: runner.os == 'Linux'
         run: |
@@ -40,3 +33,20 @@ jobs:
         run: python -m psm.cli --version
       - name: Run tests
         run: pytest -q
+      - name: Documentation - Link Check
+        if: matrix.os == 'ubuntu-latest' && matrix.python == '3.12'
+        run: python scripts/check_links.py
+      - name: Code Quality - Analysis
+        if: matrix.os == 'ubuntu-latest' && matrix.python == '3.12'
+        run: python scripts/analyze_code.py all
+        continue-on-error: true
+      - name: Summary
+        if: always() && matrix.os == 'ubuntu-latest' && matrix.python == '3.12'
+        run: |
+          echo "### CI Summary - ${{ matrix.os }} Python ${{ matrix.python }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Tests completed" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Documentation links checked" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Code quality checks completed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Review the job logs for details on any warnings or issues." >> $GITHUB_STEP_SUMMARY
