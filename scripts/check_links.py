@@ -18,6 +18,15 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Set
 
+# Fix Windows cmd encoding for emojis
+if sys.platform == 'win32':
+    import io
+    if isinstance(sys.stdout, io.TextIOWrapper):
+        try:
+            sys.stdout.reconfigure(encoding='utf-8')
+        except AttributeError:
+            pass
+
 
 @dataclass
 class Link:

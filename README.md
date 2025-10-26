@@ -27,7 +27,7 @@ Perfect for syncing to devices, offline listening, or just organizing your colle
 | **Library Quality Analysis** | Surface metadata gaps & low bitrate files grouped by album |
 | **Fast Scan Mode** | Skips unchanged files (mtime+size) to save minutes on large libraries |
 | **Watch Mode** | Continuous monitoring of library and database with incremental updates |
-| **Provider-Ready Architecture** | Pluggable registry with namespaced schema; multi-provider support planned (see [docs/providers.md](docs/providers.md:1)) |
+| **Provider-Ready Architecture** | Pluggable registry with namespaced schema; multi-provider support planned (see [docs/providers.md](docs/providers.md)) |
 
 ## Command-Line Interface (CLI)
 
@@ -98,7 +98,6 @@ python -m psm.cli gui   # Direct Python invocation
 
 📖 **Detailed Documentation:**
 - [`psm/gui/README.md`](psm/gui/README.md) - Usage, keyboard shortcuts, and architecture
-- [`docs/gui-performance.md`](docs/gui-performance.md) - Performance optimization patterns
 
 
 ## How it works
@@ -779,7 +778,7 @@ See `docs/troubleshooting.md` for complete troubleshooting guide.
 
 ## Multi-Provider Architecture
 
-Multi-provider support is planned; see [docs/providers.md](docs/providers.md:1).
+Multi-provider support is planned; see [docs/providers.md](docs/providers.md).
 
 ## License
 

@@ -288,5 +288,5 @@ If upgrading from the old single-executable build:
 ## See Also
 
 - [PyInstaller Documentation](https://pyinstaller.org/)
-- [GitHub Actions Workflow](.github/workflows/release.yml)
-- [Project Architecture](docs/architecture.md)
+- [GitHub Actions Workflow](../.github/workflows/release.yml)
+- [Project Architecture](architecture.md)

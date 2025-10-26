@@ -350,11 +350,11 @@ def _on_track_selection_changed(self, selected, deselected):
 
 ## Performance Optimization
 
-For developers working with large datasets (50k+ tracks), see [`docs/gui-performance.md`](../../docs/gui-performance.md) which documents the performance optimization patterns used in this GUI:
+This GUI is optimized for large datasets (50k+ tracks) using several key patterns:
 - Fast-path filter optimization (90% CPU reduction)
 - Direct data access patterns (avoiding Qt overhead)
 - Chunked async loading (60fps UI responsiveness)
-- Reusable patterns for any Qt table application
+- Lightweight row updates instead of full reloads
 
 ## License
 

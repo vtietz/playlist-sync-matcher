@@ -5,6 +5,7 @@ Analyzes Python code for:
 - Complexity (using Lizard)
 - Style issues (using flake8)
 - Type issues (using mypy - optional)
+- Documentation links (using check_links.py)
 
 Modes:
 - all: Analyze entire project
@@ -89,10 +90,12 @@ def run_command(cmd: List[str], description: str) -> Tuple[int, str]:
             cwd=PROJECT_ROOT,
             capture_output=True,
             text=True,
+            encoding='utf-8',
+            errors='replace',
             check=False
         )
 
-        output = result.stdout + result.stderr
+        output = result.stdout + result.stderr if result.stdout and result.stderr else (result.stdout or result.stderr or "")
         print(output)
 
         return result.returncode, output
@@ -298,6 +301,30 @@ def analyze_types(files: List[str] = None) -> tuple:
         return 0, output  # Don't fail on type issues
 
 
+def analyze_links() -> tuple:
+    """Run documentation link checking.
+
+    Returns:
+        Tuple of (exit_code, output_text)
+    """
+    check_links_script = PROJECT_ROOT / "scripts" / "check_links.py"
+
+    if not check_links_script.exists():
+        print("ℹ️  check_links.py not found, skipping link analysis")
+        return 0, ""
+
+    cmd = [sys.executable, str(check_links_script)]
+
+    exit_code, output = run_command(cmd, "Documentation Link Check")
+
+    if exit_code == 0:
+        print("✅ All documentation links are valid!")
+        return 0, output
+    else:
+        print("⚠️  Found broken documentation links")
+        return exit_code, output
+
+
 def parse_style_output(output: str) -> dict:
     """Parse flake8 output to count issues per file.
 
@@ -462,6 +489,11 @@ Examples:
         action='store_true',
         help='Skip mypy type analysis'
     )
+    parser.add_argument(
+        '--skip-links',
+        action='store_true',
+        help='Skip documentation link check'
+    )
 
     args = parser.parse_args()
 
@@ -507,6 +539,11 @@ Examples:
     if not args.skip_types:
         exit_code, output = analyze_types(files_to_analyze)
         results['Types'] = exit_code
+
+    if not args.skip_links and args.mode == 'all':
+        # Only run link check in 'all' mode (not for changed files)
+        exit_code, output = analyze_links()
+        results['Links'] = exit_code
 
     # Print summary with file breakdown
     return print_summary(results, complexity_output, style_output)
