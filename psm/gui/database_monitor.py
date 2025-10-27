@@ -35,7 +35,7 @@ class DatabaseChangeDetector:
         get_write_epoch: Callable[[], str],
         on_change_detected: Callable[[], None],
         check_interval: int = 2000,
-        debounce_seconds: float = 1.5
+        debounce_seconds: float = 1.5,
     ):
         """Initialize database change detector.
 
@@ -53,7 +53,7 @@ class DatabaseChangeDetector:
         self.debounce_seconds = debounce_seconds
 
         # Tracking state
-        self._last_write_epoch = '0'
+        self._last_write_epoch = "0"
         self._last_db_mtime = 0.0
         self._last_refresh_at = 0.0
 
@@ -84,7 +84,7 @@ class DatabaseChangeDetector:
             logger.info(f"  Initial write epoch: {self._last_write_epoch}")
         except Exception as e:
             logger.debug(f"Could not initialize write epoch: {e}")
-            self._last_write_epoch = '0'
+            self._last_write_epoch = "0"
 
         try:
             db_mtime = self.db_path.stat().st_mtime if self.db_path.exists() else 0
@@ -103,7 +103,9 @@ class DatabaseChangeDetector:
         # GATE: Skip if ignore window is active
         current_time = time.time()
         if self._ignore_changes_until > current_time:
-            logger.debug(f"Auto-refresh skip: ignore window active ({self._ignore_changes_until - current_time:.1f}s remaining)")
+            logger.debug(
+                f"Auto-refresh skip: ignore window active ({self._ignore_changes_until - current_time:.1f}s remaining)"
+            )
             return
 
         # Skip if auto-refresh is suppressed
@@ -156,7 +158,9 @@ class DatabaseChangeDetector:
                 current_mtime = max(db_mtime, wal_mtime)
 
                 if current_mtime > self._last_db_mtime:
-                    logger.info(f"External DB change detected (mtime fallback: {current_mtime:.2f} > {self._last_db_mtime:.2f})")
+                    logger.info(
+                        f"External DB change detected (mtime fallback: {current_mtime:.2f} > {self._last_db_mtime:.2f})"
+                    )
                     self._last_db_mtime = current_mtime
                     self._last_refresh_at = current_time
                     self.on_change_detected()

@@ -1,4 +1,5 @@
 """Unit tests for incremental scan functionality."""
+
 import pytest
 from datetime import datetime, timedelta
 from psm.ingest.library import parse_time_string, ScanResult
@@ -79,13 +80,7 @@ class TestScanResult:
     def test_custom_values(self):
         """Should allow setting custom values."""
         result = ScanResult(
-            files_seen=100,
-            inserted=25,
-            updated=10,
-            skipped=60,
-            deleted=5,
-            errors=2,
-            duration_seconds=12.5
+            files_seen=100, inserted=25, updated=10, skipped=60, deleted=5, errors=2, duration_seconds=12.5
         )
         assert result.files_seen == 100
         assert result.inserted == 25

@@ -39,7 +39,7 @@ def pull_data(
     provider_config: Dict[str, Any],
     matching_config: Dict[str, Any],
     force_auth: bool = False,
-    force_refresh: bool = False
+    force_refresh: bool = False,
 ) -> PullResult:
     """Ingest playlists and liked tracks for the selected provider.
 
@@ -67,34 +67,35 @@ def pull_data(
     provider_instance.validate_config(provider_config)
 
     # Build auth and get token
-    cache_file = provider_config.get('cache_file')
+    cache_file = provider_config.get("cache_file")
     if not cache_file:
         cache_file = f"{provider}_tokens.json"
     else:
         # For non-spotify providers (future), auto-prefix filename if it would collide.
         import os
+
         fname = os.path.basename(cache_file)
-        if provider != 'spotify' and provider not in fname:
-            cache_file = os.path.join(os.path.dirname(cache_file) or '.', f"{provider}_{fname}")
+        if provider != "spotify" and provider not in fname:
+            cache_file = os.path.join(os.path.dirname(cache_file) or ".", f"{provider}_{fname}")
 
     # Ensure cache_file is in the config for auth provider
-    provider_config_with_cache = {**provider_config, 'cache_file': cache_file}
+    provider_config_with_cache = {**provider_config, "cache_file": cache_file}
 
     auth = provider_instance.create_auth(provider_config_with_cache)
 
     tok_dict = auth.get_token(force=force_auth)
-    if not isinstance(tok_dict, dict) or 'access_token' not in tok_dict:
-        raise RuntimeError('Failed to obtain access token')
+    if not isinstance(tok_dict, dict) or "access_token" not in tok_dict:
+        raise RuntimeError("Failed to obtain access token")
 
-    result.token_expiry = tok_dict.get('expires_at')
+    result.token_expiry = tok_dict.get("expires_at")
 
     if result.token_expiry:
         remaining = int(result.token_expiry - time.time())
         logger.debug(f"Using access token (expires {datetime.fromtimestamp(result.token_expiry)}; +{remaining}s)")
 
     # Build client and ingest data
-    client = provider_instance.create_client(tok_dict['access_token'])
-    use_year = matching_config.get('use_year', False)
+    client = provider_instance.create_client(tok_dict["access_token"])
+    use_year = matching_config.get("use_year", False)
 
     playlist_track_ids = ingest_playlists(db, client, use_year=use_year, force_refresh=force_refresh)
     liked_track_ids = ingest_liked(db, client, use_year=use_year)

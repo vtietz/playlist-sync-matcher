@@ -42,9 +42,7 @@ def _get_oauth_session() -> requests.Session:
     global _oauth_session
     if _oauth_session is None:
         _oauth_session = requests.Session()
-        _oauth_session.headers.update({
-            'User-Agent': 'spotify-m3u-sync/1.0'
-        })
+        _oauth_session.headers.update({"User-Agent": "spotify-m3u-sync/1.0"})
     return _oauth_session
 
 
@@ -60,12 +58,12 @@ TOKEN_URL = "https://accounts.spotify.com/api/token"
 
 def _code_verifier(length: int = 64) -> str:
     alphabet = string.ascii_letters + string.digits + "-._~"
-    return ''.join(random.choice(alphabet) for _ in range(length))
+    return "".join(random.choice(alphabet) for _ in range(length))
 
 
 def _code_challenge(verifier: str) -> str:
     h = hashlib.sha256(verifier.encode()).digest()
-    return base64.urlsafe_b64encode(h).decode().rstrip('=')
+    return base64.urlsafe_b64encode(h).decode().rstrip("=")
 
 
 class OAuthServer(HTTPServer):
@@ -80,9 +78,9 @@ class OAuthHandler(BaseHTTPRequestHandler):
     def do_GET(self):  # type: ignore[override]
         parsed = urlparse(self.path)
         qs = parse_qs(parsed.query)
-        code = qs.get('code', [None])[0]
-        error = qs.get('error', [None])[0]
-        error_description = qs.get('error_description', [None])[0]
+        code = qs.get("code", [None])[0]
+        error = qs.get("error", [None])[0]
+        error_description = qs.get("error_description", [None])[0]
         # Only set the code if we actually received one; avoid overwriting a valid code
         # with None when the browser later requests /favicon.ico or other assets.
         if code is not None:
@@ -93,9 +91,11 @@ class OAuthHandler(BaseHTTPRequestHandler):
                 self.server.error_description = error_description  # type: ignore[attr-defined]
         else:
             logger.debug(f"[auth] Ignoring request without code path={self.path}")
-        logger.debug(f"[auth] Callback received path={self.path} code={code} error={error} state={qs.get('state', [''])[0]}")
+        logger.debug(
+            f"[auth] Callback received path={self.path} code={code} error={error} state={qs.get('state', [''])[0]}"
+        )
         self.send_response(200)
-        self.send_header('Content-Type', 'text/plain')
+        self.send_header("Content-Type", "text/plain")
         self.end_headers()
         if error:
             self.wfile.write(b"Authorization failed. You may close this window.")
@@ -109,7 +109,19 @@ class OAuthHandler(BaseHTTPRequestHandler):
 class SpotifyAuthProvider(AuthProvider):
     """Spotify OAuth authentication provider implementing AuthProvider interface."""
 
-    def __init__(self, client_id: str, redirect_port: int, scope: str, cache_file: str = "tokens.json", redirect_path: str = "/callback", redirect_scheme: str = "http", redirect_host: str = "127.0.0.1", cert_file: str | None = None, key_file: str | None = None, timeout_seconds: int = 300):
+    def __init__(
+        self,
+        client_id: str,
+        redirect_port: int,
+        scope: str,
+        cache_file: str = "tokens.json",
+        redirect_path: str = "/callback",
+        redirect_scheme: str = "http",
+        redirect_host: str = "127.0.0.1",
+        cert_file: str | None = None,
+        key_file: str | None = None,
+        timeout_seconds: int = 300,
+    ):
         self.client_id = client_id
         self.redirect_port = redirect_port
         self.scope = scope
@@ -117,8 +129,8 @@ class SpotifyAuthProvider(AuthProvider):
         self.redirect_scheme = redirect_scheme
         self.redirect_host = redirect_host
         # Normalize redirect path; ensure starts with '/'
-        if not redirect_path.startswith('/'):
-            redirect_path = '/' + redirect_path
+        if not redirect_path.startswith("/"):
+            redirect_path = "/" + redirect_path
         self.redirect_path = redirect_path
         self.cert_file = cert_file
         self.key_file = key_file
@@ -128,7 +140,7 @@ class SpotifyAuthProvider(AuthProvider):
     def _load_cache(self) -> Dict[str, Any]:
         if os.path.exists(self.cache_file):
             try:
-                with open(self.cache_file, 'r', encoding='utf-8') as fh:
+                with open(self.cache_file, "r", encoding="utf-8") as fh:
                     data = json.load(fh)
                     logger.debug(f"[auth] Loaded token cache from {self.cache_file}")
                     return data
@@ -138,7 +150,7 @@ class SpotifyAuthProvider(AuthProvider):
 
     def _save_cache(self, data: Dict[str, Any]) -> None:
         try:
-            with open(self.cache_file, 'w', encoding='utf-8') as fh:
+            with open(self.cache_file, "w", encoding="utf-8") as fh:
                 json.dump(data, fh)
             abs_path = os.path.abspath(self.cache_file)
             logger.debug(f"[auth] Saved token cache to {abs_path}")
@@ -147,29 +159,29 @@ class SpotifyAuthProvider(AuthProvider):
             logger.warning(f"[auth] Failed to write token cache to {abs_path}: {e}")
 
     def _needs_refresh(self, tok: Dict[str, Any]) -> bool:
-        exp = tok.get('expires_at')
+        exp = tok.get("expires_at")
         if not exp:
             return True
         # refresh 60s early
         return time.time() + 60 >= exp
 
     def _refresh(self, tok: Dict[str, Any]) -> Dict[str, Any]:
-        refresh_token = tok.get('refresh_token')
+        refresh_token = tok.get("refresh_token")
         if not refresh_token:
             return tok
         data = {
-            'grant_type': 'refresh_token',
-            'refresh_token': refresh_token,
-            'client_id': self.client_id,
+            "grant_type": "refresh_token",
+            "refresh_token": refresh_token,
+            "client_id": self.client_id,
         }
         session = _get_oauth_session()
         resp = session.post(TOKEN_URL, data=data, timeout=30)
         resp.raise_for_status()
         new_tok = resp.json()
         # keep old refresh if not returned
-        if 'refresh_token' not in new_tok:
-            new_tok['refresh_token'] = refresh_token
-        new_tok['expires_at'] = time.time() + int(new_tok.get('expires_in', 3600))
+        if "refresh_token" not in new_tok:
+            new_tok["refresh_token"] = refresh_token
+        new_tok["expires_at"] = time.time() + int(new_tok.get("expires_in", 3600))
         self._save_cache(new_tok)
         return new_tok
 
@@ -181,7 +193,7 @@ class SpotifyAuthProvider(AuthProvider):
         cached = self._load_cache()
         if not force and cached and not self._needs_refresh(cached):
             return cached
-        if cached and self._needs_refresh(cached) and cached.get('refresh_token'):
+        if cached and self._needs_refresh(cached) and cached.get("refresh_token"):
             try:
                 return self._refresh(cached)
             except Exception:
@@ -207,17 +219,17 @@ class SpotifyAuthProvider(AuthProvider):
         challenge = _code_challenge(verifier)
         redirect_uri = self.build_redirect_uri()
         # Generate a state token (mitigate stale/cached session anomalies & CSRF)
-        state = base64.urlsafe_b64encode(os.urandom(12)).decode().rstrip('=')
+        state = base64.urlsafe_b64encode(os.urandom(12)).decode().rstrip("=")
         logger.info(f"Starting Spotify authentication flow...")
         logger.info(f"Redirect URI: {redirect_uri}")
         logger.debug(f"[auth] state={state}")
         # If HTTPS required, ensure cert BEFORE opening browser so user doesn't see invalid URL failure first.
         server = OAuthServer((self.redirect_host, self.redirect_port), OAuthHandler)
-        if self.redirect_scheme.lower() == 'https':
+        if self.redirect_scheme.lower() == "https":
             if not self.cert_file:
-                self.cert_file = 'cert.pem'
+                self.cert_file = "cert.pem"
             if not self.key_file:
-                self.key_file = 'key.pem'
+                self.key_file = "key.pem"
             need_gen = not (os.path.exists(self.cert_file) and os.path.exists(self.key_file))
             if need_gen and ensure_self_signed:
                 try:
@@ -260,15 +272,15 @@ class SpotifyAuthProvider(AuthProvider):
             start = time.time()
             while server.code is None:
                 # Surface errors early
-                if getattr(server, 'error', None):
+                if getattr(server, "error", None):
                     err = server.error  # type: ignore[attr-defined]
-                    desc = getattr(server, 'error_description', '')  # type: ignore[attr-defined]
+                    desc = getattr(server, "error_description", "")  # type: ignore[attr-defined]
                     error_msg = f"Spotify authorization error: {err}"
                     if desc:
                         error_msg += f" - {desc}"
-                    
+
                     # Add helpful hints for common errors
-                    if 'redirect_uri' in desc.lower() or err == 'invalid_request':
+                    if "redirect_uri" in desc.lower() or err == "invalid_request":
                         error_msg += (
                             f"\n\nThe redirect URI might not be registered in your Spotify app."
                             f"\nPlease add this EXACT URI to your Spotify Dashboard:"
@@ -280,7 +292,7 @@ class SpotifyAuthProvider(AuthProvider):
                             f"\n4. Add '{redirect_uri}' to Redirect URIs"
                             f"\n5. Click 'Save'"
                         )
-                    
+
                     logger.error(error_msg)
                     raise RuntimeError(error_msg)
                 if time.time() - start > self.timeout_seconds:
@@ -312,7 +324,7 @@ class SpotifyAuthProvider(AuthProvider):
         resp = session.post(TOKEN_URL, data=data, timeout=30)
         resp.raise_for_status()
         tok = resp.json()
-        tok['expires_at'] = time.time() + int(tok.get('expires_in', 3600))
+        tok["expires_at"] = time.time() + int(tok.get("expires_in", 3600))
         self._save_cache(tok)
         logger.info(f"Successfully authenticated with Spotify (token expires in {tok.get('expires_in')} seconds)")
         logger.debug(f"[auth] expires_in={tok.get('expires_in')}")

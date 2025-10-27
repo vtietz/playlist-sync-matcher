@@ -3,6 +3,7 @@
 This module provides a clean API for the GUI to retrieve data without
 writing SQL. All methods use the existing DatabaseInterface.
 """
+
 from __future__ import annotations
 from typing import Dict, Any, List, Optional
 from psm.db.interface import DatabaseInterface
@@ -15,7 +16,7 @@ logger = logging.getLogger(__name__)
 class DataFacade:
     """Read-only data access layer for GUI using DatabaseInterface only."""
 
-    def __init__(self, db: DatabaseInterface, provider: str = 'spotify'):
+    def __init__(self, db: DatabaseInterface, provider: str = "spotify"):
         """Initialize with a database instance.
 
         Args:
@@ -40,11 +41,11 @@ class DataFacade:
 
         # Add relevance score to each playlist
         for playlist in playlists:
-            track_count = playlist.get('track_count', 0)
-            coverage_pct = playlist.get('coverage', 0)
+            track_count = playlist.get("track_count", 0)
+            coverage_pct = playlist.get("coverage", 0)
             # Relevance: high track count + low coverage = high relevance
             relevance = track_count * (100 - coverage_pct) / 100
-            playlist['relevance'] = round(relevance, 1)
+            playlist["relevance"] = round(relevance, 1)
 
         # Create virtual "Liked Songs" playlist entry
         # Get liked songs stats from database
@@ -53,24 +54,24 @@ class DataFacade:
         if liked_track_count > 0:
             # Count matched liked tracks
             liked_tracks_data = self.db.get_liked_tracks_with_local_paths(provider=self._provider)
-            matched_count = sum(1 for t in liked_tracks_data if t.get('local_path'))
+            matched_count = sum(1 for t in liked_tracks_data if t.get("local_path"))
             unmatched_count = liked_track_count - matched_count
             coverage_pct = int((matched_count / liked_track_count * 100)) if liked_track_count > 0 else 0
             relevance = liked_track_count * (100 - coverage_pct) / 100
 
             # Get current user info for owner
-            user = self.db.get_meta('spotify_user_id') or 'You'
+            user = self.db.get_meta("spotify_user_id") or "You"
 
             liked_playlist = {
-                'id': '__LIKED_SONGS__',  # Special ID to identify virtual playlist
-                'name': ' ❤️ Liked Songs',  # Leading space ensures it sorts to the top
-                'owner_id': user,
-                'owner_name': user,
-                'track_count': liked_track_count,
-                'matched_count': matched_count,
-                'unmatched_count': unmatched_count,
-                'coverage': coverage_pct,
-                'relevance': round(relevance, 1),
+                "id": "__LIKED_SONGS__",  # Special ID to identify virtual playlist
+                "name": " ❤️ Liked Songs",  # Leading space ensures it sorts to the top
+                "owner_id": user,
+                "owner_name": user,
+                "track_count": liked_track_count,
+                "matched_count": matched_count,
+                "unmatched_count": unmatched_count,
+                "coverage": coverage_pct,
+                "relevance": round(relevance, 1),
             }
 
             # Insert at the beginning of the list
@@ -91,14 +92,11 @@ class DataFacade:
             duration_ms, local_path (best match only, provider-aware)
         """
         # Handle virtual Liked Songs playlist
-        if playlist_id == '__LIKED_SONGS__':
+        if playlist_id == "__LIKED_SONGS__":
             return self.db.get_liked_tracks_with_local_paths(provider=self._provider)
 
         # Regular playlist
-        return self.db.get_playlist_tracks_with_local_paths(
-            playlist_id,
-            provider=self._provider
-        )
+        return self.db.get_playlist_tracks_with_local_paths(playlist_id, provider=self._provider)
 
     def get_playlist_by_id(self, playlist_id: str) -> Optional[PlaylistRow]:
         """Get playlist metadata by ID.
@@ -112,20 +110,21 @@ class DataFacade:
             PlaylistRow or None if not found
         """
         # Handle virtual Liked Songs playlist
-        if playlist_id == '__LIKED_SONGS__':
+        if playlist_id == "__LIKED_SONGS__":
             from psm.db.models import PlaylistRow
+
             liked_count = self.db.count_liked_tracks(provider=self._provider)
-            user = self.db.get_meta('spotify_user_id') or 'You'
+            user = self.db.get_meta("spotify_user_id") or "You"
 
             # Create a PlaylistRow-like object for Liked Songs
             return PlaylistRow(
-                id='__LIKED_SONGS__',
+                id="__LIKED_SONGS__",
                 provider=self._provider,
-                name='❤️ Liked Songs',
+                name="❤️ Liked Songs",
                 snapshot_id=None,
                 owner_id=user,
                 owner_name=user,
-                track_count=liked_count
+                track_count=liked_count,
             )
 
         # Regular playlist
@@ -143,15 +142,17 @@ class DataFacade:
         for track in all_tracks:
             match = self.db.get_match_for_track(track.id, provider=self._provider)
             if match is None:
-                unmatched.append({
-                    'id': track.id,
-                    'name': track.name,
-                    'artist': track.artist,
-                    'album': track.album,
-                    'year': track.year,
-                    'isrc': track.isrc,
-                    'duration_ms': track.duration_ms,
-                })
+                unmatched.append(
+                    {
+                        "id": track.id,
+                        "name": track.name,
+                        "artist": track.artist,
+                        "album": track.album,
+                        "year": track.year,
+                        "isrc": track.isrc,
+                        "duration_ms": track.duration_ms,
+                    }
+                )
 
         return unmatched
 
@@ -168,15 +169,17 @@ class DataFacade:
         for track in all_tracks:
             match = self.db.get_match_for_track(track.id, provider=self._provider)
             if match is not None:
-                matched.append({
-                    'id': track.id,
-                    'name': track.name,
-                    'artist': track.artist,
-                    'album': track.album,
-                    'local_path': match.get('path', ''),
-                    'score': match.get('score', 0.0),
-                    'method': match.get('method', 'UNKNOWN'),
-                })
+                matched.append(
+                    {
+                        "id": track.id,
+                        "name": track.name,
+                        "artist": track.artist,
+                        "album": track.album,
+                        "local_path": match.get("path", ""),
+                        "score": match.get("score", 0.0),
+                        "method": match.get("method", "UNKNOWN"),
+                    }
+                )
 
         return matched
 
@@ -190,23 +193,22 @@ class DataFacade:
         coverage = []
 
         for pl in playlists:
-            playlist_id = pl['id']
-            tracks = self.db.get_playlist_tracks_with_local_paths(
-                playlist_id,
-                provider=self._provider
-            )
+            playlist_id = pl["id"]
+            tracks = self.db.get_playlist_tracks_with_local_paths(playlist_id, provider=self._provider)
 
             total = len(tracks)
-            matched = sum(1 for t in tracks if t.get('local_path'))
+            matched = sum(1 for t in tracks if t.get("local_path"))
             pct = (matched / total * 100) if total > 0 else 0.0
 
-            coverage.append({
-                'id': playlist_id,
-                'name': pl['name'],
-                'total': total,
-                'matched': matched,
-                'coverage_pct': pct,
-            })
+            coverage.append(
+                {
+                    "id": playlist_id,
+                    "name": pl["name"],
+                    "total": total,
+                    "matched": matched,
+                    "coverage_pct": pct,
+                }
+            )
 
         return coverage
 
@@ -229,38 +231,40 @@ class DataFacade:
             key = (track.artist, track.album)
             if key not in albums:
                 albums[key] = {
-                    'artist': track.artist,
-                    'album': track.album,
-                    'total': 0,
-                    'matched': 0,
+                    "artist": track.artist,
+                    "album": track.album,
+                    "total": 0,
+                    "matched": 0,
                 }
 
-            albums[key]['total'] += 1
+            albums[key]["total"] += 1
 
             # Check if matched
             match = self.db.get_match_for_track(track.id, provider=self._provider)
             if match is not None:
-                albums[key]['matched'] += 1
+                albums[key]["matched"] += 1
 
         # Compute missing and percent, filter to only incomplete albums
         result = []
         for album_data in albums.values():
-            total = album_data['total']
-            matched = album_data['matched']
+            total = album_data["total"]
+            matched = album_data["matched"]
             missing = total - matched
 
             if missing > 0:  # Only show incomplete albums
-                result.append({
-                    'artist': album_data['artist'],
-                    'album': album_data['album'],
-                    'total': total,
-                    'matched': matched,
-                    'missing': missing,
-                    'percent_complete': (matched / total * 100) if total > 0 else 0.0,
-                })
+                result.append(
+                    {
+                        "artist": album_data["artist"],
+                        "album": album_data["album"],
+                        "total": total,
+                        "matched": matched,
+                        "missing": missing,
+                        "percent_complete": (matched / total * 100) if total > 0 else 0.0,
+                    }
+                )
 
         # Sort by percent complete ascending (most incomplete first)
-        result.sort(key=lambda x: x['percent_complete'])
+        result.sort(key=lambda x: x["percent_complete"])
 
         return result
 
@@ -305,11 +309,11 @@ class DataFacade:
             liked = 0
 
         return {
-            'playlists': playlists,
-            'tracks': tracks,
-            'library_files': library_files,
-            'matches': matches,
-            'liked': liked,
+            "playlists": playlists,
+            "tracks": tracks,
+            "library_files": library_files,
+            "matches": matches,
+            "liked": liked,
         }
 
     def list_all_tracks_unified(self) -> List[Dict[str, Any]]:
@@ -323,57 +327,51 @@ class DataFacade:
         from typing import Dict, List, Any
 
         # Group tracks by track_id to concatenate playlists
-        track_map: Dict[str, Dict[str, Any]] = defaultdict(lambda: {
-            'playlists': [],
-            'data': None
-        })
+        track_map: Dict[str, Dict[str, Any]] = defaultdict(lambda: {"playlists": [], "data": None})
 
         # Get all playlists
         playlists = self.db.list_playlists(provider=self._provider)
 
         for playlist in playlists:
-            playlist_id = playlist['id']
-            playlist_name = playlist['name']
+            playlist_id = playlist["id"]
+            playlist_name = playlist["name"]
 
             # Get tracks for this playlist
-            tracks = self.db.get_playlist_tracks_with_local_paths(
-                playlist_id,
-                provider=self._provider
-            )
+            tracks = self.db.get_playlist_tracks_with_local_paths(playlist_id, provider=self._provider)
 
             for track in tracks:
-                track_id = track.get('track_id', '')
+                track_id = track.get("track_id", "")
                 if not track_id:
                     continue
 
                 # Add playlist name to this track
-                track_map[track_id]['playlists'].append(playlist_name)
+                track_map[track_id]["playlists"].append(playlist_name)
 
                 # Store track data (use first occurrence)
-                if track_map[track_id]['data'] is None:
-                    has_match = bool(track.get('local_path'))
+                if track_map[track_id]["data"] is None:
+                    has_match = bool(track.get("local_path"))
                     matched_str = "Yes" if has_match else "No"
 
-                    track_map[track_id]['data'] = {
-                        'id': track_id,
-                        'name': track.get('name', ''),
-                        'artist': track.get('artist', ''),
-                        'album': track.get('album', ''),
-                        'year': track.get('year'),  # May be None
-                        'matched': matched_str,
-                        'local_path': track.get('local_path', ''),
+                    track_map[track_id]["data"] = {
+                        "id": track_id,
+                        "name": track.get("name", ""),
+                        "artist": track.get("artist", ""),
+                        "album": track.get("album", ""),
+                        "year": track.get("year"),  # May be None
+                        "matched": matched_str,
+                        "local_path": track.get("local_path", ""),
                     }
 
         # Build result with concatenated playlists
         result: List[Dict[str, Any]] = []
         for track_id, track_info in track_map.items():
-            if track_info['data'] is None:
+            if track_info["data"] is None:
                 continue
 
-            data = dict(track_info['data'])  # Create a copy
+            data = dict(track_info["data"])  # Create a copy
             # Concatenate playlist names (sorted for consistency)
-            playlists_list = track_info['playlists']
-            data['playlists'] = ', '.join(sorted(playlists_list))
+            playlists_list = track_info["playlists"]
+            data["playlists"] = ", ".join(sorted(playlists_list))
             result.append(data)
 
         return result
@@ -392,7 +390,7 @@ class DataFacade:
 
         # Add empty playlists field for compatibility with existing model
         for track in tracks:
-            track['playlists'] = ''  # Will be populated lazily for visible rows
+            track["playlists"] = ""  # Will be populated lazily for visible rows
 
         return tracks
 
@@ -419,12 +417,9 @@ class DataFacade:
             Set of track IDs in the playlist
         """
         # Handle virtual Liked Songs playlist (with leading space for sorting)
-        if playlist_name == ' ❤️ Liked Songs':
+        if playlist_name == " ❤️ Liked Songs":
             # Get all liked track IDs
-            cursor = self.db.conn.execute(
-                "SELECT track_id FROM liked_tracks WHERE provider = ?",
-                (self._provider,)
-            )
+            cursor = self.db.conn.execute("SELECT track_id FROM liked_tracks WHERE provider = ?", (self._provider,))
             return {row[0] for row in cursor.fetchall()}
 
         # Regular playlist
@@ -440,17 +435,20 @@ class DataFacade:
             Artist name for this album, or None if not found.
             If album has multiple artists, returns the most common one.
         """
-        rows = self.db.conn.execute("""
+        rows = self.db.conn.execute(
+            """
             SELECT artist, COUNT(*) as track_count
             FROM tracks
             WHERE album = ? AND provider = ? AND artist IS NOT NULL
             GROUP BY artist
             ORDER BY track_count DESC
             LIMIT 1
-        """, (album_name, self._provider)).fetchall()
+        """,
+            (album_name, self._provider),
+        ).fetchall()
 
         if rows:
-            return rows[0]['artist']
+            return rows[0]["artist"]
         return None
 
     def get_unique_owners(self) -> List[str]:
@@ -462,7 +460,7 @@ class DataFacade:
         playlists = self.db.list_playlists(provider=self._provider)
         owners = set()
         for p in playlists:
-            owner = p.get('owner_name', p.get('owner_id', 'Unknown'))
+            owner = p.get("owner_name", p.get("owner_id", "Unknown"))
             if owner:
                 owners.add(owner)
         return sorted(owners)
@@ -503,7 +501,8 @@ class DataFacade:
             Coverage format: "75% (75/100)" (percentage of matched tracks).
             Relevance = track_count * (100 - coverage%) / 100 (high tracks + low coverage = high relevance)
         """
-        rows = self.db.conn.execute("""
+        rows = self.db.conn.execute(
+            """
             SELECT
                 t.album,
                 t.artist,
@@ -520,28 +519,32 @@ class DataFacade:
               AND t.artist IS NOT NULL
             GROUP BY t.album, t.artist
             ORDER BY playlist_count DESC, track_count DESC, t.artist, t.album
-        """, (self._provider,)).fetchall()
+        """,
+            (self._provider,),
+        ).fetchall()
 
         results = []
         for row in rows:
-            track_count = row['track_count']
-            matched_count = row['matched_count']
+            track_count = row["track_count"]
+            matched_count = row["matched_count"]
             percentage = int((matched_count / track_count * 100)) if track_count > 0 else 0
             coverage = f"{percentage}% ({matched_count}/{track_count})"
 
             # Relevance: high track count + low coverage = high relevance
             relevance = track_count * (100 - percentage) / 100
 
-            results.append({
-                'album': row['album'],
-                'artist': row['artist'],
-                'album_id': row['album_id'],
-                'artist_id': row['artist_id'],
-                'track_count': track_count,
-                'playlist_count': row['playlist_count'],
-                'coverage': coverage,
-                'relevance': round(relevance, 1),
-            })
+            results.append(
+                {
+                    "album": row["album"],
+                    "artist": row["artist"],
+                    "album_id": row["album_id"],
+                    "artist_id": row["artist_id"],
+                    "track_count": track_count,
+                    "playlist_count": row["playlist_count"],
+                    "coverage": coverage,
+                    "relevance": round(relevance, 1),
+                }
+            )
 
         return results
 
@@ -554,7 +557,8 @@ class DataFacade:
             Coverage format: "75% (75/100)" (percentage of matched tracks).
             Relevance = track_count * (100 - coverage%) / 100 (high tracks + low coverage = high relevance)
         """
-        rows = self.db.conn.execute("""
+        rows = self.db.conn.execute(
+            """
             SELECT
                 t.artist,
                 MAX(t.artist_id) as artist_id,
@@ -569,26 +573,30 @@ class DataFacade:
               AND t.artist IS NOT NULL
             GROUP BY t.artist
             ORDER BY playlist_count DESC, track_count DESC, t.artist
-        """, (self._provider,)).fetchall()
+        """,
+            (self._provider,),
+        ).fetchall()
 
         results = []
         for row in rows:
-            track_count = row['track_count']
-            matched_count = row['matched_count']
+            track_count = row["track_count"]
+            matched_count = row["matched_count"]
             percentage = int((matched_count / track_count * 100)) if track_count > 0 else 0
             coverage = f"{percentage}% ({matched_count}/{track_count})"
 
             # Relevance: high track count + low coverage = high relevance
             relevance = track_count * (100 - percentage) / 100
 
-            results.append({
-                'artist': row['artist'],
-                'artist_id': row['artist_id'],
-                'track_count': track_count,
-                'album_count': row['album_count'],
-                'playlist_count': row['playlist_count'],
-                'coverage': coverage,
-                'relevance': round(relevance, 1),
-            })
+            results.append(
+                {
+                    "artist": row["artist"],
+                    "artist_id": row["artist_id"],
+                    "track_count": track_count,
+                    "album_count": row["album_count"],
+                    "playlist_count": row["playlist_count"],
+                    "coverage": coverage,
+                    "relevance": round(relevance, 1),
+                }
+            )
 
         return results

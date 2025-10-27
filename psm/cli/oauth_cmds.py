@@ -8,7 +8,7 @@ from pathlib import Path
 from .helpers import cli, build_auth, get_provider_config
 
 
-@cli.command(name='redirect-uri')
+@cli.command(name="redirect-uri")
 @click.pass_context
 def redirect_uri(ctx: click.Context):
     """Show OAuth redirect URI for Spotify app configuration."""
@@ -30,27 +30,30 @@ def redirect_uri(ctx: click.Context):
         click.echo(f" - {line}")
 
 
-@cli.command(name='token-info')
+@cli.command(name="token-info")
 @click.pass_context
 def token_info(ctx: click.Context):
     """Show OAuth token cache status and expiration info."""
     cfg = ctx.obj
     provider_cfg = get_provider_config(cfg)
-    path = Path(provider_cfg['cache_file']).resolve()
+    path = Path(provider_cfg["cache_file"]).resolve()
     if not path.exists():
         click.echo(f"Token cache not found: {path}")
         return
     try:
         import json
-        data = json.loads(path.read_text(encoding='utf-8'))
-        exp = data.get('expires_at')
+
+        data = json.loads(path.read_text(encoding="utf-8"))
+        exp = data.get("expires_at")
         if exp:
             remaining = int(exp - time.time())
-            click.echo(f"Token cache: {path}\nExpires at: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(exp))} (in {remaining}s)")
+            click.echo(
+                f"Token cache: {path}\nExpires at: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(exp))} (in {remaining}s)"
+            )
         else:
             click.echo(f"Token cache: {path}\n(No expires_at field)")
     except Exception as e:  # pragma: no cover
         click.echo(f"Failed to parse token cache {path}: {e}")
 
 
-__all__ = ['redirect_uri', 'token_info']
+__all__ = ["redirect_uri", "token_info"]

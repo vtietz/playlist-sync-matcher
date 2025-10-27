@@ -3,6 +3,7 @@
 Provides a user-friendly dropdown that allows typing to search/filter items,
 with a fixed maximum height to prevent overwhelming dropdowns with thousands of entries.
 """
+
 from __future__ import annotations
 from typing import Optional, List
 from PySide6.QtWidgets import QComboBox, QCompleter
@@ -185,4 +186,4 @@ class SearchableComboBox(QComboBox):
         return self._all_text
 
 
-__all__ = ['SearchableComboBox']
+__all__ = ["SearchableComboBox"]

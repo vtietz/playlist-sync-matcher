@@ -5,12 +5,10 @@ Assembles all UI components using composition:
 - LogPanel for command output
 - Toolbar for actions
 """
+
 from __future__ import annotations
 from typing import Dict, Any, List, Optional
-from PySide6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QSplitter, QTabWidget,
-    QLabel
-)
+from PySide6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QSplitter, QTabWidget, QLabel
 from PySide6.QtCore import Qt, Signal
 import logging
 
@@ -193,7 +191,7 @@ class MainWindow(QMainWindow):
             btn_diagnose=self.btn_diagnose,
             btn_match_one=self.tracks_panel.btn_match_one,
             btn_manual_match=self.btn_manual_match,
-            btn_remove_match=self.btn_remove_match
+            btn_remove_match=self.btn_remove_match,
         )
 
         # Wire up ModelCoordinator with views for sorting/resizing
@@ -201,7 +199,7 @@ class MainWindow(QMainWindow):
             playlists_table=self.playlists_table_view,
             albums_view=self.albums_view,
             artists_view=self.artists_view,
-            unified_tracks_view=self.unified_tracks_view
+            unified_tracks_view=self.unified_tracks_view,
         )
 
     def _create_toolbar(self):
@@ -238,7 +236,7 @@ class MainWindow(QMainWindow):
             self.artists_model,
             self.playlist_proxy_model,
             self.playlist_filter_bar,
-            self
+            self,
         )
 
         # Store references for external access (maintain compatibility)
@@ -277,11 +275,7 @@ class MainWindow(QMainWindow):
     def _create_tracks_tab(self) -> QWidget:
         """Create the tracks tab content."""
         # Create TracksPanel (encapsulates UnifiedTracksView + diagnose button)
-        self.tracks_panel = TracksPanel(
-            self.unified_tracks_model,
-            self.filter_store,
-            self
-        )
+        self.tracks_panel = TracksPanel(self.unified_tracks_model, self.filter_store, self)
 
         # Store references to child components for backward compatibility
         self.unified_tracks_view = self.tracks_panel.unified_tracks_view
@@ -349,16 +343,16 @@ class MainWindow(QMainWindow):
         logger.info(f"Opening file picker for manual match: track_id={track_id}")
 
         # Get music library paths from config for default directory
-        config = self.controller_manager.get_config() if hasattr(self, 'controller_manager') else {}
-        library_paths = config.get('library', {}).get('paths', [])
-        default_dir = library_paths[0] if library_paths else os.path.expanduser('~')
+        config = self.controller_manager.get_config() if hasattr(self, "controller_manager") else {}
+        library_paths = config.get("library", {}).get("paths", [])
+        default_dir = library_paths[0] if library_paths else os.path.expanduser("~")
 
         # Open file picker dialog
         file_path, _ = QFileDialog.getOpenFileName(
             self,
             "Select Local Music File",
             default_dir,
-            "Audio Files (*.mp3 *.flac *.m4a *.ogg *.wav *.aac);;All Files (*.*)"
+            "Audio Files (*.mp3 *.flac *.m4a *.ogg *.wav *.aac);;All Files (*.*)",
         )
 
         if not file_path:
@@ -395,10 +389,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.detail_label)
 
         # Use SortFilterTable component
-        self.detail_table = SortFilterTable(
-            source_model=self.playlist_detail_model,
-            stretch_columns=True
-        )
+        self.detail_table = SortFilterTable(source_model=self.playlist_detail_model, stretch_columns=True)
 
         # Apply link delegate to linkable columns in playlist detail
         # Columns: 0=#, 1=Track, 2=Artist, 3=Album, 4=Local File
@@ -478,12 +469,7 @@ class MainWindow(QMainWindow):
         """
         self.model_coordinator.update_unified_tracks(tracks, playlists)
 
-    def populate_track_filter_options(
-        self,
-        artists: List[str],
-        albums: List[str],
-        years: List[int]
-    ):
+    def populate_track_filter_options(self, artists: List[str], albums: List[str], years: List[int]):
         """Populate filter dropdown options in unified tracks view.
 
         Args:
@@ -562,15 +548,15 @@ class MainWindow(QMainWindow):
             enabled: True to enable, False to disable
         """
         # Delegate to playlists_tab (UiStateController also manages this)
-        if hasattr(self, 'playlists_tab'):
+        if hasattr(self, "playlists_tab"):
             self.playlists_tab.enable_playlist_actions(enabled)
         else:
             # Fallback for initialization phase
-            if hasattr(self, 'btn_pull_one'):
+            if hasattr(self, "btn_pull_one"):
                 self.btn_pull_one.setEnabled(enabled)
-            if hasattr(self, 'btn_match_one'):
+            if hasattr(self, "btn_match_one"):
                 self.btn_match_one.setEnabled(enabled)
-            if hasattr(self, 'btn_export_one'):
+            if hasattr(self, "btn_export_one"):
                 self.btn_export_one.setEnabled(enabled)
 
     def enable_track_actions(self, enabled: bool):
@@ -616,6 +602,7 @@ class MainWindow(QMainWindow):
         # query the selection model, which may not be fully updated when this signal fires
 
         import logging
+
         logger = logging.getLogger(__name__)
 
         if selected.isEmpty():
@@ -653,7 +640,7 @@ class MainWindow(QMainWindow):
             return
 
         # Track selected playlist ID and update UI state
-        playlist_id = playlist_data.get('id')
+        playlist_id = playlist_data.get("id")
         logger.info(f"Playlist selected: {playlist_id} ({playlist_data.get('name', 'Unknown')})")
         self._selected_playlist_id = playlist_id
         self.ui_state.on_playlist_selected(playlist_id)
@@ -670,11 +657,10 @@ class MainWindow(QMainWindow):
         playlist_name = self.unified_tracks_view.filter_bar.get_playlist_filter()
 
         # Delegate to filters controller
-        if hasattr(self, '_controller'):
+        if hasattr(self, "_controller"):
             # If controller exists, pass it to handle async loading
             self.filters_controller.handle_playlist_filter_change(
-                playlist_name,
-                lambda name: self._controller.set_playlist_filter(name)
+                playlist_name, lambda name: self._controller.set_playlist_filter(name)
             )
         else:
             # No controller yet, synchronous handling
@@ -726,7 +712,7 @@ class MainWindow(QMainWindow):
         for row in range(self.playlists_model.rowCount()):
             row_data = self.playlists_model.get_row_data(row)
             if row_data:
-                owner_name = row_data.get('owner_name')
+                owner_name = row_data.get("owner_name")
                 if owner_name:
                     owners.add(owner_name)
 
@@ -735,7 +721,7 @@ class MainWindow(QMainWindow):
 
     def _on_watch_button_toggled(self, checked: bool):
         """Handle watch button toggle.
-            checked: True if checked
+        checked: True if checked
         """
         self.on_watch_toggled.emit(checked)
 
@@ -748,7 +734,7 @@ class MainWindow(QMainWindow):
         super().showEvent(event)
 
         # Set splitter sizes after window is shown (only on first show)
-        if not hasattr(self, '_splitter_initialized'):
+        if not hasattr(self, "_splitter_initialized"):
             self._splitter_initialized = True
             # Use actual window width for calculation
             window_width = self.width()
@@ -776,9 +762,9 @@ class MainWindow(QMainWindow):
         }
 
         # Add albums and artists headers if they exist
-        if hasattr(self, 'albums_view'):
+        if hasattr(self, "albums_view"):
             table_headers["albums"] = self.albums_view.table.horizontalHeader()
-        if hasattr(self, 'artists_view'):
+        if hasattr(self, "artists_view"):
             table_headers["artists"] = self.artists_view.table.horizontalHeader()
 
         # Save all state using state manager
@@ -793,15 +779,13 @@ class MainWindow(QMainWindow):
         }
 
         # Add albums and artists headers if they exist
-        if hasattr(self, 'albums_view'):
+        if hasattr(self, "albums_view"):
             table_headers["albums"] = self.albums_view.table.horizontalHeader()
-        if hasattr(self, 'artists_view'):
+        if hasattr(self, "artists_view"):
             table_headers["artists"] = self.artists_view.table.horizontalHeader()
 
         # Restore all state using state manager
-        pending_sorts = self.state_manager.restore_all_window_state(
-            self, self.main_splitter, table_headers
-        )
+        pending_sorts = self.state_manager.restore_all_window_state(self, self.main_splitter, table_headers)
 
         # Store pending sorts in ModelCoordinator for application after data load
         if "playlists" in pending_sorts:

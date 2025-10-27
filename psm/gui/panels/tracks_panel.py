@@ -6,11 +6,10 @@ This panel encapsulates:
 - Diagnose button for selected tracks
 - Signal delegation for track actions
 """
+
 from __future__ import annotations
 from typing import Optional, List, Dict, Any
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QPushButton
-)
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton
 from PySide6.QtCore import Signal
 import logging
 
@@ -56,10 +55,7 @@ class TracksPanel(QWidget):
     selection_changed = Signal()  # Emitted when selection changes (for parent to update state)
 
     def __init__(
-        self,
-        unified_tracks_model: UnifiedTracksModel,
-        filter_store: FilterStore,
-        parent: Optional[QWidget] = None
+        self, unified_tracks_model: UnifiedTracksModel, filter_store: FilterStore, parent: Optional[QWidget] = None
     ):
         """Initialize tracks panel.
 
@@ -157,7 +153,7 @@ class TracksPanel(QWidget):
         """
         has_selection = self.tracks_table.selectionModel().hasSelection()
         has_match = self._selected_track_has_match()
-        
+
         # Note: btn_match_one, btn_diagnose, btn_manual_match, and btn_remove_match are managed by UiStateController
         # but we still enable/disable them here for immediate feedback when selection changes
         # UiStateController will override if a command is running
@@ -292,7 +288,7 @@ class TracksPanel(QWidget):
 
         # Robust identifier resolution: handle both 'id' and 'track_id' keys
         # Selection uses 'id', but some paths may use 'track_id'
-        track_id = track_data.get('id') or track_data.get('track_id')
+        track_id = track_data.get("id") or track_data.get("track_id")
         return track_id
 
     def _selected_track_has_match(self) -> bool:
@@ -318,7 +314,7 @@ class TracksPanel(QWidget):
             return False
 
         # Check if local_path is not empty (track has a match)
-        local_path = track_data.get('local_path', '')
+        local_path = track_data.get("local_path", "")
         has_match = bool(local_path)
         logger.debug(f"_selected_track_has_match: local_path='{local_path}', has_match={has_match}")
         return has_match
@@ -334,12 +330,12 @@ class TracksPanel(QWidget):
 
     def refresh_button_states(self):
         """Re-evaluate and update button states based on current selection.
-        
+
         Called when execution finishes to ensure buttons reflect current state.
         """
         has_selection = self.has_selection()
         has_match = self._selected_track_has_match() if has_selection else False
-        
+
         self.btn_match_one.setEnabled(has_selection)
         self.btn_diagnose.setEnabled(has_selection)
         self.btn_manual_match.setEnabled(has_selection)
@@ -354,13 +350,7 @@ class TracksPanel(QWidget):
         """
         self._model.set_data(tracks)
 
-    def populate_filter_options(
-        self,
-        playlists: List[str],
-        artists: List[str],
-        albums: List[str],
-        years: List[str]
-    ):
+    def populate_filter_options(self, playlists: List[str], artists: List[str], albums: List[str], years: List[str]):
         """Populate filter dropdown options.
 
         Args:

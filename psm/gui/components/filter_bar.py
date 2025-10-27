@@ -5,11 +5,10 @@ This component provides filtering controls for:
 - Owner, Artist, Album, Year filters
 - Text search across all fields
 """
+
 from __future__ import annotations
 from typing import Optional, List
-from PySide6.QtWidgets import (
-    QWidget, QHBoxLayout, QVBoxLayout, QLabel, QComboBox
-)
+from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QLabel, QComboBox
 from PySide6.QtCore import Signal, QSignalBlocker
 import logging
 
@@ -65,36 +64,44 @@ class FilterBar(QWidget):
         self.playlist_combo.currentIndexChanged.connect(self._on_filter_changed)
         # Load filter options when user clicks the dropdown
         original_playlist_showPopup = self.playlist_combo.showPopup
+
         def playlist_showPopup():
             self.filter_options_needed.emit()
             original_playlist_showPopup()
+
         self.playlist_combo.showPopup = playlist_showPopup
 
         self.artist_combo = SearchableComboBox(all_text="All Artists")
         self.artist_combo.currentIndexChanged.connect(self._on_filter_changed)
         # Load filter options when user clicks the dropdown
         original_artist_showPopup = self.artist_combo.showPopup
+
         def artist_showPopup():
             self.filter_options_needed.emit()
             original_artist_showPopup()
+
         self.artist_combo.showPopup = artist_showPopup
 
         self.album_combo = SearchableComboBox(all_text="All Albums")
         self.album_combo.currentIndexChanged.connect(self._on_filter_changed)
         # Load filter options when user clicks the dropdown
         original_album_showPopup = self.album_combo.showPopup
+
         def album_showPopup():
             self.filter_options_needed.emit()
             original_album_showPopup()
+
         self.album_combo.showPopup = album_showPopup
 
         self.year_combo = SearchableComboBox(all_text="All Years")
         self.year_combo.currentIndexChanged.connect(self._on_filter_changed)
         # Load filter options when user clicks the dropdown
         original_year_showPopup = self.year_combo.showPopup
+
         def year_showPopup():
             self.filter_options_needed.emit()
             original_year_showPopup()
+
         self.year_combo.showPopup = year_showPopup
 
         # Confidence filter (for matched tracks)
@@ -235,13 +242,7 @@ class FilterBar(QWidget):
         text = self.quality_combo.currentText()
         return None if text == "All Quality" else text
 
-    def populate_filter_options(
-        self,
-        playlists: List[str],
-        artists: List[str],
-        albums: List[str],
-        years: List[int]
-    ):
+    def populate_filter_options(self, playlists: List[str], artists: List[str], albums: List[str], years: List[int]):
         """Populate filter dropdown options from data.
 
         Args:
@@ -265,14 +266,16 @@ class FilterBar(QWidget):
         a single filter_changed event after all widgets are cleared.
         """
         # Block signals on all filter widgets during reset
-        with QSignalBlocker(self.track_status_combo), \
-             QSignalBlocker(self.playlist_combo), \
-             QSignalBlocker(self.artist_combo), \
-             QSignalBlocker(self.album_combo), \
-             QSignalBlocker(self.year_combo), \
-             QSignalBlocker(self.confidence_combo), \
-             QSignalBlocker(self.quality_combo), \
-             QSignalBlocker(self.search_field):
+        with (
+            QSignalBlocker(self.track_status_combo),
+            QSignalBlocker(self.playlist_combo),
+            QSignalBlocker(self.artist_combo),
+            QSignalBlocker(self.album_combo),
+            QSignalBlocker(self.year_combo),
+            QSignalBlocker(self.confidence_combo),
+            QSignalBlocker(self.quality_combo),
+            QSignalBlocker(self.search_field),
+        ):
             # Reset all widgets without emitting signals
             self.track_status_combo.setCurrentIndex(0)
             self.playlist_combo.clear_selection()

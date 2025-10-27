@@ -3,6 +3,7 @@
 Adds a small link icon (🔗) next to linkable items that opens the item
 in the streaming provider (Spotify) when clicked.
 """
+
 from __future__ import annotations
 from PySide6.QtWidgets import QStyledItemDelegate, QStyleOptionViewItem
 from PySide6.QtCore import Qt, QRect, QUrl, QSize
@@ -54,7 +55,7 @@ class LinkDelegate(QStyledItemDelegate):
 
         # Check if this cell has link data
         item_type = index.data(Qt.UserRole + 1)  # "track", "album", "artist", "playlist"
-        item_id = index.data(Qt.UserRole + 2)     # Spotify ID
+        item_id = index.data(Qt.UserRole + 2)  # Spotify ID
 
         if item_type and item_id:
             # Draw a small link icon on the right side
@@ -128,12 +129,12 @@ class LinkDelegate(QStyledItemDelegate):
                 if self._hover_index != index:
                     self._hover_index = index
                     # Request repaint
-                    if hasattr(self.parent(), 'viewport'):
+                    if hasattr(self.parent(), "viewport"):
                         self.parent().viewport().update()
             else:
                 if self._hover_index == index:
                     self._hover_index = None
-                    if hasattr(self.parent(), 'viewport'):
+                    if hasattr(self.parent(), "viewport"):
                         self.parent().viewport().update()
 
         return super().editorEvent(event, model, option, index)
@@ -179,4 +180,4 @@ class LinkDelegate(QStyledItemDelegate):
             logger.error(f"Failed to open link for {item_type} {item_id}: {e}")
 
 
-__all__ = ['LinkDelegate']
+__all__ = ["LinkDelegate"]

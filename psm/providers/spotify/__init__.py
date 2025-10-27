@@ -24,4 +24,3 @@ __all__ = [
     "ingest_playlists",
     "ingest_liked",
 ]
-

@@ -6,7 +6,7 @@ from PySide6.QtWidgets import QApplication, QPushButton
 from psm.gui.ui_state_controller import UiStateController
 
 
-@pytest.fixture(scope='module')
+@pytest.fixture(scope="module")
 def qapp():
     """Create QApplication instance for GUI tests."""
     app = QApplication.instance()
@@ -58,11 +58,7 @@ def mock_btn_diagnose(qapp):
 @pytest.fixture
 def ui_state(mock_toolbar, mock_playlists_tab, mock_btn_diagnose):
     """Create UiStateController instance for testing."""
-    return UiStateController(
-        toolbar=mock_toolbar,
-        playlists_tab=mock_playlists_tab,
-        btn_diagnose=mock_btn_diagnose
-    )
+    return UiStateController(toolbar=mock_toolbar, playlists_tab=mock_playlists_tab, btn_diagnose=mock_btn_diagnose)
 
 
 class TestUiStateControllerCreation:

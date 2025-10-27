@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 """Playlist push (experimental).
 
 Supports previewing and (optionally) applying a full replace of a remote
@@ -89,33 +90,33 @@ def _remote_playlist_items(client, playlist_id: str) -> List[str]:  # pragma: no
     items = client.playlist_items(playlist_id, verbose=False)
     ids: List[str] = []
     for it in items:
-        track = it.get('track') if isinstance(it, dict) else None
-        if track and track.get('id'):
-            ids.append(track['id'])
+        track = it.get("track") if isinstance(it, dict) else None
+        if track and track.get("id"):
+            ids.append(track["id"])
     return ids
 
 
 def _fetch_playlist_meta(client, db: DatabaseInterface, playlist_id: str) -> Dict[str, Any]:
     # Prefer DB metadata, fallback to API
-    row = db.get_playlist_by_id(playlist_id, provider='spotify')
+    row = db.get_playlist_by_id(playlist_id, provider="spotify")
     meta: Dict[str, Any] = {}
     if row:
         meta = {k: row[k] for k in row.keys()}
     try:
         detail = client.get_playlist(playlist_id)
         if detail:
-            meta.setdefault('name', detail.get('name'))
-            owner = detail.get('owner') or {}
-            meta.setdefault('owner_id', owner.get('id'))
-            meta.setdefault('owner_name', owner.get('display_name'))
+            meta.setdefault("name", detail.get("name"))
+            owner = detail.get("owner") or {}
+            meta.setdefault("owner_id", owner.get("id"))
+            meta.setdefault("owner_name", owner.get("display_name"))
     except Exception as e:  # pragma: no cover (network variability)
         logger.debug(f"Could not fetch playlist detail: {e}")
     return meta
 
 
 def _ensure_owner(meta: Dict[str, Any], db: DatabaseInterface) -> None:
-    current_user_id = db.get_meta('current_user_id')
-    owner_id = meta.get('owner_id')
+    current_user_id = db.get_meta("current_user_id")
+    owner_id = meta.get("owner_id")
     if current_user_id and owner_id and current_user_id != owner_id:
         raise PermissionError(
             f"Refusing to push: playlist owned by '{owner_id}' but current user is '{current_user_id}'"
@@ -123,10 +124,10 @@ def _ensure_owner(meta: Dict[str, Any], db: DatabaseInterface) -> None:
 
 
 def _apply_remote_replace(client, playlist_id: str, track_ids: Sequence[str]):  # pragma: no cover (network)
-    if hasattr(client, 'replace_playlist_tracks_remote'):
+    if hasattr(client, "replace_playlist_tracks_remote"):
         client.replace_playlist_tracks_remote(playlist_id, list(track_ids))
     else:
-        raise RuntimeError('Provider client lacks replace capability')
+        raise RuntimeError("Provider client lacks replace capability")
 
 
 def push_playlist(
@@ -160,7 +161,7 @@ def push_playlist(
 
     preview = PushPreview(
         playlist_id=playlist_id,
-        playlist_name=meta.get('name'),
+        playlist_name=meta.get("name"),
         current_count=len(current_remote),
         new_count=len(desired),
         positional_changes=positional_changes,
@@ -180,16 +181,17 @@ def push_playlist(
         logger.debug("detailed diff logging not yet implemented (future enhancement)")
     if apply:
         if not changed:
-            logger.info('No changes detected; skipping apply')
+            logger.info("No changes detected; skipping apply")
         else:
             # Enforce capability if advertised
-            if hasattr(client, 'capabilities'):
-                caps = getattr(client, 'capabilities')
-                if not getattr(caps, 'replace_playlist', False):
-                    raise RuntimeError('Provider does not advertise replace_playlist capability')
+            if hasattr(client, "capabilities"):
+                caps = getattr(client, "capabilities")
+                if not getattr(caps, "replace_playlist", False):
+                    raise RuntimeError("Provider does not advertise replace_playlist capability")
             _apply_remote_replace(client, playlist_id, desired)
             logger.info(f"applied replace playlist={playlist_id} new_count={len(desired)}")
             preview.applied = True
     return preview
+
 
 __all__ = ["push_playlist", "PushPreview"]

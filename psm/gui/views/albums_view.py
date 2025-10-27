@@ -8,11 +8,10 @@ This view displays aggregated album statistics with:
 - Filter by artist
 - Search across artist and album names
 """
+
 from __future__ import annotations
 from typing import Optional
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QTableView, QHeaderView, QLineEdit, QHBoxLayout, QLabel, QComboBox
-)
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QTableView, QHeaderView, QLineEdit, QHBoxLayout, QLabel, QComboBox
 from PySide6.QtCore import Qt, QSortFilterProxyModel, QModelIndex, Signal
 import logging
 
@@ -28,7 +27,7 @@ class AlbumsProxyModel(QSortFilterProxyModel):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._artist_filter = ""  # Filter by artist name
-        self._search_text = ""    # Search in artist + album names
+        self._search_text = ""  # Search in artist + album names
         self.setFilterCaseSensitivity(Qt.CaseInsensitive)
         self.setDynamicSortFilter(True)
 
@@ -57,8 +56,8 @@ class AlbumsProxyModel(QSortFilterProxyModel):
         if not row_data:
             return False
 
-        artist = (row_data.get('artist') or '').lower()
-        album = (row_data.get('album') or '').lower()
+        artist = (row_data.get("artist") or "").lower()
+        album = (row_data.get("album") or "").lower()
 
         # Apply artist filter
         if self._artist_filter:
@@ -95,11 +94,7 @@ class AlbumsView(QWidget):
     # Signal emitted when album is selected (album_name, artist_name) or cleared (None, None)
     album_selected = Signal(object, object)  # (album_name: Optional[str], artist_name: Optional[str])
 
-    def __init__(
-        self,
-        source_model: BaseTableModel,
-        parent: Optional[QWidget] = None
-    ):
+    def __init__(self, source_model: BaseTableModel, parent: Optional[QWidget] = None):
         """Initialize albums view.
 
         Args:
@@ -194,8 +189,8 @@ class AlbumsView(QWidget):
         # Column 5 = Relevance (narrow, stretches)
         self.table.setColumnWidth(0, 250)  # Album
         self.table.setColumnWidth(1, 200)  # Artist
-        self.table.setColumnWidth(2, 80)   # Tracks
-        self.table.setColumnWidth(3, 80)   # Playlists
+        self.table.setColumnWidth(2, 80)  # Tracks
+        self.table.setColumnWidth(3, 80)  # Playlists
         self.table.setColumnWidth(4, 120)  # Coverage
         # Column 5 (Relevance) stretches automatically
 
@@ -213,18 +208,16 @@ class AlbumsView(QWidget):
         selection = self.table.selectionModel()
         if selection and selection.hasSelection():
             proxy_row = selection.selectedRows()[0].row()
-            source_index = self.proxy_model.mapToSource(
-                self.proxy_model.index(proxy_row, 0)
-            )
+            source_index = self.proxy_model.mapToSource(self.proxy_model.index(proxy_row, 0))
             source_row = source_index.row()
 
             # Get album and artist from source model
             source_model = self.proxy_model.sourceModel()
-            if hasattr(source_model, 'get_row_data'):
+            if hasattr(source_model, "get_row_data"):
                 row_data = source_model.get_row_data(source_row)
                 if row_data:
-                    album_name = row_data.get('album')
-                    artist_name = row_data.get('artist')
+                    album_name = row_data.get("album")
+                    artist_name = row_data.get("artist")
                     if album_name and artist_name:
                         self.album_selected.emit(album_name, artist_name)
 
@@ -275,7 +268,7 @@ class AlbumsView(QWidget):
         for row in range(source_model.rowCount()):
             row_data = source_model.get_row_data(row)
             if row_data:
-                artist = row_data.get('artist')
+                artist = row_data.get("artist")
                 if artist:
                     artists.add(artist)
 

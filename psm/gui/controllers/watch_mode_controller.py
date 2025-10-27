@@ -1,4 +1,5 @@
 """Controller for watch mode lifecycle and event handling."""
+
 from __future__ import annotations
 from typing import TYPE_CHECKING, Optional
 from PySide6.QtCore import QObject, QTimer
@@ -30,7 +31,7 @@ class WatchModeController(QObject):
         executor: CliExecutor,
         db_monitor: Optional[DbAutoRefreshController] = None,
         data_refresh: Optional[DataRefreshController] = None,
-        parent: Optional[QObject] = None
+        parent: Optional[QObject] = None,
     ):
         """Initialize controller.
 
@@ -81,11 +82,11 @@ class WatchModeController(QObject):
                 # Event-driven refresh: detect watch mode completion markers
                 # This ensures GUI updates even if mtime polling misses brief WAL changes
                 completion_markers = [
-                    'Incremental rebuild',  # Watch mode rebuild completed
-                    'Database sync',         # DB sync operation
-                    '✓ Match completed',     # Match operation finished
-                    '✓ Build completed',     # Build step finished
-                    'changes detected',      # File change detected (debounced trigger)
+                    "Incremental rebuild",  # Watch mode rebuild completed
+                    "Database sync",  # DB sync operation
+                    "✓ Match completed",  # Match operation finished
+                    "✓ Build completed",  # Build step finished
+                    "changes detected",  # File change detected (debounced trigger)
                 ]
 
                 if any(marker in line for marker in completion_markers):
@@ -121,7 +122,7 @@ class WatchModeController(QObject):
                 self.window.append_log(f"\nError: {error}")
 
             self.executor.execute(
-                ['build', '--watch'],
+                ["build", "--watch"],
                 on_log=on_log,
                 on_progress=on_progress,
                 on_finished=on_finished,

@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 """Scoring-based matching engine for track-to-file matching.
 
 This module defines dataclasses and a scoring function that evaluates a remote track
@@ -25,6 +26,7 @@ from ..utils.normalization import normalize_token
 
 # --- Confidence Enum -------------------------------------------------------
 
+
 class MatchConfidence(str, Enum):
     CERTAIN = "certain"
     HIGH = "high"
@@ -32,7 +34,9 @@ class MatchConfidence(str, Enum):
     LOW = "low"
     REJECTED = "rejected"
 
+
 # --- Dataclasses -----------------------------------------------------------
+
 
 @dataclass
 class ScoreBreakdown:
@@ -48,13 +52,16 @@ class ScoreBreakdown:
     artist_ratio: Optional[float]
     notes: List[str] = field(default_factory=list)
 
+
 @dataclass
 class CandidateEvaluation:
     track_id: str
     file_id: int
     score: ScoreBreakdown
 
+
 # --- Scoring Configuration -------------------------------------------------
+
 
 @dataclass
 class ScoringConfig:
@@ -92,6 +99,7 @@ class ScoringConfig:
     - Reduce penalty_complete_metadata_missing: 20 → 15 (less harsh on singles)
     - OR: Add bonus for strong core match (title+artist+duration all exact)
     """
+
     # fuzzy thresholds
     min_title_ratio: int = 88
     strong_title_ratio: int = 96
@@ -125,27 +133,32 @@ class ScoringConfig:
     # acceptance
     min_accept_score: float = 65
 
+
 # --- Utility Normalization -------------------------------------------------
+
 
 def _canonical_artist(artist: str) -> str:
     return normalize_token(artist)
 
+
 def _canonical_title(title: str) -> str:
     return normalize_token(title)
+
 
 # --- Variant Detection -----------------------------------------------------
 
 # Compile regex patterns for variant detection (performance optimization)
 _VARIANT_PATTERN = re.compile(
-    r'''
+    r"""
     (?:                                  # Non-capturing group for alternatives
         \b(?:live|remix|acoustic|edit|mix|version|demo|remaster(?:ed)?|instrumental|radio|explicit|clean|deluxe|bonus|extended|unplugged)\b |  # Word boundary keywords
         \((?:live|remix|acoustic|edit|mix|version|demo|remaster(?:ed)?|instrumental|radio|explicit|clean|deluxe|bonus|extended|unplugged)\b[^\)]*\) |  # Parenthesized variants
         \[(?:live|remix|acoustic|edit|mix|version|demo|remaster(?:ed)?|instrumental|radio|explicit|clean|deluxe|bonus|extended|unplugged)\b[^\]]*\]     # Bracketed variants
     )
-    ''',
-    re.IGNORECASE | re.VERBOSE
+    """,
+    re.IGNORECASE | re.VERBOSE,
 )
+
 
 def _has_variant(title: str) -> bool:
     """Check if title contains variant keywords using regex.
@@ -165,7 +178,9 @@ def _has_variant(title: str) -> bool:
         return False
     return bool(_VARIANT_PATTERN.search(title))
 
+
 # --- Core Scoring Logic ----------------------------------------------------
+
 
 def evaluate_pair(remote: Dict[str, Any], local: Dict[str, Any], cfg: ScoringConfig) -> ScoreBreakdown:
     """Compute a score breakdown for a remote track vs local file.
@@ -193,7 +208,7 @@ def evaluate_pair(remote: Dict[str, Any], local: Dict[str, Any], cfg: ScoringCon
     l_dur_s = local.get("duration")
     duration_diff_sec: Optional[int] = None
     if r_dur_ms is not None and l_dur_s is not None:
-        duration_diff_sec = int(abs(r_dur_ms/1000 - l_dur_s))
+        duration_diff_sec = int(abs(r_dur_ms / 1000 - l_dur_s))
 
     # Normalized tokens
     r_title_norm = _canonical_title(r_title)
@@ -356,9 +371,13 @@ def evaluate_pair(remote: Dict[str, Any], local: Dict[str, Any], cfg: ScoringCon
         notes=notes,
     )
 
+
 # --- Batch Evaluation Helper -----------------------------------------------
 
-def evaluate_against_candidates(remote: Dict[str, Any], candidates: List[Dict[str, Any]], cfg: ScoringConfig) -> Optional[CandidateEvaluation]:
+
+def evaluate_against_candidates(
+    remote: Dict[str, Any], candidates: List[Dict[str, Any]], cfg: ScoringConfig
+) -> Optional[CandidateEvaluation]:
     """Return best CandidateEvaluation above minimum acceptance or None."""
     best: Tuple[Optional[CandidateEvaluation], float] = (None, 0.0)
     for local in candidates:
@@ -366,8 +385,12 @@ def evaluate_against_candidates(remote: Dict[str, Any], candidates: List[Dict[st
         if breakdown.confidence == MatchConfidence.REJECTED:
             continue
         if best[0] is None or breakdown.raw_score > best[1]:
-            best = (CandidateEvaluation(track_id=remote['id'], file_id=local['id'], score=breakdown), breakdown.raw_score)
+            best = (
+                CandidateEvaluation(track_id=remote["id"], file_id=local["id"], score=breakdown),
+                breakdown.raw_score,
+            )
     return best[0]
+
 
 __all__ = [
     "MatchConfidence",

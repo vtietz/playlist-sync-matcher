@@ -8,6 +8,7 @@ This view composition demonstrates the architecture guidelines:
 - No business logic (just UI composition)
 - Lazy playlist loading for performance
 """
+
 from __future__ import annotations
 from typing import Optional, List, Dict, Callable, Set
 from PySide6.QtWidgets import QWidget, QVBoxLayout
@@ -45,11 +46,7 @@ class UnifiedTracksView(QWidget):
     # Signal emitted when a track is selected
     track_selected = Signal(str)  # track_id
 
-    def __init__(
-        self,
-        source_model: BaseTableModel,
-        parent: Optional[QWidget] = None
-    ):
+    def __init__(self, source_model: BaseTableModel, parent: Optional[QWidget] = None):
         """Initialize unified tracks view.
 
         Args:
@@ -227,17 +224,15 @@ class UnifiedTracksView(QWidget):
         selection = self.tracks_table.selectionModel()
         if selection and selection.hasSelection():
             proxy_row = selection.selectedRows()[0].row()
-            source_index = self.proxy_model.mapToSource(
-                self.proxy_model.index(proxy_row, 0)
-            )
+            source_index = self.proxy_model.mapToSource(self.proxy_model.index(proxy_row, 0))
             source_row = source_index.row()
 
             # Access source model's get_row_data if available
             source_model = self.proxy_model.sourceModel()
-            if hasattr(source_model, 'get_row_data'):
+            if hasattr(source_model, "get_row_data"):
                 track_data = source_model.get_row_data(source_row)
-                if track_data and 'id' in track_data:
-                    self.track_selected.emit(track_data['id'])
+                if track_data and "id" in track_data:
+                    self.track_selected.emit(track_data["id"])
 
     def clear_filters(self):
         """Reset all filters to default state.
@@ -282,7 +277,7 @@ class UnifiedTracksView(QWidget):
 
             # Re-enable sorting and apply sort
             self.tracks_table.setSortingEnabled(True)
-            
+
             # Only apply default sort if no saved sort exists
             header = self.tracks_table.horizontalHeader()
             if header.sortIndicatorSection() == -1:
@@ -293,13 +288,7 @@ class UnifiedTracksView(QWidget):
             self.tracks_table.setUpdatesEnabled(True)
             self._is_resetting = False
 
-    def populate_filter_options(
-        self,
-        playlists: List[str],
-        artists: List[str],
-        albums: List[str],
-        years: List[int]
-    ):
+    def populate_filter_options(self, playlists: List[str], artists: List[str], albums: List[str], years: List[int]):
         """Populate filter dropdown options.
 
         Args:
@@ -329,21 +318,21 @@ class UnifiedTracksView(QWidget):
 
             # Get row data from source model
             source_model = self.proxy_model.sourceModel()
-            if hasattr(source_model, 'get_row_data'):
+            if hasattr(source_model, "get_row_data"):
                 row_data = source_model.get_row_data(source_row)
                 if row_data:
                     # Extract artist
-                    artist = row_data.get('artist')
+                    artist = row_data.get("artist")
                     if artist:
                         artists.add(artist)
 
                     # Extract album
-                    album = row_data.get('album')
+                    album = row_data.get("album")
                     if album:
                         albums.add(album)
 
                     # Extract year
-                    year = row_data.get('year')
+                    year = row_data.get("year")
                     if year:
                         try:
                             years.add(int(year))
@@ -356,7 +345,7 @@ class UnifiedTracksView(QWidget):
             playlists,  # Keep existing playlist options
             sorted(artists),
             sorted(albums),
-            sorted(years, reverse=True)  # Years descending
+            sorted(years, reverse=True),  # Years descending
         )
 
     def _set_initial_column_widths(self):
@@ -373,15 +362,15 @@ class UnifiedTracksView(QWidget):
         # Set initial widths (in pixels)
         # These are reasonable defaults that will be user-adjustable
         header.resizeSection(0, 250)  # Track - large (most important)
-        header.resizeSection(1, 45)   # Liked - very small (just ❤️ icon)
+        header.resizeSection(1, 45)  # Liked - very small (just ❤️ icon)
         header.resizeSection(2, 180)  # Artist - medium
         header.resizeSection(3, 200)  # Album - medium-large
-        header.resizeSection(4, 60)   # Year - small
-        header.resizeSection(5, 70)   # Matched - small (✓/✗)
-        header.resizeSection(6, 95)   # Confidence - small-medium (CERTAIN/HIGH/etc)
-        header.resizeSection(7, 95)   # Quality - small-medium (EXCELLENT/GOOD/etc)
+        header.resizeSection(4, 60)  # Year - small
+        header.resizeSection(5, 70)  # Matched - small (✓/✗)
+        header.resizeSection(6, 95)  # Confidence - small-medium (CERTAIN/HIGH/etc)
+        header.resizeSection(7, 95)  # Quality - small-medium (EXCELLENT/GOOD/etc)
         header.resizeSection(8, 350)  # Local File - large (file paths)
-        header.resizeSection(9, 50)   # #PL - very small (number)
+        header.resizeSection(9, 50)  # #PL - very small (number)
         # Column 10 (Playlists) stretches to fill remaining space
 
     def show_loading(self):
@@ -418,7 +407,7 @@ class UnifiedTracksView(QWidget):
             return
 
         # Skip if currently streaming data
-        if getattr(self, '_is_streaming', False):
+        if getattr(self, "_is_streaming", False):
             return
 
         if not self._playlist_fetch_callback:
@@ -435,16 +424,16 @@ class UnifiedTracksView(QWidget):
 
         # Get track IDs for visible rows
         source_model = self.proxy_model.sourceModel()
-        if not hasattr(source_model, 'get_row_data'):
+        if not hasattr(source_model, "get_row_data"):
             return
 
         track_ids = []
         for row_idx in visible_rows:
             row_data = source_model.get_row_data(row_idx)
-            if row_data and 'id' in row_data:
-                track_id = row_data['id']
+            if row_data and "id" in row_data:
+                track_id = row_data["id"]
                 # Only fetch if playlists column is empty
-                if not row_data.get('playlists'):
+                if not row_data.get("playlists"):
                     track_ids.append(track_id)
 
         if not track_ids:
@@ -457,7 +446,7 @@ class UnifiedTracksView(QWidget):
             playlists_data = self._playlist_fetch_callback(track_ids)
 
             # Update model
-            if hasattr(source_model, 'update_playlists_for_rows'):
+            if hasattr(source_model, "update_playlists_for_rows"):
                 source_model.update_playlists_for_rows(visible_rows, playlists_data)
         except Exception as e:
             logger.error(f"Error loading playlists: {e}")
@@ -476,7 +465,9 @@ class UnifiedTracksView(QWidget):
 
         # Iterate through visible proxy rows
         for y in range(0, visible_rect.height(), 22):  # 22px row height
-            index = self.tracks_table.indexAt(visible_rect.topLeft() + self.tracks_table.viewport().pos() + QPoint(0, y))
+            index = self.tracks_table.indexAt(
+                visible_rect.topLeft() + self.tracks_table.viewport().pos() + QPoint(0, y)
+            )
             if index.isValid():
                 proxy_row = index.row()
                 source_index = self.proxy_model.mapToSource(self.proxy_model.index(proxy_row, 0))

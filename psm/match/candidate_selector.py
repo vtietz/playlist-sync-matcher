@@ -34,10 +34,7 @@ class CandidateSelector:
     """
 
     def duration_prefilter(
-        self,
-        track: Dict[str, Any],
-        files: List[Dict[str, Any]],
-        dur_tolerance: float | None = 2.0
+        self, track: Dict[str, Any], files: List[Dict[str, Any]], dur_tolerance: float | None = 2.0
     ) -> List[Dict[str, Any]]:
         """Filter files by duration compatibility with track.
 
@@ -62,10 +59,10 @@ class CandidateSelector:
             return files
 
         # If track lacks duration, we can't filter
-        if track.get('duration_ms') is None:
+        if track.get("duration_ms") is None:
             return files
 
-        target_sec = track['duration_ms'] / 1000.0
+        target_sec = track["duration_ms"] / 1000.0
 
         # Use minimum ±4s window or (dur_tol * 2) to avoid over-pruning
         window = max(4, dur_tolerance * 2)
@@ -73,17 +70,10 @@ class CandidateSelector:
         # Keep files that:
         # 1. Have no duration metadata (can't exclude)
         # 2. Are within the duration window
-        return [
-            f for f in files
-            if f.get('duration') is None
-            or abs(f.get('duration') - target_sec) <= window
-        ]
+        return [f for f in files if f.get("duration") is None or abs(f.get("duration") - target_sec) <= window]
 
     def token_prescore(
-        self,
-        track: Dict[str, Any],
-        files: List[Dict[str, Any]],
-        max_candidates: int = 500
+        self, track: Dict[str, Any], files: List[Dict[str, Any]], max_candidates: int = 500
     ) -> List[Dict[str, Any]]:
         """Pre-score files using Jaccard similarity and return top candidates.
 
@@ -111,16 +101,16 @@ class CandidateSelector:
             return files
 
         # Get normalized tokens for track (compute once)
-        track_tokens = set((track.get('normalized') or '').split())
+        track_tokens = set((track.get("normalized") or "").split())
 
         # Score each file using Jaccard similarity
         scored_files: List[Tuple[float, Dict[str, Any]]] = []
         for f in files:
             # Use precomputed tokens if available (hot path optimization)
-            file_tokens = f.get('normalized_tokens')
+            file_tokens = f.get("normalized_tokens")
             if file_tokens is None:
                 # Fallback: compute on-demand for backward compatibility
-                file_tokens = set((f.get('normalized') or '').split())
+                file_tokens = set((f.get("normalized") or "").split())
             similarity = self._jaccard_similarity(track_tokens, file_tokens)
             scored_files.append((similarity, f))
 
@@ -147,4 +137,4 @@ class CandidateSelector:
         return intersection / union if union > 0 else 0.0
 
 
-__all__ = ['CandidateSelector']
+__all__ = ["CandidateSelector"]

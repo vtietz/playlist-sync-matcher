@@ -1,4 +1,5 @@
 """Test the standalone report command."""
+
 from click.testing import CliRunner
 from psm.cli.core import cli
 from psm.db import Database
@@ -21,12 +22,12 @@ def test_report_command_generates_all_reports(tmp_path, test_config):
     db.close()
 
     # Use test_config fixture and override paths
-    test_config['database']['path'] = str(db_path)
-    test_config['reports']['directory'] = str(reports_dir)
+    test_config["database"]["path"] = str(db_path)
+    test_config["reports"]["directory"] = str(reports_dir)
 
     # Run report command with test config passed via obj
     runner = CliRunner()
-    result = runner.invoke(cli, ['report'], obj=test_config)
+    result = runner.invoke(cli, ["report"], obj=test_config)
 
     # Verify success
     assert result.exit_code == 0
@@ -57,12 +58,12 @@ def test_report_command_selective_generation(tmp_path, test_config):
     db.close()
 
     # Use test_config fixture and override paths
-    test_config['database']['path'] = str(db_path)
-    test_config['reports']['directory'] = str(reports_dir)
+    test_config["database"]["path"] = str(db_path)
+    test_config["reports"]["directory"] = str(reports_dir)
 
     # Run with only match reports, passing test config via obj
     runner = CliRunner()
-    result = runner.invoke(cli, ['report', '--no-analysis-reports'], obj=test_config)
+    result = runner.invoke(cli, ["report", "--no-analysis-reports"], obj=test_config)
 
     assert result.exit_code == 0
     assert "✓ Match reports generated" in result.output

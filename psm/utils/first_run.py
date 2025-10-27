@@ -2,6 +2,7 @@
 
 Detects if this is the first run and helps users create a .env file.
 """
+
 from pathlib import Path
 import os
 import subprocess
@@ -59,7 +60,7 @@ PSM__LOG_LEVEL=INFO
 
 def check_env_exists() -> bool:
     """Check if .env file exists in current directory."""
-    return Path('.env').exists()
+    return Path(".env").exists()
 
 
 def prompt_create_env() -> bool:
@@ -82,9 +83,9 @@ def prompt_create_env() -> bool:
 
     while True:
         response = input("Create .env template? [Y/n]: ").strip().lower()
-        if response in ('', 'y', 'yes'):
+        if response in ("", "y", "yes"):
             return True
-        elif response in ('n', 'no'):
+        elif response in ("n", "no"):
             return False
         print("Please enter 'y' or 'n'")
 
@@ -102,17 +103,17 @@ def open_file_in_editor(file_path: Path) -> bool:
         system = platform.system()
         file_str = str(file_path.absolute())
 
-        if system == 'Windows':
+        if system == "Windows":
             # Try os.startfile first (uses default association)
             try:
                 os.startfile(file_str)
             except OSError:
                 # Fallback to notepad if no default association
-                subprocess.run(['notepad.exe', file_str], check=True)
-        elif system == 'Darwin':  # macOS
-            subprocess.run(['open', file_str], check=True)
+                subprocess.run(["notepad.exe", file_str], check=True)
+        elif system == "Darwin":  # macOS
+            subprocess.run(["open", file_str], check=True)
         else:  # Linux and others
-            subprocess.run(['xdg-open', file_str], check=True)
+            subprocess.run(["xdg-open", file_str], check=True)
 
         return True
     except Exception as e:
@@ -130,12 +131,12 @@ def create_env_file(open_in_editor: bool = False) -> bool:
         True if successful, False otherwise
     """
     try:
-        env_path = Path('.env')
+        env_path = Path(".env")
         if env_path.exists():
             print("Warning: .env file already exists. Not overwriting.")
             return False
 
-        env_path.write_text(get_env_template(), encoding='utf-8')
+        env_path.write_text(get_env_template(), encoding="utf-8")
         print(f"\n✓ Created .env template at: {env_path.absolute()}")
         print("\nNext steps:")
         print("  1. Open .env in a text editor")
@@ -169,8 +170,8 @@ def check_first_run_cli() -> bool:
         if create_env_file():
             # Ask if they want to open it now
             response = input("\nOpen .env in your default text editor now? [Y/n]: ").strip().lower()
-            if response in ('', 'y', 'yes'):
-                open_file_in_editor(Path('.env'))
+            if response in ("", "y", "yes"):
+                open_file_in_editor(Path(".env"))
 
         print("\nPlease configure your .env file and run the application again.")
         return False  # Exit so user can configure
@@ -182,7 +183,7 @@ def check_first_run_cli() -> bool:
 
         # Ask if they want to continue anyway (might use env vars)
         response = input("\nContinue without .env file? [y/N]: ").strip().lower()
-        if response in ('y', 'yes'):
+        if response in ("y", "yes"):
             return True
         return False
 
@@ -303,7 +304,7 @@ class FirstRunDialog:
         self.error_label.hide()
 
         try:
-            self.env_path = Path('.env')
+            self.env_path = Path(".env")
 
             # Check if file already exists
             if self.env_path.exists():
@@ -312,7 +313,7 @@ class FirstRunDialog:
                 return
 
             # Create the file
-            self.env_path.write_text(get_env_template(), encoding='utf-8')
+            self.env_path.write_text(get_env_template(), encoding="utf-8")
 
             # Success - transition to post-create state
             self._init_post_create_state()
@@ -344,6 +345,7 @@ class FirstRunDialog:
             True if app should continue, False if it should exit
         """
         from PySide6.QtWidgets import QDialog
+
         result = self.dialog.exec()
         return result == QDialog.Accepted
 

@@ -1,4 +1,5 @@
 """Tests for GUI components (SortFilterTable, LogPanel, FilterBar, etc.)."""
+
 import pytest
 from PySide6.QtWidgets import QApplication, QHeaderView
 from PySide6.QtCore import Qt
@@ -6,7 +7,7 @@ from psm.gui.components import SortFilterTable, LogPanel, FilterBar, UnifiedTrac
 from psm.gui.models import PlaylistsModel, UnifiedTracksModel
 
 
-@pytest.fixture(scope='module')
+@pytest.fixture(scope="module")
 def qapp():
     """Create QApplication instance for GUI tests."""
     app = QApplication.instance()
@@ -37,20 +38,22 @@ class TestSortFilterTable:
     def test_resize_columns(self, qapp):
         """Test resizing columns to contents."""
         model = PlaylistsModel()
-        model.set_data([
-            {
-                'id': 'p1',
-                'name': 'Test',
-                'owner_name': 'user',
-                'track_count': 10,
-                'matched_count': 5,
-                'unmatched_count': 5,
-                'coverage': 50
-            }
-        ])
+        model.set_data(
+            [
+                {
+                    "id": "p1",
+                    "name": "Test",
+                    "owner_name": "user",
+                    "track_count": 10,
+                    "matched_count": 5,
+                    "unmatched_count": 5,
+                    "coverage": 50,
+                }
+            ]
+        )
 
         table = SortFilterTable(model)
-        
+
         # Verify header is interactive and allows manual resizing
         header = table.table_view.horizontalHeader()
         assert header.sectionResizeMode(0) == QHeaderView.Interactive
@@ -59,17 +62,19 @@ class TestSortFilterTable:
     def test_get_selected_row_data(self, qapp):
         """Test getting selected row data."""
         model = PlaylistsModel()
-        model.set_data([
-            {
-                'id': 'p1',
-                'name': 'Test',
-                'owner_name': 'user',
-                'track_count': 10,
-                'matched_count': 5,
-                'unmatched_count': 5,
-                'coverage': 50
-            }
-        ])
+        model.set_data(
+            [
+                {
+                    "id": "p1",
+                    "name": "Test",
+                    "owner_name": "user",
+                    "track_count": 10,
+                    "matched_count": 5,
+                    "unmatched_count": 5,
+                    "coverage": 50,
+                }
+            ]
+        )
 
         table = SortFilterTable(model)
 
@@ -81,8 +86,8 @@ class TestSortFilterTable:
         row_data = table.get_selected_row_data()
 
         assert row_data is not None
-        assert row_data['id'] == 'p1'
-        assert row_data['name'] == 'Test'
+        assert row_data["id"] == "p1"
+        assert row_data["name"] == "Test"
 
 
 class TestLogPanel:
@@ -193,29 +198,29 @@ class TestUnifiedTracksProxyModel:
         model = UnifiedTracksModel()
         tracks = [
             {
-                'id': 't1',
-                'name': 'Song 1',
-                'artist': 'Artist 1',
-                'album': 'Album 1',
-                'year': 2020,
-                'matched': True,
-                'confidence': 'HIGH',
-                'quality': 'GOOD',
-                'local_path': '/music/s1.mp3',
-                'playlists': 'Workout'  # Added playlists field
+                "id": "t1",
+                "name": "Song 1",
+                "artist": "Artist 1",
+                "album": "Album 1",
+                "year": 2020,
+                "matched": True,
+                "confidence": "HIGH",
+                "quality": "GOOD",
+                "local_path": "/music/s1.mp3",
+                "playlists": "Workout",  # Added playlists field
             },
             {
-                'id': 't2',
-                'name': 'Song 2',
-                'artist': 'Artist 2',
-                'album': 'Album 2',
-                'year': 2021,
-                'matched': False,
-                'confidence': None,
-                'quality': None,
-                'local_path': None,
-                'playlists': 'Chill'  # Added playlists field
-            }
+                "id": "t2",
+                "name": "Song 2",
+                "artist": "Artist 2",
+                "album": "Album 2",
+                "year": 2021,
+                "matched": False,
+                "confidence": None,
+                "quality": None,
+                "local_path": None,
+                "playlists": "Chill",  # Added playlists field
+            },
         ]
         model.set_data(tracks)
 
@@ -226,11 +231,11 @@ class TestUnifiedTracksProxyModel:
         assert proxy.rowCount() == 2
 
         # Filter by "Workout" - need to pass track_ids set
-        proxy.set_playlist_filter("Workout", track_ids={'t1'})
+        proxy.set_playlist_filter("Workout", track_ids={"t1"})
         assert proxy.rowCount() == 1
 
         # Filter by "Chill" - need to pass track_ids set
-        proxy.set_playlist_filter("Chill", track_ids={'t2'})
+        proxy.set_playlist_filter("Chill", track_ids={"t2"})
         assert proxy.rowCount() == 1
 
         # Clear filter
@@ -242,29 +247,29 @@ class TestUnifiedTracksProxyModel:
         model = UnifiedTracksModel()
         tracks = [
             {
-                'id': 't1',
-                'name': 'Matched Song',
-                'artist': 'Artist',
-                'album': 'Album',
-                'year': 2020,
-                'matched': True,
-                'confidence': 'HIGH',
-                'quality': 'GOOD',
-                'local_path': '/music/s1.mp3',
-                'playlists': 'Test'
+                "id": "t1",
+                "name": "Matched Song",
+                "artist": "Artist",
+                "album": "Album",
+                "year": 2020,
+                "matched": True,
+                "confidence": "HIGH",
+                "quality": "GOOD",
+                "local_path": "/music/s1.mp3",
+                "playlists": "Test",
             },
             {
-                'id': 't2',
-                'name': 'Unmatched Song',
-                'artist': 'Artist',
-                'album': 'Album',
-                'year': 2021,
-                'matched': False,
-                'confidence': None,
-                'quality': None,
-                'local_path': None,
-                'playlists': 'Test'
-            }
+                "id": "t2",
+                "name": "Unmatched Song",
+                "artist": "Artist",
+                "album": "Album",
+                "year": 2021,
+                "matched": False,
+                "confidence": None,
+                "quality": None,
+                "local_path": None,
+                "playlists": "Test",
+            },
         ]
         model.set_data(tracks)
 
@@ -288,29 +293,29 @@ class TestUnifiedTracksProxyModel:
         model = UnifiedTracksModel()
         tracks = [
             {
-                'id': 't1',
-                'name': 'Rock Song',
-                'artist': 'Rock Artist',
-                'album': 'Rock Album',
-                'year': 2020,
-                'matched': True,
-                'confidence': 'HIGH',
-                'quality': 'GOOD',
-                'local_path': '/music/rock.mp3',
-                'playlists': 'Test'
+                "id": "t1",
+                "name": "Rock Song",
+                "artist": "Rock Artist",
+                "album": "Rock Album",
+                "year": 2020,
+                "matched": True,
+                "confidence": "HIGH",
+                "quality": "GOOD",
+                "local_path": "/music/rock.mp3",
+                "playlists": "Test",
             },
             {
-                'id': 't2',
-                'name': 'Jazz Song',
-                'artist': 'Jazz Artist',
-                'album': 'Jazz Album',
-                'year': 2021,
-                'matched': False,
-                'confidence': None,
-                'quality': None,
-                'local_path': None,
-                'playlists': 'Test'
-            }
+                "id": "t2",
+                "name": "Jazz Song",
+                "artist": "Jazz Artist",
+                "album": "Jazz Album",
+                "year": 2021,
+                "matched": False,
+                "confidence": None,
+                "quality": None,
+                "local_path": None,
+                "playlists": "Test",
+            },
         ]
         model.set_data(tracks)
 

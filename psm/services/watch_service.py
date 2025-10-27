@@ -27,10 +27,7 @@ class DebouncedLibraryWatcher(FileSystemEventHandler):
     """
 
     def __init__(
-        self,
-        config: Dict[str, Any],
-        on_change_callback: Callable[[List[Path]], None],
-        debounce_seconds: float = 2.0
+        self, config: Dict[str, Any], on_change_callback: Callable[[List[Path]], None], debounce_seconds: float = 2.0
     ):
         """Initialize the debounced watcher.
 
@@ -47,9 +44,9 @@ class DebouncedLibraryWatcher(FileSystemEventHandler):
         self.lock = Lock()
 
         # Get configuration
-        lib_cfg = config.get('library', {})
-        self.extensions = tuple(lib_cfg.get('extensions', ['.mp3', '.flac', '.m4a']))
-        self.ignore_patterns = lib_cfg.get('ignore_patterns', [])
+        lib_cfg = config.get("library", {})
+        self.extensions = tuple(lib_cfg.get("extensions", [".mp3", ".flac", ".m4a"]))
+        self.ignore_patterns = lib_cfg.get("ignore_patterns", [])
 
         logger.debug(f"Initialized watcher with debounce={debounce_seconds}s, extensions={self.extensions}")
 
@@ -94,7 +91,7 @@ class DebouncedLibraryWatcher(FileSystemEventHandler):
 
     def _is_temp_file(self, path: Path) -> bool:
         """Check if file is a temporary file that should be ignored."""
-        temp_extensions = {'.tmp', '.part', '.download', '.crdownload'}
+        temp_extensions = {".tmp", ".part", ".download", ".crdownload"}
         return path.suffix.lower() in temp_extensions
 
     def _matches_ignore_pattern(self, path: Path) -> bool:
@@ -146,10 +143,7 @@ class LibraryWatcher:
     """
 
     def __init__(
-        self,
-        config: Dict[str, Any],
-        on_change_callback: Callable[[List[Path]], None],
-        debounce_seconds: float = 2.0
+        self, config: Dict[str, Any], on_change_callback: Callable[[List[Path]], None], debounce_seconds: float = 2.0
     ):
         """Initialize the library watcher.
 
@@ -171,8 +165,8 @@ class LibraryWatcher:
             logger.warning("Watcher already running")
             return
 
-        lib_cfg = self.config.get('library', {})
-        paths = lib_cfg.get('paths', [])
+        lib_cfg = self.config.get("library", {})
+        paths = lib_cfg.get("paths", [])
 
         if not paths:
             raise ValueError("No library paths configured")
@@ -181,11 +175,7 @@ class LibraryWatcher:
         if isinstance(paths, str):
             paths = [paths]
 
-        self.handler = DebouncedLibraryWatcher(
-            self.config,
-            self.on_change,
-            self.debounce_seconds
-        )
+        self.handler = DebouncedLibraryWatcher(self.config, self.on_change, self.debounce_seconds)
 
         self.observer = Observer()
 

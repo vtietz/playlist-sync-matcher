@@ -8,11 +8,10 @@ This view displays aggregated artist statistics with:
 - Coverage percentage (matched vs total tracks)
 - Search across artist names
 """
+
 from __future__ import annotations
 from typing import Optional
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QTableView, QHeaderView, QLineEdit, QHBoxLayout, QLabel
-)
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QTableView, QHeaderView, QLineEdit, QHBoxLayout, QLabel
 from PySide6.QtCore import Qt, QSortFilterProxyModel, QModelIndex, Signal
 import logging
 
@@ -27,7 +26,7 @@ class ArtistsProxyModel(QSortFilterProxyModel):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._search_text = ""    # Search in artist name
+        self._search_text = ""  # Search in artist name
         self.setFilterCaseSensitivity(Qt.CaseInsensitive)
         self.setDynamicSortFilter(True)
 
@@ -49,7 +48,7 @@ class ArtistsProxyModel(QSortFilterProxyModel):
         if not row_data:
             return False
 
-        artist = (row_data.get('artist') or '').lower()
+        artist = (row_data.get("artist") or "").lower()
 
         # Apply search filter
         if self._search_text:
@@ -80,11 +79,7 @@ class ArtistsView(QWidget):
     # Signal emitted when artist is selected (artist_name) or cleared (None)
     artist_selected = Signal(object)  # artist_name: Optional[str]
 
-    def __init__(
-        self,
-        source_model: BaseTableModel,
-        parent: Optional[QWidget] = None
-    ):
+    def __init__(self, source_model: BaseTableModel, parent: Optional[QWidget] = None):
         """Initialize artists view.
 
         Args:
@@ -161,9 +156,9 @@ class ArtistsView(QWidget):
         # Column 4 = Coverage (medium)
         # Column 5 = Relevance (narrow, stretches)
         self.table.setColumnWidth(0, 250)  # Artist
-        self.table.setColumnWidth(1, 80)   # Tracks
-        self.table.setColumnWidth(2, 80)   # Albums
-        self.table.setColumnWidth(3, 80)   # Playlists
+        self.table.setColumnWidth(1, 80)  # Tracks
+        self.table.setColumnWidth(2, 80)  # Albums
+        self.table.setColumnWidth(3, 80)  # Playlists
         self.table.setColumnWidth(4, 120)  # Coverage
         # Column 5 (Relevance) stretches automatically
 
@@ -176,17 +171,15 @@ class ArtistsView(QWidget):
         selection = self.table.selectionModel()
         if selection and selection.hasSelection():
             proxy_row = selection.selectedRows()[0].row()
-            source_index = self.proxy_model.mapToSource(
-                self.proxy_model.index(proxy_row, 0)
-            )
+            source_index = self.proxy_model.mapToSource(self.proxy_model.index(proxy_row, 0))
             source_row = source_index.row()
 
             # Get artist from source model
             source_model = self.proxy_model.sourceModel()
-            if hasattr(source_model, 'get_row_data'):
+            if hasattr(source_model, "get_row_data"):
                 row_data = source_model.get_row_data(source_row)
                 if row_data:
-                    artist_name = row_data.get('artist')
+                    artist_name = row_data.get("artist")
                     if artist_name:
                         self.artist_selected.emit(artist_name)
 

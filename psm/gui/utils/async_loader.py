@@ -6,6 +6,7 @@ NOTE: For SQLite databases, functions passed to AsyncDataLoader should NOT
 use existing database connections (thread safety). Instead, they should create
 new connections or use a thread-safe connection pool.
 """
+
 from __future__ import annotations
 from typing import Callable, Any, Optional
 from PySide6.QtCore import QThread, Signal
@@ -42,11 +43,7 @@ class AsyncDataLoader(QThread):
     error = Signal(str)  # error_msg
     progress = Signal(int, int)  # current, total
 
-    def __init__(
-        self,
-        load_func: Callable[[], Any],
-        parent: Optional[QThread] = None
-    ):
+    def __init__(self, load_func: Callable[[], Any], parent: Optional[QThread] = None):
         """Initialize async loader.
 
         Args:
@@ -116,11 +113,7 @@ class MultiAsyncLoader(QThread):
     error = Signal(str)  # error_msg
     item_finished = Signal(str, object)  # key, data
 
-    def __init__(
-        self,
-        load_funcs: dict[str, Callable[[], Any]],
-        parent: Optional[QThread] = None
-    ):
+    def __init__(self, load_funcs: dict[str, Callable[[], Any]], parent: Optional[QThread] = None):
         """Initialize multi-loader.
 
         Args:

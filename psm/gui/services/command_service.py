@@ -8,6 +8,7 @@ This service encapsulates CLI command execution with a consistent lifecycle:
 This follows the Single Responsibility Principle by extracting command
 execution orchestration from controllers.
 """
+
 from __future__ import annotations
 from typing import Callable, Optional
 from dataclasses import dataclass
@@ -25,6 +26,7 @@ class CommandCallbacks:
     This data class groups all callbacks to simplify the execute() signature
     and make the contract explicit.
     """
+
     on_log: Callable[[str], None]
     on_progress: Callable[[int, int, str], None]
     on_finished: Callable[[int], None]
@@ -53,11 +55,11 @@ class CommandService:
 
     # Commands that are read-only and safe to run during watch mode
     READ_ONLY_COMMANDS = {
-        'diagnose',      # Track matching diagnostics (reads DB only)
-        'config',        # Configuration viewing/editing
-        'db',            # Database queries (if using query subcommand)
-        '--version',     # Version info
-        '--help',        # Help text
+        "diagnose",  # Track matching diagnostics (reads DB only)
+        "config",  # Configuration viewing/editing
+        "db",  # Database queries (if using query subcommand)
+        "--version",  # Version info
+        "--help",  # Help text
     }
 
     def __init__(
@@ -65,7 +67,7 @@ class CommandService:
         executor,  # CliExecutor instance
         enable_actions: Callable[[bool], None],
         watch_mode_controller=None,  # Optional WatchModeController for state checking
-        action_state_manager: Optional[ActionStateManager] = None  # Optional ActionStateManager for button states
+        action_state_manager: Optional[ActionStateManager] = None,  # Optional ActionStateManager for button states
     ):
         """Initialize command service.
 
@@ -117,21 +119,21 @@ class CommandService:
         command = args[0]
 
         # Handle playlist-scoped commands (already working correctly)
-        if command == 'playlist' and len(args) >= 2:
+        if command == "playlist" and len(args) >= 2:
             return f"playlist:{args[1]}"  # 'playlist:pull', 'playlist:match', 'playlist:export'
 
         # Handle diagnose command (takes track_id as positional argument)
         # Format: ['diagnose', 'track_id'] or ['diagnose', '--some-flag', 'track_id']
-        if command == 'diagnose' and len(args) >= 2:
+        if command == "diagnose" and len(args) >= 2:
             # Has a positional argument (track_id) → per-track action
             return "diagnose:track"
 
         # Handle per-track commands (detected by --track-id flag)
-        if '--track-id' in args:
+        if "--track-id" in args:
             return f"{command}:track"  # 'match:track', etc.
 
         # Handle per-playlist commands (detected by --playlist-id flag)
-        if '--playlist-id' in args:
+        if "--playlist-id" in args:
             return f"{command}:playlist"  # 'pull:playlist', 'match:playlist', etc.
 
         # Generic command (toolbar buttons)
@@ -143,7 +145,7 @@ class CommandService:
         on_log: Callable[[str], None],
         on_execution_status: Callable[[bool, str], None],
         on_success: Optional[Callable[[], None]] = None,
-        success_message: str = "✓ Command completed"
+        success_message: str = "✓ Command completed",
     ):
         """Execute CLI command with standardized lifecycle.
 
@@ -182,7 +184,7 @@ class CommandService:
 
         # Pre-execution: disable actions and set running status
         self.enable_actions(False)
-        on_execution_status(True, ' '.join(args))  # Show command being run
+        on_execution_status(True, " ".join(args))  # Show command being run
 
         # Notify ActionStateManager that action is starting
         if self.action_state_manager and action_name:
@@ -208,10 +210,7 @@ class CommandService:
             # Notify ActionStateManager that action finished
             if self.action_state_manager and action_name:
                 # Treat cancellation as success (return to idle, not error)
-                self.action_state_manager.set_action_finished(
-                    action_name,
-                    success=(exit_code == 0 or was_cancelled)
-                )
+                self.action_state_manager.set_action_finished(action_name, success=(exit_code == 0 or was_cancelled))
 
             if exit_code == 0:
                 # Success path
@@ -264,11 +263,14 @@ class CommandService:
         Args:
             on_log: Callback to send hint messages
         """
-        log_text = '\n'.join(self._log_buffer)
+        log_text = "\n".join(self._log_buffer)
 
         # Known error pattern: MatchingConfig 'strategies' argument
-        if "unexpected keyword argument 'strategies'" in log_text or \
-           "MatchingConfig" in log_text and "strategies" in log_text:
+        if (
+            "unexpected keyword argument 'strategies'" in log_text
+            or "MatchingConfig" in log_text
+            and "strategies" in log_text
+        ):
             on_log(
                 "\n💡 Hint: Configuration mismatch detected. "
                 "This may be due to CLI/service schema differences. "
@@ -278,23 +280,18 @@ class CommandService:
 
         # Known error pattern: File not found / path issues
         if "FileNotFoundError" in log_text or "No such file or directory" in log_text:
-            on_log(
-                "\n💡 Hint: File or directory not found. "
-                "Ensure all required files exist and paths are correct."
-            )
+            on_log("\n💡 Hint: File or directory not found. " "Ensure all required files exist and paths are correct.")
             return
 
         # Known error pattern: Permission denied
         if "PermissionError" in log_text or "Permission denied" in log_text:
             on_log(
-                "\n💡 Hint: Permission denied. "
-                "Check file permissions or try running with appropriate access rights."
+                "\n💡 Hint: Permission denied. " "Check file permissions or try running with appropriate access rights."
             )
             return
 
         # Known error pattern: Authentication/token issues
-        if "authentication" in log_text.lower() or "token" in log_text.lower() or \
-           "unauthorized" in log_text.lower():
+        if "authentication" in log_text.lower() or "token" in log_text.lower() or "unauthorized" in log_text.lower():
             on_log(
                 "\n💡 Hint: Authentication issue detected. "
                 "Check your Spotify credentials and ensure tokens are valid."
@@ -303,8 +300,5 @@ class CommandService:
 
         # Known error pattern: Database locked
         if "database is locked" in log_text.lower():
-            on_log(
-                "\n💡 Hint: Database is locked. "
-                "Close other applications accessing the database and try again."
-            )
+            on_log("\n💡 Hint: Database is locked. " "Close other applications accessing the database and try again.")
             return

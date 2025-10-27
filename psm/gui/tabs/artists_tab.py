@@ -1,4 +1,5 @@
 """Artists tab builder - thin wrapper around ArtistsView."""
+
 from __future__ import annotations
 from typing import TYPE_CHECKING
 from PySide6.QtWidgets import QWidget, QVBoxLayout

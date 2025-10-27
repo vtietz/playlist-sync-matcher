@@ -1,4 +1,5 @@
 """Service for persisting and restoring window state (geometry, splitters, column widths)."""
+
 from __future__ import annotations
 from typing import TYPE_CHECKING
 from PySide6.QtCore import QSettings
@@ -46,22 +47,16 @@ class WindowStateService:
         self.settings.setValue("windowState", window.saveState())
 
         # Save main splitter position
-        if hasattr(window, 'main_splitter'):
+        if hasattr(window, "main_splitter"):
             self.settings.setValue("mainSplitter", window.main_splitter.saveState())
 
         # Save playlists table column widths
-        if hasattr(window, 'playlists_table_view'):
-            self._save_column_widths(
-                window.playlists_table_view.horizontalHeader(),
-                "playlistsColumnWidths"
-            )
+        if hasattr(window, "playlists_table_view"):
+            self._save_column_widths(window.playlists_table_view.horizontalHeader(), "playlistsColumnWidths")
 
         # Save unified tracks table column widths
-        if hasattr(window, 'unified_tracks_view'):
-            self._save_column_widths(
-                window.unified_tracks_view.tracks_table.horizontalHeader(),
-                "tracksColumnWidths"
-            )
+        if hasattr(window, "unified_tracks_view"):
+            self._save_column_widths(window.unified_tracks_view.tracks_table.horizontalHeader(), "tracksColumnWidths")
 
         logger.info("Window state saved")
 
@@ -81,23 +76,19 @@ class WindowStateService:
             window.restoreState(window_state)
 
         # Restore main splitter position
-        if hasattr(window, 'main_splitter'):
+        if hasattr(window, "main_splitter"):
             splitter_state = self.settings.value("mainSplitter")
             if splitter_state:
                 window.main_splitter.restoreState(splitter_state)
 
         # Restore playlists table column widths
-        if hasattr(window, 'playlists_table_view'):
-            self._restore_column_widths(
-                window.playlists_table_view.horizontalHeader(),
-                "playlistsColumnWidths"
-            )
+        if hasattr(window, "playlists_table_view"):
+            self._restore_column_widths(window.playlists_table_view.horizontalHeader(), "playlistsColumnWidths")
 
         # Restore unified tracks table column widths
-        if hasattr(window, 'unified_tracks_view'):
+        if hasattr(window, "unified_tracks_view"):
             self._restore_column_widths(
-                window.unified_tracks_view.tracks_table.horizontalHeader(),
-                "tracksColumnWidths"
+                window.unified_tracks_view.tracks_table.horizontalHeader(), "tracksColumnWidths"
             )
 
         logger.info("Window state restored")

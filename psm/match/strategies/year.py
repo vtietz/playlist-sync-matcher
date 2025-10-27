@@ -6,6 +6,7 @@ It helps distinguish between:
 - Different live versions from specific years
 - Re-recordings of the same song
 """
+
 from __future__ import annotations
 from typing import Dict, Any, List, Tuple, Set
 import logging
@@ -20,14 +21,15 @@ class YearMatchStrategy(MatchStrategy):
     def get_name(self) -> str:
         return "year_match"
 
-    def match(self, tracks: List[Dict[str, Any]], files: List[Dict[str, Any]],
-              already_matched: Set[str]) -> Tuple[List[Tuple[str, int, float, str]], Set[str]]:
+    def match(
+        self, tracks: List[Dict[str, Any]], files: List[Dict[str, Any]], already_matched: Set[str]
+    ) -> Tuple[List[Tuple[str, int, float, str]], Set[str]]:
         """Execute year-based matching on unmatched tracks."""
 
         # Filter to unmatched tracks that have year info
-        unmatched_tracks = [t for t in tracks
-                           if t['id'] not in already_matched
-                           and t.get('year') and t.get('normalized')]
+        unmatched_tracks = [
+            t for t in tracks if t["id"] not in already_matched and t.get("year") and t.get("normalized")
+        ]
 
         if not unmatched_tracks:
             if self.debug:
@@ -36,14 +38,14 @@ class YearMatchStrategy(MatchStrategy):
 
         # Build file index: (normalized, year) -> file_id
         file_index: Dict[Tuple[str, int], int] = {}
-        file_by_id = {f['id']: f for f in files}
+        file_by_id = {f["id"]: f for f in files}
 
         for f in files:
-            if f.get('normalized') and f.get('year'):
-                key = (f['normalized'], f['year'])
+            if f.get("normalized") and f.get("year"):
+                key = (f["normalized"], f["year"])
                 # First match wins (don't overwrite)
                 if key not in file_index:
-                    file_index[key] = f['id']
+                    file_index[key] = f["id"]
 
         if self.debug:
             print(f"[{self.get_name()}] Built index with {len(file_index)} (track+year) combinations")
@@ -53,9 +55,9 @@ class YearMatchStrategy(MatchStrategy):
         matched_track_ids: Set[str] = set()
 
         for track in unmatched_tracks:
-            track_id = track['id']
-            track_norm = track.get('normalized', '')
-            track_year = track.get('year')
+            track_id = track["id"]
+            track_norm = track.get("normalized", "")
+            track_year = track.get("year")
 
             if not track_norm or not track_year:
                 continue
@@ -68,10 +70,12 @@ class YearMatchStrategy(MatchStrategy):
                 matched_track_ids.add(track_id)
 
                 if self.debug:
-                    file_path = file_by_id[file_id].get('path', 'unknown')
-                    print(f"[{self.get_name()}] [MATCH] Year: "
-                          f"{track.get('artist', '')} - {track.get('name', '')} "
-                          f"({track_year}) -> {file_path}")
+                    file_path = file_by_id[file_id].get("path", "unknown")
+                    print(
+                        f"[{self.get_name()}] [MATCH] Year: "
+                        f"{track.get('artist', '')} - {track.get('name', '')} "
+                        f"({track_year}) -> {file_path}"
+                    )
 
         if self.debug:
             print(f"[{self.get_name()}] Found {len(matches)} year-based matches")

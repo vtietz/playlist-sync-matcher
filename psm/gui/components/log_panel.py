@@ -6,6 +6,7 @@ This component provides a consistent log display widget with:
 - Clear/append API
 - Optional maximum height control
 """
+
 from __future__ import annotations
 from typing import Optional
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QTextEdit, QLabel
@@ -32,7 +33,7 @@ class LogPanel(QWidget):
         title: Optional[str] = None,
         max_height: Optional[int] = None,
         font_size: int = 9,
-        parent: Optional[QWidget] = None
+        parent: Optional[QWidget] = None,
     ):
         """Initialize log panel.
 
@@ -96,4 +97,3 @@ class LogPanel(QWidget):
             Plain text content of log
         """
         return self.log_text.toPlainText()
-

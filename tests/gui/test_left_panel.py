@@ -9,7 +9,7 @@ from psm.gui.components.playlist_filter_bar import PlaylistFilterBar
 from psm.gui.components.playlist_proxy_model import PlaylistProxyModel
 
 
-@pytest.fixture(scope='module')
+@pytest.fixture(scope="module")
 def qapp():
     """Create QApplication instance for GUI tests."""
     app = QApplication.instance()
@@ -34,13 +34,7 @@ def left_panel(qapp):
     playlist_proxy_model.setSourceModel(playlists_model)
 
     # Create panel
-    panel = LeftPanel(
-        playlists_model,
-        albums_model,
-        artists_model,
-        playlist_proxy_model,
-        playlist_filter_bar
-    )
+    panel = LeftPanel(playlists_model, albums_model, artists_model, playlist_proxy_model, playlist_filter_bar)
 
     # Store references to prevent premature deletion
     panel._test_models = (playlists_model, albums_model, artists_model)
@@ -59,7 +53,7 @@ class TestLeftPanelCreation:
 
     def test_has_tab_widget(self, left_panel):
         """Panel should have a tab widget."""
-        assert hasattr(left_panel, 'tab_widget')
+        assert hasattr(left_panel, "tab_widget")
         assert left_panel.tab_widget is not None
 
     def test_has_three_tabs(self, left_panel):
@@ -74,17 +68,17 @@ class TestLeftPanelCreation:
 
     def test_has_playlists_tab(self, left_panel):
         """Panel should have playlists tab."""
-        assert hasattr(left_panel, 'playlists_tab')
+        assert hasattr(left_panel, "playlists_tab")
         assert left_panel.playlists_tab is not None
 
     def test_has_albums_view(self, left_panel):
         """Panel should have albums view."""
-        assert hasattr(left_panel, 'albums_view')
+        assert hasattr(left_panel, "albums_view")
         assert left_panel.albums_view is not None
 
     def test_has_artists_view(self, left_panel):
         """Panel should have artists view."""
-        assert hasattr(left_panel, 'artists_view')
+        assert hasattr(left_panel, "artists_view")
         assert left_panel.artists_view is not None
 
 
@@ -145,19 +139,19 @@ class TestLeftPanelSignals:
 
     def test_playlist_selection_changed_signal_exists(self, left_panel):
         """Panel should have playlist_selection_changed signal."""
-        assert hasattr(left_panel, 'playlist_selection_changed')
+        assert hasattr(left_panel, "playlist_selection_changed")
 
     def test_pull_one_clicked_signal_exists(self, left_panel):
         """Panel should have pull_one_clicked signal."""
-        assert hasattr(left_panel, 'pull_one_clicked')
+        assert hasattr(left_panel, "pull_one_clicked")
 
     def test_match_one_clicked_signal_exists(self, left_panel):
         """Panel should have match_one_clicked signal."""
-        assert hasattr(left_panel, 'match_one_clicked')
+        assert hasattr(left_panel, "match_one_clicked")
 
     def test_export_one_clicked_signal_exists(self, left_panel):
         """Panel should have export_one_clicked signal."""
-        assert hasattr(left_panel, 'export_one_clicked')
+        assert hasattr(left_panel, "export_one_clicked")
 
     def test_pull_one_signal_emission(self, left_panel):
         """Should emit pull_one_clicked when playlists tab button clicked."""

@@ -2,6 +2,7 @@
 
 Spawns CLI commands as subprocesses and streams logs/progress back to GUI.
 """
+
 from __future__ import annotations
 import os
 import subprocess
@@ -26,15 +27,15 @@ def _get_cli_command() -> tuple[list[str], str | None]:
         - error_message: Error message if CLI cannot be found, None if OK
     """
     # Check if running as PyInstaller frozen executable
-    if getattr(sys, 'frozen', False):
+    if getattr(sys, "frozen", False):
         # Running as frozen executable - need to find sibling CLI binary
         gui_exe = Path(sys.executable)
 
         # Determine CLI binary name based on platform
-        if platform.system() == 'Windows':
-            cli_name = 'psm-cli.exe'
+        if platform.system() == "Windows":
+            cli_name = "psm-cli.exe"
         else:
-            cli_name = 'psm-cli'
+            cli_name = "psm-cli"
 
         # Look for CLI binary in same directory as GUI
         cli_path = gui_exe.parent / cli_name
@@ -55,7 +56,7 @@ def _get_cli_command() -> tuple[list[str], str | None]:
         return ([str(cli_path)], None)
     else:
         # Running from source - use python -m psm.cli
-        return ([sys.executable, '-m', 'psm.cli'], None)
+        return ([sys.executable, "-m", "psm.cli"], None)
 
 
 class CliRunner(QThread):
@@ -99,12 +100,12 @@ class CliRunner(QThread):
 
             # Set environment to force UTF-8 encoding for subprocess
             env = os.environ.copy()
-            env['PYTHONIOENCODING'] = 'utf-8'  # Force UTF-8 encoding for Python subprocess
-            env['PSM_SKIP_FIRST_RUN_CHECK'] = '1'  # Skip first-run .env check when running from GUI
+            env["PYTHONIOENCODING"] = "utf-8"  # Force UTF-8 encoding for Python subprocess
+            env["PSM_SKIP_FIRST_RUN_CHECK"] = "1"  # Skip first-run .env check when running from GUI
 
             # Platform-specific subprocess options
             creation_flags = 0
-            if platform.system() == 'Windows' and getattr(sys, 'frozen', False):
+            if platform.system() == "Windows" and getattr(sys, "frozen", False):
                 # On Windows frozen mode, suppress console window
                 # Note: CLI spec must have console=True to allow stdout/stderr pipes
                 creation_flags = subprocess.CREATE_NO_WINDOW
@@ -117,8 +118,8 @@ class CliRunner(QThread):
                 text=True,
                 bufsize=1,  # Line buffered
                 universal_newlines=True,
-                encoding='utf-8',  # Force UTF-8 to handle Unicode characters
-                errors='replace',  # Replace unencodable characters instead of crashing
+                encoding="utf-8",  # Force UTF-8 to handle Unicode characters
+                errors="replace",  # Replace unencodable characters instead of crashing
                 env=env,  # Pass modified environment
                 creationflags=creation_flags,  # Suppress console on Windows frozen
             )

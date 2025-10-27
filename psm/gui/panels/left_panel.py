@@ -3,6 +3,7 @@
 This panel encapsulates the entire left sidebar of the main window,
 containing tabbed views for playlists, artists, and albums.
 """
+
 from __future__ import annotations
 from typing import TYPE_CHECKING
 from PySide6.QtWidgets import QWidget, QTabWidget
@@ -56,7 +57,7 @@ class LeftPanel(QWidget):
         artists_model: ArtistsModel,
         playlist_proxy_model: PlaylistProxyModel,
         playlist_filter_bar: PlaylistFilterBar,
-        parent: QWidget = None
+        parent: QWidget = None,
     ):
         """Initialize left panel.
 
@@ -112,7 +113,7 @@ class LeftPanel(QWidget):
             playlists_model=self._playlists_model,
             playlist_proxy_model=self._playlist_proxy_model,
             playlist_filter_bar=self._playlist_filter_bar,
-            parent=self
+            parent=self,
         )
 
         # Wire signals from tab to panel

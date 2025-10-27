@@ -12,6 +12,7 @@ Qt6 Pattern:
 - See: https://doc.qt.io/qtforpython-6/PySide6/QtCore/QSortFilterProxyModel.html
 - The deprecation warnings are false positives in PySide6>=6.6.0
 """
+
 from __future__ import annotations
 from typing import Optional, Set
 from PySide6.QtCore import QSortFilterProxyModel, Qt, QTimer
@@ -255,20 +256,22 @@ class UnifiedTracksProxyModel(QSortFilterProxyModel):
         try:
             # FAST PATH: If no filters are active, accept immediately
             # This avoids ALL expensive data() calls when showing "All Songs"
-            if (self._playlist_track_ids is None and
-                not self._playlist_filter and
-                self._status_filter == "all" and
-                not self._artist_filter and
-                not self._album_filter and
-                self._year_filter is None and
-                not self._confidence_filter and
-                not self._quality_filter and
-                not self._search_text):
+            if (
+                self._playlist_track_ids is None
+                and not self._playlist_filter
+                and self._status_filter == "all"
+                and not self._artist_filter
+                and not self._album_filter
+                and self._year_filter is None
+                and not self._confidence_filter
+                and not self._quality_filter
+                and not self._search_text
+            ):
                 return True
 
             # Get row data once (direct dict access - much faster than repeated data() calls)
             row_data = None
-            if hasattr(source_model, 'get_row_data'):
+            if hasattr(source_model, "get_row_data"):
                 row_data = source_model.get_row_data(source_row)
                 if not row_data:
                     return True  # If no data, show the row
@@ -278,18 +281,18 @@ class UnifiedTracksProxyModel(QSortFilterProxyModel):
             if self._playlist_filter:
                 if self._playlist_track_ids is not None:
                     # Authoritative: Use track_ids once loaded
-                    track_id = row_data.get('id') if row_data else None
+                    track_id = row_data.get("id") if row_data else None
                     if track_id not in self._playlist_track_ids:
                         return False
                 elif row_data:
                     # Fallback: Match playlist name before track_ids are loaded
-                    playlists = row_data.get('playlists', '')
+                    playlists = row_data.get("playlists", "")
                     if not playlists or self._playlist_filter not in playlists:
                         return False
 
             # Early exit: Filter by match status
             if self._status_filter != "all" and row_data:
-                matched = row_data.get('matched', False)
+                matched = row_data.get("matched", False)
                 if self._status_filter == "matched" and not matched:
                     return False
                 elif self._status_filter == "unmatched" and matched:
@@ -297,26 +300,26 @@ class UnifiedTracksProxyModel(QSortFilterProxyModel):
 
             # Early exit: Filter by artist (exact match)
             if self._artist_filter and row_data:
-                artist = row_data.get('artist', '')
+                artist = row_data.get("artist", "")
                 if artist != self._artist_filter:
                     return False
 
             # Early exit: Filter by album (exact match)
             if self._album_filter and row_data:
-                album = row_data.get('album', '')
+                album = row_data.get("album", "")
                 if album != self._album_filter:
                     return False
 
             # Early exit: Filter by year
             if self._year_filter is not None and row_data:
-                year_value = row_data.get('year')
+                year_value = row_data.get("year")
                 if year_value is None or year_value != self._year_filter:
                     return False
 
             # Early exit: Filter by confidence (only applies to matched tracks)
             if self._confidence_filter and row_data:
                 # Extract confidence using canonical parser
-                method = row_data.get('method', '')
+                method = row_data.get("method", "")
                 if not method:
                     # Unmatched track - exclude from confidence filter
                     return False
@@ -327,8 +330,8 @@ class UnifiedTracksProxyModel(QSortFilterProxyModel):
             # Early exit: Filter by quality (only applies to matched tracks)
             if self._quality_filter and row_data:
                 # Derive quality from metadata completeness and bitrate
-                missing_count = row_data.get('missing_metadata_count', 0)
-                bitrate = row_data.get('bitrate_kbps')
+                missing_count = row_data.get("missing_metadata_count", 0)
+                bitrate = row_data.get("bitrate_kbps")
                 quality = get_quality_status_text(missing_count, bitrate)
                 if quality != self._quality_filter:
                     return False
@@ -339,8 +342,8 @@ class UnifiedTracksProxyModel(QSortFilterProxyModel):
 
                 # Search across relevant fields (direct dict access)
                 found = False
-                for field in ['name', 'artist', 'album', 'playlists', 'local_path']:
-                    value = row_data.get(field, '')
+                for field in ["name", "artist", "album", "playlists", "local_path"]:
+                    value = row_data.get(field, "")
                     if value and search_lower in str(value).lower():
                         found = True
                         break

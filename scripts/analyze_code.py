@@ -25,11 +25,12 @@ from typing import List, Tuple
 from collections import defaultdict
 
 # Fix Windows cmd encoding for emojis
-if sys.platform == 'win32':
+if sys.platform == "win32":
     import io
+
     if isinstance(sys.stdout, io.TextIOWrapper):
         try:
-            sys.stdout.reconfigure(encoding='utf-8')
+            sys.stdout.reconfigure(encoding="utf-8")
         except AttributeError:
             pass
 
@@ -40,13 +41,13 @@ def safe_print(text: str):
         print(text)
     except UnicodeEncodeError:
         # Fallback: remove emojis and special chars
-        ascii_text = text.encode('ascii', errors='replace').decode('ascii')
+        ascii_text = text.encode("ascii", errors="replace").decode("ascii")
         print(ascii_text)
 
 
 # Configuration
 MAX_COMPLEXITY = 15  # CCN (Cyclomatic Complexity Number) threshold
-MAX_NLOC = 100       # Max lines of code per function
+MAX_NLOC = 100  # Max lines of code per function
 MAX_LINE_LENGTH = 120  # Max line length (matches project style)
 
 # Project root
@@ -86,16 +87,12 @@ def run_command(cmd: List[str], description: str) -> Tuple[int, str]:
 
     try:
         result = subprocess.run(
-            cmd,
-            cwd=PROJECT_ROOT,
-            capture_output=True,
-            text=True,
-            encoding='utf-8',
-            errors='replace',
-            check=False
+            cmd, cwd=PROJECT_ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace", check=False
         )
 
-        output = result.stdout + result.stderr if result.stdout and result.stderr else (result.stdout or result.stderr or "")
+        output = (
+            result.stdout + result.stderr if result.stdout and result.stderr else (result.stdout or result.stderr or "")
+        )
         print(output)
 
         return result.returncode, output
@@ -114,11 +111,7 @@ def get_changed_files() -> List[str]:
     try:
         # Get modified files (staged + unstaged)
         result = subprocess.run(
-            ["git", "diff", "--name-only", "HEAD"],
-            cwd=PROJECT_ROOT,
-            capture_output=True,
-            text=True,
-            check=True
+            ["git", "diff", "--name-only", "HEAD"], cwd=PROJECT_ROOT, capture_output=True, text=True, check=True
         )
 
         # Also get untracked files
@@ -127,15 +120,14 @@ def get_changed_files() -> List[str]:
             cwd=PROJECT_ROOT,
             capture_output=True,
             text=True,
-            check=True
+            check=True,
         )
 
         all_files = result.stdout.strip().split("\n") + result_untracked.stdout.strip().split("\n")
 
         # Filter for Python files only
         python_files = [
-            f for f in all_files
-            if f.endswith('.py') and f.strip() and not any(excl in f for excl in EXCLUDE_PATTERNS)
+            f for f in all_files if f.endswith(".py") and f.strip() and not any(excl in f for excl in EXCLUDE_PATTERNS)
         ]
 
         return python_files
@@ -154,14 +146,22 @@ def analyze_complexity(files: List[str] = None) -> tuple:
         Tuple of (exit_code, output_text)
     """
     cmd = [
-        sys.executable, "-m", "lizard",
-        "--CCN", str(MAX_COMPLEXITY),  # Complexity threshold
-        "--length", str(MAX_NLOC),     # Function length threshold
-        "--warnings_only",             # Only show issues
-        "--exclude", "*/__pycache__/*",
-        "--exclude", "*/.pytest_cache/*",
-        "--exclude", "*/build/*",
-        "--exclude", "*/dist/*",
+        sys.executable,
+        "-m",
+        "lizard",
+        "--CCN",
+        str(MAX_COMPLEXITY),  # Complexity threshold
+        "--length",
+        str(MAX_NLOC),  # Function length threshold
+        "--warnings_only",  # Only show issues
+        "--exclude",
+        "*/__pycache__/*",
+        "--exclude",
+        "*/.pytest_cache/*",
+        "--exclude",
+        "*/build/*",
+        "--exclude",
+        "*/dist/*",
     ]
 
     if files:
@@ -191,18 +191,22 @@ def analyze_style(files: List[str] = None) -> tuple:
     """
     # Check if flake8 is available
     try:
-        subprocess.run([sys.executable, "-m", "flake8", "--version"],
-                       capture_output=True, check=True)
+        subprocess.run([sys.executable, "-m", "flake8", "--version"], capture_output=True, check=True)
     except subprocess.CalledProcessError:
         print("⚠️  flake8 not installed, skipping style analysis")
         print("   Install with: pip install flake8")
         return 0, ""
 
     cmd = [
-        sys.executable, "-m", "flake8",
-        "--max-line-length", str(MAX_LINE_LENGTH),
-        "--exclude", "__pycache__,.pytest_cache,build,dist,.venv,venv",
-        "--ignore", "E203,W503",  # Black-compatible ignores
+        sys.executable,
+        "-m",
+        "flake8",
+        "--max-line-length",
+        str(MAX_LINE_LENGTH),
+        "--exclude",
+        "__pycache__,.pytest_cache,build,dist,.venv,venv",
+        "--ignore",
+        "E203,W503",  # Black-compatible ignores
         "--count",
         "--statistics",
     ]
@@ -233,17 +237,18 @@ def analyze_formatting(files: List[str] = None) -> tuple:
     """
     # Check if black is available
     try:
-        subprocess.run([sys.executable, "-m", "black", "--version"],
-                       capture_output=True, check=True)
+        subprocess.run([sys.executable, "-m", "black", "--version"], capture_output=True, check=True)
     except subprocess.CalledProcessError:
         print("⚠️  black not installed, skipping formatting analysis")
         print("   Install with: pip install black")
         return 0, ""
 
     cmd = [
-        sys.executable, "-m", "black",
+        sys.executable,
+        "-m",
+        "black",
         "--check",  # Check only, don't modify
-        "--diff",   # Show what would change
+        "--diff",  # Show what would change
         "--color",  # Colorize diff output
     ]
 
@@ -273,14 +278,15 @@ def analyze_types(files: List[str] = None) -> tuple:
     """
     # Check if mypy is available
     try:
-        subprocess.run([sys.executable, "-m", "mypy", "--version"],
-                       capture_output=True, check=True)
+        subprocess.run([sys.executable, "-m", "mypy", "--version"], capture_output=True, check=True)
     except subprocess.CalledProcessError:
         print("ℹ️  mypy not installed, skipping type analysis (optional)")
         return 0, ""
 
     cmd = [
-        sys.executable, "-m", "mypy",
+        sys.executable,
+        "-m",
+        "mypy",
         "--ignore-missing-imports",
         "--no-strict-optional",
         "--check-untyped-defs",
@@ -336,11 +342,11 @@ def parse_style_output(output: str) -> dict:
     """
     file_issues = defaultdict(int)
 
-    for line in output.split('\n'):
-        if ':' in line and len(line.split(':')) >= 3:
+    for line in output.split("\n"):
+        if ":" in line and len(line.split(":")) >= 3:
             # Format: path/to/file.py:line:col: CODE message
-            filepath = line.split(':')[0]
-            if filepath and filepath.endswith('.py'):
+            filepath = line.split(":")[0]
+            if filepath and filepath.endswith(".py"):
                 file_issues[filepath] += 1
 
     return dict(file_issues)
@@ -357,11 +363,11 @@ def parse_complexity_output(output: str) -> dict:
     """
     file_issues = defaultdict(int)
 
-    for line in output.split('\n'):
-        if 'warning:' in line and ':' in line:
+    for line in output.split("\n"):
+        if "warning:" in line and ":" in line:
             # Format: path/to/file.py:line: warning: ...
-            filepath = line.split(':')[0]
-            if filepath and filepath.endswith('.py'):
+            filepath = line.split(":")[0]
+            if filepath and filepath.endswith(".py"):
                 file_issues[filepath] += 1
 
     return dict(file_issues)
@@ -404,7 +410,7 @@ def print_file_summary(complexity_output: str = "", style_output: str = ""):
     # Show top 20 files
     for filepath, complexity, style, total in file_totals[:20]:
         # Shorten path for display
-        display_path = filepath if len(filepath) <= 60 else '...' + filepath[-57:]
+        display_path = filepath if len(filepath) <= 60 else "..." + filepath[-57:]
         print(f"{display_path:<60} {complexity:>8} {style:>8} {total:>8}")
 
     total_files = len(file_totals)
@@ -456,51 +462,23 @@ Examples:
   %(prog)s changed          # Analyze only git-modified files
   %(prog)s files src/ui/main_window.py  # Analyze specific files
   %(prog)s --skip-style all # Skip style checks, only complexity
-        """
+        """,
     )
 
-    parser.add_argument(
-        'mode',
-        choices=['all', 'changed', 'files'],
-        help='Analysis mode'
-    )
-    parser.add_argument(
-        'files',
-        nargs='*',
-        help='Specific files to analyze (only for "files" mode)'
-    )
-    parser.add_argument(
-        '--skip-style',
-        action='store_true',
-        help='Skip flake8 style analysis'
-    )
-    parser.add_argument(
-        '--skip-complexity',
-        action='store_true',
-        help='Skip Lizard complexity analysis'
-    )
-    parser.add_argument(
-        '--skip-formatting',
-        action='store_true',
-        help='Skip Black formatting check'
-    )
-    parser.add_argument(
-        '--skip-types',
-        action='store_true',
-        help='Skip mypy type analysis'
-    )
-    parser.add_argument(
-        '--skip-links',
-        action='store_true',
-        help='Skip documentation link check'
-    )
+    parser.add_argument("mode", choices=["all", "changed", "files"], help="Analysis mode")
+    parser.add_argument("files", nargs="*", help='Specific files to analyze (only for "files" mode)')
+    parser.add_argument("--skip-style", action="store_true", help="Skip flake8 style analysis")
+    parser.add_argument("--skip-complexity", action="store_true", help="Skip Lizard complexity analysis")
+    parser.add_argument("--skip-formatting", action="store_true", help="Skip Black formatting check")
+    parser.add_argument("--skip-types", action="store_true", help="Skip mypy type analysis")
+    parser.add_argument("--skip-links", action="store_true", help="Skip documentation link check")
 
     args = parser.parse_args()
 
     # Determine which files to analyze
     files_to_analyze = None
 
-    if args.mode == 'changed':
+    if args.mode == "changed":
         files_to_analyze = get_changed_files()
         if not files_to_analyze:
             print("✅ No changed Python files found")
@@ -508,7 +486,7 @@ Examples:
         print(f"📝 Analyzing {len(files_to_analyze)} changed file(s):")
         for f in files_to_analyze:
             print(f"  - {f}")
-    elif args.mode == 'files':
+    elif args.mode == "files":
         if not args.files:
             print("❌ Error: 'files' mode requires file arguments")
             return 1
@@ -524,30 +502,30 @@ Examples:
 
     if not args.skip_complexity:
         exit_code, output = analyze_complexity(files_to_analyze)
-        results['Complexity'] = exit_code
+        results["Complexity"] = exit_code
         complexity_output = output
 
     if not args.skip_style:
         exit_code, output = analyze_style(files_to_analyze)
-        results['Style'] = exit_code
+        results["Style"] = exit_code
         style_output = output
 
     if not args.skip_formatting:
         exit_code, output = analyze_formatting(files_to_analyze)
-        results['Formatting'] = exit_code
+        results["Formatting"] = exit_code
 
     if not args.skip_types:
         exit_code, output = analyze_types(files_to_analyze)
-        results['Types'] = exit_code
+        results["Types"] = exit_code
 
-    if not args.skip_links and args.mode == 'all':
+    if not args.skip_links and args.mode == "all":
         # Only run link check in 'all' mode (not for changed files)
         exit_code, output = analyze_links()
-        results['Links'] = exit_code
+        results["Links"] = exit_code
 
     # Print summary with file breakdown
     return print_summary(results, complexity_output, style_output)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())

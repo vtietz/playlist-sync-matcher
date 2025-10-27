@@ -1,4 +1,5 @@
 """Reusable GUI components."""
+
 from .sort_filter_table import SortFilterTable
 from .log_panel import LogPanel
 from .filter_bar import FilterBar
@@ -11,7 +12,14 @@ from .debounced_search_field import DebouncedSearchField
 from .status_bar import StatusBar
 
 __all__ = [
-    'SortFilterTable', 'LogPanel', 'FilterBar', 'PlaylistFilterBar',
-    'UnifiedTracksProxyModel', 'PlaylistProxyModel', 'LinkDelegate',
-    'FolderDelegate', 'DebouncedSearchField', 'StatusBar'
+    "SortFilterTable",
+    "LogPanel",
+    "FilterBar",
+    "PlaylistFilterBar",
+    "UnifiedTracksProxyModel",
+    "PlaylistProxyModel",
+    "LinkDelegate",
+    "FolderDelegate",
+    "DebouncedSearchField",
+    "StatusBar",
 ]

@@ -1,4 +1,5 @@
 """HTML report template generation with jQuery DataTables."""
+
 from typing import Optional
 
 
@@ -10,7 +11,7 @@ def get_html_template(
     default_order: Optional[list[list[int | str]]] = None,
     csv_filename: Optional[str] = None,
     show_navigation: bool = True,
-    active_page: Optional[str] = None
+    active_page: Optional[str] = None,
 ) -> str:
     """Generate a DataTables-powered HTML report with pagination and search.
 
@@ -30,7 +31,7 @@ def get_html_template(
         Complete HTML document as string
     """
     # Build table headers
-    header_html = "".join(f'<th>{col}</th>' for col in columns)
+    header_html = "".join(f"<th>{col}</th>" for col in columns)
 
     # Build table rows
     rows_html = []
@@ -67,11 +68,11 @@ def get_html_template(
 
     # Helper to add 'active' class to current page
     def nav_class(page_name: str) -> str:
-        return ' class="active"' if active_page == page_name else ''
+        return ' class="active"' if active_page == page_name else ""
 
     nav_html = ""
     if show_navigation:
-        nav_html = f'''
+        nav_html = f"""
     <nav class="nav-bar">
         <div class="nav-container">
             <a href="{nav_prefix}index.html" class="nav-home">🏠 Home</a>
@@ -84,9 +85,9 @@ def get_html_template(
             </div>
         </div>
     </nav>
-    '''
+    """
 
-    return f'''<!DOCTYPE html>
+    return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -432,7 +433,7 @@ def get_html_template(
     </script>
 </body>
 </html>
-'''
+"""
 
 
 def get_index_template(reports: dict[str, dict]) -> str:
@@ -458,26 +459,27 @@ def get_index_template(reports: dict[str, dict]) -> str:
             count_str = f"{count:,}" if count is not None else "N/A"
 
             # Choose icon based on report type - match navigation bar icons
-            if report_name == 'matched_tracks':
-                icon = '✓'
-                color = '#34a853'
-            elif report_name == 'unmatched_tracks':
-                icon = '✗'
-                color = '#ea4335'
-            elif report_name == 'unmatched_albums':
-                icon = '💿'
-                color = '#ea4335'
-            elif report_name == 'playlist_coverage':
-                icon = '📊'
-                color = '#4285f4'
-            elif report_name == 'metadata_quality':
-                icon = '🔍'
-                color = '#fbbc04'
+            if report_name == "matched_tracks":
+                icon = "✓"
+                color = "#34a853"
+            elif report_name == "unmatched_tracks":
+                icon = "✗"
+                color = "#ea4335"
+            elif report_name == "unmatched_albums":
+                icon = "💿"
+                color = "#ea4335"
+            elif report_name == "playlist_coverage":
+                icon = "📊"
+                color = "#4285f4"
+            elif report_name == "metadata_quality":
+                icon = "🔍"
+                color = "#fbbc04"
             else:
-                icon = '📄'
-                color = '#1a73e8'
+                icon = "📄"
+                color = "#1a73e8"
 
-            cards_html.append(f'''
+            cards_html.append(
+                f"""
                 <a href="{html_file}" class="report-card">
                     <div class="report-icon" style="color: {color}">{icon}</div>
                     <div class="report-info">
@@ -486,18 +488,21 @@ def get_index_template(reports: dict[str, dict]) -> str:
                         <p class="report-count">{count_str} items</p>
                     </div>
                 </a>
-            ''')
+            """
+            )
 
-        sections_html.append(f'''
+        sections_html.append(
+            f"""
             <section class="report-section">
                 <h2>{category.replace('_', ' ').title()}</h2>
                 <div class="report-grid">
                     {''.join(cards_html)}
                 </div>
             </section>
-        ''')
+        """
+        )
 
-    return f'''<!DOCTYPE html>
+    return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -637,7 +642,7 @@ def get_index_template(reports: dict[str, dict]) -> str:
     </div>
 </body>
 </html>
-'''
+"""
 
 
-__all__ = ['get_html_template', 'get_index_template']
+__all__ = ["get_html_template", "get_index_template"]

@@ -10,10 +10,7 @@ from ..formatting import format_duration, shorten_path
 
 
 def write_playlist_detail_report(
-    db: Database,
-    out_dir: Path,
-    playlist_id: str,
-    provider: str = 'spotify'
+    db: Database, out_dir: Path, playlist_id: str, provider: str = "spotify"
 ) -> tuple[Path, Path]:
     """Write playlist detail report to CSV and HTML.
 
@@ -31,17 +28,21 @@ def write_playlist_detail_report(
     playlist_dir.mkdir(parents=True, exist_ok=True)
 
     # Get playlist info
-    playlist_info = db.conn.execute("""
+    playlist_info = db.conn.execute(
+        """
         SELECT name, owner_name, id
         FROM playlists
         WHERE id = ?
-    """, (playlist_id,)).fetchone()
+    """,
+        (playlist_id,),
+    ).fetchone()
 
     if not playlist_info:
         raise ValueError(f"Playlist {playlist_id} not found in database")
 
     # Fetch all tracks in playlist with match status
-    tracks = db.conn.execute("""
+    tracks = db.conn.execute(
+        """
         SELECT
             t.name as track_name,
             t.artist,
@@ -60,7 +61,9 @@ def write_playlist_detail_report(
         LEFT JOIN library_files l ON m.file_id = l.id
         WHERE pt.playlist_id = ? AND pt.provider = ?
         ORDER BY pt.position
-    """, (playlist_id, provider)).fetchall()
+    """,
+        (playlist_id, provider),
+    ).fetchall()
 
     # Write CSV
     csv_path = playlist_dir / f"{playlist_id}.csv"
@@ -75,42 +78,35 @@ def write_playlist_detail_report(
 
 def _write_csv(csv_path: Path, tracks: list, playlist_info: dict) -> None:
     """Write playlist detail CSV report."""
-    with csv_path.open('w', newline='', encoding='utf-8') as fh:
+    with csv_path.open("w", newline="", encoding="utf-8") as fh:
         w = csv.writer(fh)
-        w.writerow([
-            "#", "track_id", "track_name", "artist", "album", "duration", "year",
-            "status", "local_file"
-        ])
+        w.writerow(["#", "track_id", "track_name", "artist", "album", "duration", "year", "status", "local_file"])
         for idx, row in enumerate(tracks, 1):
-            duration = format_duration(row['duration_ms'])
-            status = "MATCHED" if row['is_matched'] else "UNMATCHED"
-            local_file = row['file_path'] if row['file_path'] else ""
+            duration = format_duration(row["duration_ms"])
+            status = "MATCHED" if row["is_matched"] else "UNMATCHED"
+            local_file = row["file_path"] if row["file_path"] else ""
 
-            w.writerow([
-                idx,
-                row['track_id'],
-                row['track_name'],
-                row['artist'] or "",
-                row['album'] or "",
-                duration,
-                row['year'] or "",
-                status,
-                local_file
-            ])
+            w.writerow(
+                [
+                    idx,
+                    row["track_id"],
+                    row["track_name"],
+                    row["artist"] or "",
+                    row["album"] or "",
+                    duration,
+                    row["year"] or "",
+                    status,
+                    local_file,
+                ]
+            )
 
 
-def _write_html(
-    html_path: Path,
-    tracks: list,
-    playlist_info: dict,
-    provider: str,
-    playlist_id: str
-) -> None:
+def _write_html(html_path: Path, tracks: list, playlist_info: dict, provider: str, playlist_id: str) -> None:
     """Write playlist detail HTML report."""
     links = get_link_generator(provider)
     html_rows = []
 
-    matched_count = sum(1 for t in tracks if t['is_matched'])
+    matched_count = sum(1 for t in tracks if t["is_matched"])
     total_count = len(tracks)
     unmatched_count = total_count - matched_count
     coverage_pct = (matched_count / total_count * 100) if total_count > 0 else 0
@@ -120,51 +116,57 @@ def _write_html(
         track_id_display = f'<code style="font-size: 0.85em">{row["track_id"]}</code>'
 
         # Status badge
-        if row['is_matched']:
+        if row["is_matched"]:
             status_badge = '<span class="badge badge-success">MATCHED</span>'
         else:
             status_badge = '<span class="badge badge-danger">UNMATCHED</span>'
 
         # Track link
-        track_url = links.track_url(row['track_id'])
+        track_url = links.track_url(row["track_id"])
         track_link = f'<a href="{track_url}" target="_blank" title="Open in {provider.title()}">{row["track_name"]}</a>'
 
         # Artist link (if artist_id available)
-        artist_text = row['artist'] or ""
-        if artist_text and row['artist_id']:
-            artist_url = links.artist_url(row['artist_id'])
-            artist_link = f'<a href="{artist_url}" target="_blank" title="Open artist in {provider.title()}">{artist_text}</a>'
+        artist_text = row["artist"] or ""
+        if artist_text and row["artist_id"]:
+            artist_url = links.artist_url(row["artist_id"])
+            artist_link = (
+                f'<a href="{artist_url}" target="_blank" title="Open artist in {provider.title()}">{artist_text}</a>'
+            )
         else:
             artist_link = artist_text
 
         # Album link (if album_id available)
-        album_text = row['album'] or ""
-        if album_text and row['album_id']:
-            album_url = links.album_url(row['album_id'])
-            album_link = f'<a href="{album_url}" target="_blank" title="Open album in {provider.title()}">{album_text}</a>'
+        album_text = row["album"] or ""
+        if album_text and row["album_id"]:
+            album_url = links.album_url(row["album_id"])
+            album_link = (
+                f'<a href="{album_url}" target="_blank" title="Open album in {provider.title()}">{album_text}</a>'
+            )
         else:
             album_link = album_text
 
         # Duration
-        duration = format_duration(row['duration_ms'])
+        duration = format_duration(row["duration_ms"])
 
         # Local file path (shortened for display)
         local_file = ""
-        if row['file_path']:
-            short_path = shorten_path(row['file_path'], max_length=60)
+        if row["file_path"]:
+            short_path = shorten_path(row["file_path"], max_length=60)
             local_file = f'<span class="path-short" title="{row["file_path"]}">{short_path}</span>'
 
-        html_rows.append([
-            idx,
-            track_id_display,
-            track_link,
-            artist_link,
-            album_link,
-            duration,
-            row['year'] or "",
-            status_badge,
-            local_file
-        ])
+        html_rows.append(
+            [
+                idx,
+                track_id_display,
+                track_link,
+                artist_link,
+                album_link,
+                duration,
+                row["year"] or "",
+                status_badge,
+                local_file,
+            ]
+        )
 
     # Create playlist header with Spotify link
     playlist_url = links.playlist_url(playlist_id)
@@ -173,12 +175,12 @@ def _write_html(
     description = (
         f'<div style="margin-bottom: 20px;">'
         f'<strong>Owner:</strong> {playlist_info["owner_name"] or "Unknown"} | '
-        f'<strong>Total Tracks:</strong> {total_count} | '
-        f'<strong>Matched:</strong> {matched_count} | '
-        f'<strong>Unmatched:</strong> {unmatched_count} | '
-        f'<strong>Coverage:</strong> {coverage_pct:.1f}%'
-        f'{playlist_link}'
-        f'</div>'
+        f"<strong>Total Tracks:</strong> {total_count} | "
+        f"<strong>Matched:</strong> {matched_count} | "
+        f"<strong>Unmatched:</strong> {unmatched_count} | "
+        f"<strong>Coverage:</strong> {coverage_pct:.1f}%"
+        f"{playlist_link}"
+        f"</div>"
     )
 
     html_content = get_html_template(
@@ -187,7 +189,7 @@ def _write_html(
         rows=html_rows,
         description=description,
         default_order=[[0, "asc"]],  # Sort by track number
-        csv_filename=f"{playlist_id}.csv"
+        csv_filename=f"{playlist_id}.csv",
     )
 
-    html_path.write_text(html_content, encoding='utf-8')
+    html_path.write_text(html_content, encoding="utf-8")

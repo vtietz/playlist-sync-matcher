@@ -20,7 +20,7 @@ class BottomPanel(QWidget):
     """
 
     # ANSI escape code pattern (compiled once for performance)
-    _ANSI_ESCAPE = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+    _ANSI_ESCAPE = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
 
     def __init__(self, status_bar_widget, parent=None):
         """Initialize the bottom panel.
@@ -55,7 +55,7 @@ class BottomPanel(QWidget):
             message: Log message (may contain ANSI escape codes from CLI commands)
         """
         # Strip ANSI escape codes
-        clean_message = self._ANSI_ESCAPE.sub('', message)
+        clean_message = self._ANSI_ESCAPE.sub("", message)
         self._log_panel.append(clean_message)
 
     def clear_logs(self):

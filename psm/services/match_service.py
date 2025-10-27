@@ -36,7 +36,7 @@ def run_matching(
     verbose: bool = False,
     top_unmatched_tracks: int = 20,
     top_unmatched_albums: int = 10,
-    force_full: bool = False
+    force_full: bool = False,
 ) -> MatchResult:
     """Run matching engine and generate diagnostics.
 
@@ -55,26 +55,22 @@ def run_matching(
     start = time.time()
 
     # Convert dict config to typed MatchingConfig
-    matching_dict = config.get('matching', {})
+    matching_dict = config.get("matching", {})
     matching_config = MatchingConfig(
-        duration_tolerance=matching_dict.get('duration_tolerance', 2.0),
-        max_candidates_per_track=int(matching_dict.get('max_candidates_per_track', 500)),
-        fuzzy_threshold=matching_dict.get('fuzzy_threshold', 0.85)
+        duration_tolerance=matching_dict.get("duration_tolerance", 2.0),
+        max_candidates_per_track=int(matching_dict.get("max_candidates_per_track", 500)),
+        fuzzy_threshold=matching_dict.get("fuzzy_threshold", 0.85),
     )
-    provider = config.get('provider', 'spotify')
+    provider = config.get("provider", "spotify")
 
     # Get logging configuration
-    logging_dict = config.get('logging', {})
-    progress_enabled = logging_dict.get('progress_enabled', True)
-    progress_interval = logging_dict.get('progress_interval', 100)
+    logging_dict = config.get("logging", {})
+    progress_enabled = logging_dict.get("progress_enabled", True)
+    progress_interval = logging_dict.get("progress_interval", 100)
 
     # Use matching engine with logging config
     engine = MatchingEngine(
-        db,
-        matching_config,
-        provider=provider,
-        progress_enabled=progress_enabled,
-        progress_interval=progress_interval
+        db, matching_config, provider=provider, progress_enabled=progress_enabled, progress_interval=progress_interval
     )
 
     if force_full:
@@ -101,10 +97,7 @@ def run_matching(
     # Gather unmatched diagnostics using repository method
     if result.unmatched > 0:
         unmatched_files = db.get_unmatched_library_files()
-        result.unmatched_list = [
-            {'artist': f.artist, 'album': f.album, 'title': f.title}
-            for f in unmatched_files
-        ]
+        result.unmatched_list = [{"artist": f.artist, "album": f.album, "title": f.title} for f in unmatched_files]
 
     result.duration_seconds = time.time() - start
 
@@ -112,8 +105,8 @@ def run_matching(
     _show_unmatched_diagnostics(db, top_unmatched_tracks, top_unmatched_albums)
 
     # Set write signal for GUI auto-refresh
-    db.set_meta('last_write_epoch', str(time.time()))
-    db.set_meta('last_write_source', 'match')
+    db.set_meta("last_write_epoch", str(time.time()))
+    db.set_meta("last_write_source", "match")
     logger.debug("Write signal updated: match operation completed")
 
     return result
@@ -131,7 +124,7 @@ def _show_unmatched_diagnostics(db: Database, top_tracks: int = 20, top_albums: 
         top_albums: Number of top unmatched albums to show
     """
     # Get all unmatched tracks using repository method
-    unmatched_tracks = db.get_unmatched_tracks(provider='spotify')
+    unmatched_tracks = db.get_unmatched_tracks(provider="spotify")
 
     if not unmatched_tracks:
         logger.info("")
@@ -158,16 +151,16 @@ def _show_unmatched_diagnostics(db: Database, top_tracks: int = 20, top_albums: 
         # Check liked tracks using repository method
         liked_ids = set()
         if unmatched_ids:
-            liked_ids = set(db.get_liked_track_ids(unmatched_ids, provider='spotify'))
+            liked_ids = set(db.get_liked_track_ids(unmatched_ids, provider="spotify"))
 
         # Sort by popularity
         sorted_unmatched = sorted(
             unmatched_ids,
             key=lambda tid: (
                 -occurrence_counts.get(tid, 0),
-                (track_by_id[tid].artist or '').lower() if tid in track_by_id else '',
-                (track_by_id[tid].name or '').lower() if tid in track_by_id else ''
-            )
+                (track_by_id[tid].artist or "").lower() if tid in track_by_id else "",
+                (track_by_id[tid].name or "").lower() if tid in track_by_id else "",
+            ),
         )
 
         display_count = min(top_tracks, len(sorted_unmatched))
@@ -201,10 +194,10 @@ def _show_unmatched_diagnostics(db: Database, top_tracks: int = 20, top_albums: 
             track = track_by_id.get(track_id)
             if not track:
                 continue
-            artist = track.artist or ''
-            album = track.album or ''
+            artist = track.artist or ""
+            album = track.album or ""
 
-            if not album or album == '':
+            if not album or album == "":
                 continue  # Skip tracks without album info
 
             # Use artist + album as key (case-insensitive)
@@ -212,19 +205,19 @@ def _show_unmatched_diagnostics(db: Database, top_tracks: int = 20, top_albums: 
 
             if album_key not in album_stats:
                 album_stats[album_key] = {
-                    'artist': artist,
-                    'album': album,
-                    'track_count': 0,
-                    'total_occurrences': 0,
+                    "artist": artist,
+                    "album": album,
+                    "track_count": 0,
+                    "total_occurrences": 0,
                 }
 
-            album_stats[album_key]['track_count'] += 1
-            album_stats[album_key]['total_occurrences'] += occurrence_counts.get(track_id, 0)
+            album_stats[album_key]["track_count"] += 1
+            album_stats[album_key]["total_occurrences"] += occurrence_counts.get(track_id, 0)
 
         # Sort albums by total occurrences (descending), then by track count
         sorted_albums = sorted(
             album_stats.items(),
-            key=lambda item: (-item[1]['total_occurrences'], -item[1]['track_count'], item[1]['artist'].lower())
+            key=lambda item: (-item[1]["total_occurrences"], -item[1]["track_count"], item[1]["artist"].lower()),
         )
 
         if sorted_albums:
@@ -234,10 +227,10 @@ def _show_unmatched_diagnostics(db: Database, top_tracks: int = 20, top_albums: 
             logger.info("[Top Missing Albums] (by playlist popularity):")
 
             for _, album_info in sorted_albums[:display_album_count]:
-                artist = album_info['artist']
-                album = album_info['album']
-                track_count = album_info['track_count']
-                total_occ = album_info['total_occurrences']
+                artist = album_info["artist"]
+                album = album_info["album"]
+                track_count = album_info["track_count"]
+                total_occ = album_info["total_occurrences"]
 
                 logger.info(
                     f"  [{total_occ:2d} occurrences] {artist} - {album} "
@@ -248,11 +241,7 @@ def _show_unmatched_diagnostics(db: Database, top_tracks: int = 20, top_albums: 
                 logger.info(f"  ... and {len(sorted_albums) - display_album_count} more albums")
 
 
-def match_changed_tracks(
-    db: Database,
-    config: Dict[str, Any],
-    track_ids: List[str] | None = None
-) -> int:
+def match_changed_tracks(db: Database, config: Dict[str, Any], track_ids: List[str] | None = None) -> int:
     """Incrementally match all files against only changed/new tracks.
 
     This is the inverse of match_changed_files: instead of matching a few changed
@@ -269,13 +258,13 @@ def match_changed_tracks(
         Number of new matches created
     """
     # Convert dict config to typed MatchingConfig
-    matching_dict = config.get('matching', {})
+    matching_dict = config.get("matching", {})
     matching_config = MatchingConfig(
-        duration_tolerance=matching_dict.get('duration_tolerance', 2.0),
-        max_candidates_per_track=int(matching_dict.get('max_candidates_per_track', 500)),
-        fuzzy_threshold=matching_dict.get('fuzzy_threshold', 0.85)
+        duration_tolerance=matching_dict.get("duration_tolerance", 2.0),
+        max_candidates_per_track=int(matching_dict.get("max_candidates_per_track", 500)),
+        fuzzy_threshold=matching_dict.get("fuzzy_threshold", 0.85),
     )
-    provider = config.get('provider', 'spotify')
+    provider = config.get("provider", "spotify")
 
     # Delegate to matching engine
     engine = MatchingEngine(db, matching_config, provider=provider)
@@ -283,9 +272,7 @@ def match_changed_tracks(
 
 
 def match_changed_files(
-    db: Database,
-    config: Dict[str, Any],
-    file_ids: List[int] | None = None
+    db: Database, config: Dict[str, Any], file_ids: List[int] | None = None
 ) -> tuple[int, List[str]]:
     """Incrementally match only changed/new files against all tracks.
 
@@ -302,13 +289,13 @@ def match_changed_files(
         Tuple of (match_count, list of matched track IDs)
     """
     # Convert dict config to typed MatchingConfig
-    matching_dict = config.get('matching', {})
+    matching_dict = config.get("matching", {})
     matching_config = MatchingConfig(
-        duration_tolerance=matching_dict.get('duration_tolerance', 2.0),
-        max_candidates_per_track=int(matching_dict.get('max_candidates_per_track', 500)),
-        fuzzy_threshold=matching_dict.get('fuzzy_threshold', 0.85)
+        duration_tolerance=matching_dict.get("duration_tolerance", 2.0),
+        max_candidates_per_track=int(matching_dict.get("max_candidates_per_track", 500)),
+        fuzzy_threshold=matching_dict.get("fuzzy_threshold", 0.85),
     )
-    provider = config.get('provider', 'spotify')
+    provider = config.get("provider", "spotify")
 
     # Delegate to matching engine
     engine = MatchingEngine(db, matching_config, provider=provider)

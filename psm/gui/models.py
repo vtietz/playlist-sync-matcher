@@ -2,6 +2,7 @@
 
 All models use DatabaseInterface exclusively via DataFacade.
 """
+
 from __future__ import annotations
 from typing import Any, List, Dict, Optional
 from PySide6.QtCore import Qt, QAbstractTableModel, QModelIndex
@@ -52,7 +53,7 @@ class BaseTableModel(QAbstractTableModel):
         # Pure bounds check - avoid isValid() which can trigger re-entrancy during streaming
         row = index.row()
         col = index.column()
-        
+
         if row < 0 or col < 0 or row >= len(self.data_rows) or col >= len(self.columns):
             return None
 
@@ -60,21 +61,21 @@ class BaseTableModel(QAbstractTableModel):
 
     def _format_cell(self, row: int, col: int, role=Qt.DisplayRole):
         """Format cell data for display, tooltip, sorting, or delegate use.
-        
+
         Protected helper that can be called by subclasses to get base formatting
         without triggering the data() call path (avoiding tail-call recursion).
-        
+
         Args:
             row: Row index (already bounds-checked)
             col: Column index (already bounds-checked)
             role: Qt data role
-            
+
         Returns:
             Formatted cell value or None
         """
         if not (0 <= row < len(self.data_rows) and 0 <= col < len(self.columns)):
             return None
-            
+
         col_name = self.columns[col][0]
         value = self.data_rows[row].get(col_name)
 
@@ -129,9 +130,9 @@ class BaseTableModel(QAbstractTableModel):
         """
         # Map column names to link types
         link_map = {
-            'name': 'track',
-            'artist': 'artist',
-            'album': 'album',
+            "name": "track",
+            "artist": "artist",
+            "album": "album",
         }
         return link_map.get(col_name)
 
@@ -150,9 +151,9 @@ class BaseTableModel(QAbstractTableModel):
 
             # Map column names to ID fields
             id_map = {
-                'name': 'id',         # Track ID
-                'artist': 'artist_id',
-                'album': 'album_id',
+                "name": "id",  # Track ID
+                "artist": "artist_id",
+                "album": "album_id",
             }
 
             id_field = id_map.get(col_name)
@@ -190,10 +191,10 @@ class PlaylistsModel(BaseTableModel):
 
     def __init__(self, parent=None):
         columns = [
-            ('name', 'Name'),
-            ('owner_name', 'Owner'),
-            ('coverage', 'Coverage'),
-            ('relevance', 'Relevance'),
+            ("name", "Name"),
+            ("owner_name", "Owner"),
+            ("coverage", "Coverage"),
+            ("relevance", "Relevance"),
         ]
         super().__init__(columns, parent)
 
@@ -209,20 +210,20 @@ class PlaylistsModel(BaseTableModel):
             col_name = self.columns[col][0]
 
             # Special formatting for Coverage column
-            if col_name == 'coverage' and role == Qt.DisplayRole:
+            if col_name == "coverage" and role == Qt.DisplayRole:
                 row_data = self.data_rows[row]
-                coverage_pct = row_data.get('coverage', 0)
-                matched = row_data.get('matched_count', 0)
-                total = row_data.get('track_count', 0)
+                coverage_pct = row_data.get("coverage", 0)
+                matched = row_data.get("matched_count", 0)
+                total = row_data.get("track_count", 0)
                 return f"{coverage_pct}% ({matched}/{total})"
 
             # Link data for Name column (playlist)
-            if col_name == 'name' and role == Qt.UserRole + 1:
-                return 'playlist'
+            if col_name == "name" and role == Qt.UserRole + 1:
+                return "playlist"
 
-            if col_name == 'name' and role == Qt.UserRole + 2:
+            if col_name == "name" and role == Qt.UserRole + 2:
                 row_data = self.data_rows[row]
-                return row_data.get('id')  # Playlist ID
+                return row_data.get("id")  # Playlist ID
 
             # Use base class for everything else
             return super().data(index, role)
@@ -235,11 +236,11 @@ class PlaylistDetailModel(BaseTableModel):
 
     def __init__(self, parent=None):
         columns = [
-            ('position', '#'),
-            ('name', 'Track'),
-            ('artist', 'Artist'),
-            ('album', 'Album'),
-            ('local_path', 'Local File'),
+            ("position", "#"),
+            ("name", "Track"),
+            ("artist", "Artist"),
+            ("album", "Album"),
+            ("local_path", "Local File"),
         ]
         super().__init__(columns, parent)
 
@@ -249,11 +250,11 @@ class UnmatchedTracksModel(BaseTableModel):
 
     def __init__(self, parent=None):
         columns = [
-            ('name', 'Track'),
-            ('artist', 'Artist'),
-            ('album', 'Album'),
-            ('year', 'Year'),
-            ('isrc', 'ISRC'),
+            ("name", "Track"),
+            ("artist", "Artist"),
+            ("album", "Album"),
+            ("year", "Year"),
+            ("isrc", "ISRC"),
         ]
         super().__init__(columns, parent)
 
@@ -263,12 +264,12 @@ class MatchedTracksModel(BaseTableModel):
 
     def __init__(self, parent=None):
         columns = [
-            ('name', 'Track'),
-            ('artist', 'Artist'),
-            ('album', 'Album'),
-            ('local_path', 'Local File'),
-            ('score', 'Score'),
-            ('method', 'Method'),
+            ("name", "Track"),
+            ("artist", "Artist"),
+            ("album", "Album"),
+            ("local_path", "Local File"),
+            ("score", "Score"),
+            ("method", "Method"),
         ]
         super().__init__(columns, parent)
 
@@ -278,10 +279,10 @@ class PlaylistCoverageModel(BaseTableModel):
 
     def __init__(self, parent=None):
         columns = [
-            ('name', 'Playlist'),
-            ('total', 'Total'),
-            ('matched', 'Matched'),
-            ('coverage_pct', 'Coverage %'),
+            ("name", "Playlist"),
+            ("total", "Total"),
+            ("matched", "Matched"),
+            ("coverage_pct", "Coverage %"),
         ]
         super().__init__(columns, parent)
 
@@ -291,12 +292,12 @@ class UnmatchedAlbumsModel(BaseTableModel):
 
     def __init__(self, parent=None):
         columns = [
-            ('artist', 'Artist'),
-            ('album', 'Album'),
-            ('total', 'Total'),
-            ('matched', 'Matched'),
-            ('missing', 'Missing'),
-            ('percent_complete', '% Complete'),
+            ("artist", "Artist"),
+            ("album", "Album"),
+            ("total", "Total"),
+            ("matched", "Matched"),
+            ("missing", "Missing"),
+            ("percent_complete", "% Complete"),
         ]
         super().__init__(columns, parent)
 
@@ -306,11 +307,11 @@ class LikedTracksModel(BaseTableModel):
 
     def __init__(self, parent=None):
         columns = [
-            ('name', 'Track'),
-            ('artist', 'Artist'),
-            ('album', 'Album'),
-            ('local_path', 'Local File'),
-            ('added_at', 'Added'),
+            ("name", "Track"),
+            ("artist", "Artist"),
+            ("album", "Album"),
+            ("local_path", "Local File"),
+            ("added_at", "Added"),
         ]
         super().__init__(columns, parent)
 
@@ -332,17 +333,17 @@ class UnifiedTracksModel(BaseTableModel):
 
     def __init__(self, parent=None):
         columns = [
-            ('name', 'Track'),
-            ('is_liked', '❤️'),
-            ('artist', 'Artist'),
-            ('album', 'Album'),
-            ('year', 'Year'),
-            ('matched', 'Matched'),
-            ('confidence', 'Confidence'),
-            ('quality', 'Quality'),
-            ('local_path', 'Local File'),
-            ('playlist_count', '#PL'),
-            ('playlists', 'Playlists'),
+            ("name", "Track"),
+            ("is_liked", "❤️"),
+            ("artist", "Artist"),
+            ("album", "Album"),
+            ("year", "Year"),
+            ("matched", "Matched"),
+            ("confidence", "Confidence"),
+            ("quality", "Quality"),
+            ("local_path", "Local File"),
+            ("playlist_count", "#PL"),
+            ("playlists", "Playlists"),
         ]
         super().__init__(columns, parent)
         # Cache for playlists data (track_id -> playlist names string)
@@ -361,7 +362,7 @@ class UnifiedTracksModel(BaseTableModel):
         # Find playlists column index
         playlists_col = None
         for i, (col_name, _) in enumerate(self.columns):
-            if col_name == 'playlists':
+            if col_name == "playlists":
                 playlists_col = i
                 break
 
@@ -371,10 +372,10 @@ class UnifiedTracksModel(BaseTableModel):
         # Update cache and data
         for row_idx in row_indices:
             if 0 <= row_idx < len(self.data_rows):
-                track_id = self.data_rows[row_idx].get('id')
+                track_id = self.data_rows[row_idx].get("id")
                 if track_id and track_id in playlists_data:
                     playlists_str = playlists_data[track_id]
-                    self.data_rows[row_idx]['playlists'] = playlists_str
+                    self.data_rows[row_idx]["playlists"] = playlists_str
                     self._playlists_cache[track_id] = playlists_str
 
         # Emit dataChanged for the playlists column only
@@ -393,9 +394,9 @@ class UnifiedTracksModel(BaseTableModel):
         """
         # Restore cached playlists for tracks we've already loaded
         for row in rows:
-            track_id = row.get('id')
+            track_id = row.get("id")
             if track_id and track_id in self._playlists_cache:
-                row['playlists'] = self._playlists_cache[track_id]
+                row["playlists"] = self._playlists_cache[track_id]
 
         super().set_data(rows)
 
@@ -436,9 +437,9 @@ class UnifiedTracksModel(BaseTableModel):
 
         # Restore cached playlists for tracks we've already loaded
         for row in chunk_rows:
-            track_id = row.get('id')
+            track_id = row.get("id")
             if track_id and track_id in self._playlists_cache:
-                row['playlists'] = self._playlists_cache[track_id]
+                row["playlists"] = self._playlists_cache[track_id]
 
         # Insert rows incrementally
         start_row = len(self.data_rows)
@@ -468,14 +469,14 @@ class UnifiedTracksModel(BaseTableModel):
     @property
     def is_streaming(self) -> bool:
         """Check if currently streaming data."""
-        return getattr(self, '_is_streaming', False)
+        return getattr(self, "_is_streaming", False)
 
     def data(self, index, role=Qt.DisplayRole):
         """Get cell data with special formatting for matched, confidence, and quality columns."""
         # Pure bounds check - avoid isValid() and boolean truthiness which trigger re-entrancy
         row = index.row()
         col = index.column()
-        
+
         if row < 0 or col < 0 or row >= len(self.data_rows) or col >= len(self.columns):
             return None
 
@@ -485,72 +486,72 @@ class UnifiedTracksModel(BaseTableModel):
 
         if role == Qt.DisplayRole:
             # Format liked column with heart emoji
-            if col_name == 'is_liked':
+            if col_name == "is_liked":
                 return "❤️" if value else ""
 
             # Format matched column with check/cross
-            elif col_name == 'matched':
+            elif col_name == "matched":
                 if isinstance(value, bool):
                     return format_boolean_check(value)
                 return ""
 
             # Format confidence column
-            elif col_name == 'confidence':
+            elif col_name == "confidence":
                 # Only show confidence if track is matched
-                if row_data.get('matched'):
-                    method = row_data.get('method')
+                if row_data.get("matched"):
+                    method = row_data.get("method")
                     if method:
                         return extract_confidence(method)
                 return ""
 
             # Format quality column (only for matched tracks)
-            elif col_name == 'quality':
-                if row_data.get('matched'):
-                    missing_count = row_data.get('missing_metadata_count', 0)
-                    bitrate_kbps = row_data.get('bitrate_kbps')
+            elif col_name == "quality":
+                if row_data.get("matched"):
+                    missing_count = row_data.get("missing_metadata_count", 0)
+                    bitrate_kbps = row_data.get("bitrate_kbps")
                     return get_quality_status_text(missing_count, bitrate_kbps)
                 return ""
 
         # UserRole returns raw values for filtering/sorting
         elif role == Qt.UserRole:
             # For confidence, return the extracted value for sorting
-            if col_name == 'confidence':
-                if row_data.get('matched'):
-                    method = row_data.get('method')
+            if col_name == "confidence":
+                if row_data.get("matched"):
+                    method = row_data.get("method")
                     if method:
                         return extract_confidence(method)
                 return ""
 
             # For quality, return the text for sorting
-            elif col_name == 'quality':
-                if row_data.get('matched'):
-                    missing_count = row_data.get('missing_metadata_count', 0)
-                    bitrate_kbps = row_data.get('bitrate_kbps')
+            elif col_name == "quality":
+                if row_data.get("matched"):
+                    missing_count = row_data.get("missing_metadata_count", 0)
+                    bitrate_kbps = row_data.get("bitrate_kbps")
                     return get_quality_status_text(missing_count, bitrate_kbps)
                 return ""
 
         # ToolTipRole provides helpful hints
         elif role == Qt.ToolTipRole:
             # Confidence tooltip
-            if col_name == 'confidence' and row_data.get('matched'):
-                method = row_data.get('method')
+            if col_name == "confidence" and row_data.get("matched"):
+                method = row_data.get("method")
                 if method:
                     return get_confidence_tooltip(method)
 
             # Quality tooltip
-            elif col_name == 'quality' and row_data.get('matched'):
-                missing_count = row_data.get('missing_metadata_count', 0)
-                bitrate_kbps = row_data.get('bitrate_kbps')
+            elif col_name == "quality" and row_data.get("matched"):
+                missing_count = row_data.get("missing_metadata_count", 0)
+                bitrate_kbps = row_data.get("bitrate_kbps")
                 # Try to determine which fields are missing
                 missing_fields = []
-                if not row_data.get('title'):
-                    missing_fields.append('title')
-                if not row_data.get('artist'):
-                    missing_fields.append('artist')
-                if not row_data.get('album'):
-                    missing_fields.append('album')
-                if not row_data.get('year'):
-                    missing_fields.append('year')
+                if not row_data.get("title"):
+                    missing_fields.append("title")
+                if not row_data.get("artist"):
+                    missing_fields.append("artist")
+                if not row_data.get("album"):
+                    missing_fields.append("album")
+                if not row_data.get("year"):
+                    missing_fields.append("year")
                 return get_quality_tooltip(missing_count, bitrate_kbps, missing_fields)
 
         # For other columns, use base formatting helper (no tail-call to avoid re-entrancy)
@@ -562,12 +563,12 @@ class AlbumsModel(BaseTableModel):
 
     def __init__(self, parent=None):
         columns = [
-            ('album', 'Album'),
-            ('artist', 'Artist'),
-            ('track_count', 'Tracks'),
-            ('playlist_count', 'Playlists'),
-            ('coverage', 'Coverage'),  # Format: "75% (75/100)"
-            ('relevance', 'Relevance'),
+            ("album", "Album"),
+            ("artist", "Artist"),
+            ("track_count", "Tracks"),
+            ("playlist_count", "Playlists"),
+            ("coverage", "Coverage"),  # Format: "75% (75/100)"
+            ("relevance", "Relevance"),
         ]
         super().__init__(columns, parent)
 
@@ -577,11 +578,11 @@ class ArtistsModel(BaseTableModel):
 
     def __init__(self, parent=None):
         columns = [
-            ('artist', 'Artist'),
-            ('track_count', 'Tracks'),
-            ('album_count', 'Albums'),
-            ('playlist_count', 'Playlists'),
-            ('coverage', 'Coverage'),  # Format: "75% (75/100)"
-            ('relevance', 'Relevance'),
+            ("artist", "Artist"),
+            ("track_count", "Tracks"),
+            ("album_count", "Albums"),
+            ("playlist_count", "Playlists"),
+            ("coverage", "Coverage"),  # Format: "75% (75/100)"
+            ("relevance", "Relevance"),
         ]
         super().__init__(columns, parent)

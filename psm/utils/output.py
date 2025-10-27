@@ -13,7 +13,7 @@ def section_header(text: str) -> str:
     Returns:
         Formatted header string
     """
-    return click.style(f"▶ {text}", fg='cyan', bold=True)
+    return click.style(f"▶ {text}", fg="cyan", bold=True)
 
 
 def success(text: str, prefix: str = "✓") -> str:
@@ -112,12 +112,12 @@ def report_files(csv_path: Path | str, html_path: Path | str, label: str) -> str
     Returns:
         Formatted report files string
     """
-    csv = click.style(str(Path(csv_path).resolve()), fg='yellow')
-    html = click.style(str(Path(html_path).resolve()), fg='yellow')
+    csv = click.style(str(Path(csv_path).resolve()), fg="yellow")
+    html = click.style(str(Path(html_path).resolve()), fg="yellow")
     return f"  {click.style('•', fg='blue')} {label}:\n    CSV:  {csv}\n    HTML: {html}"
 
 
-def count_badge(count: int, label: str, color: str = 'cyan') -> str:
+def count_badge(count: int, label: str, color: str = "cyan") -> str:
     """Format a count badge.
 
     Args:
@@ -137,7 +137,7 @@ def divider() -> str:
     Returns:
         Divider string
     """
-    return click.style("─" * 60, fg='bright_black')
+    return click.style("─" * 60, fg="bright_black")
 
 
 __all__ = [

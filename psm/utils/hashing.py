@@ -22,11 +22,12 @@ def partial_hash(path: Path, head_bytes: int = 64 * 1024, tail_bytes: int = 64 *
     """
     st = path.stat()
     size = st.st_size
-    with path.open('rb') as fh:
+    with path.open("rb") as fh:
         data = _read_head_tail(fh, size, head_bytes, tail_bytes)
     h = hashlib.sha1()
     h.update(str(size).encode())
     h.update(data)
     return h.hexdigest()
+
 
 __all__ = ["partial_hash"]

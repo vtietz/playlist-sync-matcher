@@ -2,7 +2,12 @@
 
 import pytest
 from pathlib import Path
-from psm.services.export_service import export_playlists, _find_existing_m3u_files, _detect_obsolete_files, _clean_export_directory
+from psm.services.export_service import (
+    export_playlists,
+    _find_existing_m3u_files,
+    _detect_obsolete_files,
+    _clean_export_directory,
+)
 from tests.mocks.mock_database import MockDatabase
 
 
@@ -11,10 +16,10 @@ def sample_db():
     """Create a mock database with a sample playlist."""
     db = MockDatabase()
     # Add a playlist using the proper method
-    db.upsert_playlist('playlist123', 'Test Playlist', 'snap1', owner_id='owner1', owner_name='TestOwner')
+    db.upsert_playlist("playlist123", "Test Playlist", "snap1", owner_id="owner1", owner_name="TestOwner")
     # Add a track (no local file, so strict mode produces empty playlist)
-    db.upsert_track({'id': 'track1', 'name': 'Song', 'artist': 'Artist', 'duration_ms': 180000})
-    db.replace_playlist_tracks('playlist123', [(0, 'track1', None)])
+    db.upsert_track({"id": "track1", "name": "Song", "artist": "Artist", "duration_ms": 180000})
+    db.replace_playlist_tracks("playlist123", [(0, "track1", None)])
     return db
 
 

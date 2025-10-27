@@ -136,13 +136,13 @@ class ActionsToolbar(QToolBar):
         # Check if this button is currently running (highlighted orange)
         # If so, cancel instead of starting
         button_action_map = {
-            self._btn_build: 'build',
-            self._btn_pull: 'pull',
-            self._btn_scan: 'scan',
-            self._btn_match: 'match',
-            self._btn_export: 'export',
-            self._btn_report: 'report',
-            self._btn_refresh: 'refresh',
+            self._btn_build: "build",
+            self._btn_pull: "pull",
+            self._btn_scan: "scan",
+            self._btn_match: "match",
+            self._btn_export: "export",
+            self._btn_report: "report",
+            self._btn_refresh: "refresh",
         }
 
         action_name = button_action_map.get(button)
@@ -202,11 +202,11 @@ class ActionsToolbar(QToolBar):
         """
         # Map step names to buttons
         step_buttons = {
-            'pull': self._btn_pull,
-            'scan': self._btn_scan,
-            'match': self._btn_match,
-            'export': self._btn_export,
-            'report': self._btn_report
+            "pull": self._btn_pull,
+            "scan": self._btn_scan,
+            "match": self._btn_match,
+            "export": self._btn_export,
+            "report": self._btn_report,
         }
 
         # Clear previous step highlighting (restore all step buttons to disabled gray)
@@ -312,8 +312,6 @@ class ActionsToolbar(QToolBar):
             }
         """
 
-
-
     def _get_error_style(self, button: QPushButton) -> str:
         """Get error (red) style with button-appropriate padding.
 
@@ -349,12 +347,12 @@ class ActionsToolbar(QToolBar):
             Corresponding button or None if not mapped
         """
         action_map = {
-            'build': self._btn_build,
-            'pull': self._btn_pull,
-            'scan': self._btn_scan,
-            'match': self._btn_match,
-            'export': self._btn_export,
-            'report': self._btn_report,
+            "build": self._btn_build,
+            "pull": self._btn_pull,
+            "scan": self._btn_scan,
+            "match": self._btn_match,
+            "export": self._btn_export,
+            "report": self._btn_report,
         }
         return action_map.get(action_name)
 
@@ -371,32 +369,38 @@ class ActionsToolbar(QToolBar):
             # This is expected and not an error
             return
 
-        if state == 'running':
+        if state == "running":
             # Reset all buttons to idle state before starting new action
             # This clears any previous error states
             self.resetAllActionStates()
-            
+
             self._running_action = action_name
             self._apply_active_style(button)
             button.setEnabled(True)  # Keep button enabled for cancellation
-            original_tooltip = button.toolTip().replace(' (Click to cancel)', '')
+            original_tooltip = button.toolTip().replace(" (Click to cancel)", "")
             button.setToolTip(f"{original_tooltip} (Click to cancel)")
-        elif state == 'error':
+        elif state == "error":
             self._running_action = None
             button.setStyleSheet(self._get_error_style(button))
             button.setCursor(Qt.ArrowCursor)
-            button.setToolTip(button.toolTip().replace(' (Click to cancel)', ''))
-        elif state == 'idle':
+            button.setToolTip(button.toolTip().replace(" (Click to cancel)", ""))
+        elif state == "idle":
             self._running_action = None
             self._restore_button_style(button)
             button.setCursor(Qt.ArrowCursor)
-            button.setToolTip(button.toolTip().replace(' (Click to cancel)', ''))
+            button.setToolTip(button.toolTip().replace(" (Click to cancel)", ""))
 
     def resetAllActionStates(self):
         """Reset all action buttons to their default (idle) states."""
         self._running_action = None
-        for button in [self._btn_build, self._btn_pull, self._btn_scan,
-                       self._btn_match, self._btn_export, self._btn_report]:
+        for button in [
+            self._btn_build,
+            self._btn_pull,
+            self._btn_scan,
+            self._btn_match,
+            self._btn_export,
+            self._btn_report,
+        ]:
             self._restore_button_style(button)
             button.setCursor(Qt.ArrowCursor)
-            button.setToolTip(button.toolTip().replace(' (Click to cancel)', ''))
+            button.setToolTip(button.toolTip().replace(" (Click to cancel)", ""))

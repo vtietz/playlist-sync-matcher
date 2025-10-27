@@ -31,15 +31,15 @@ from .analysis_service import (
 )
 
 __all__ = [
-    'pull_data',
-    'run_matching',
-    'export_playlists',
-    'pull_single_playlist',
-    'match_single_playlist',
-    'export_single_playlist',
-    'build_single_playlist',
-    'analyze_library_quality',
-    'print_quality_report',
-    'QualityReport',
-    'QualityIssue',
+    "pull_data",
+    "run_matching",
+    "export_playlists",
+    "pull_single_playlist",
+    "match_single_playlist",
+    "export_single_playlist",
+    "build_single_playlist",
+    "analyze_library_quality",
+    "print_quality_report",
+    "QualityReport",
+    "QualityIssue",
 ]

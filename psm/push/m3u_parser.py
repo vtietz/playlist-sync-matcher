@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 """Lightweight M3U parser for push feature.
 
 We only need to recover the ordered list of local file paths from an exported
@@ -15,6 +16,7 @@ tracks via the matches table using their stored absolute path when available.
 from pathlib import Path
 from typing import List
 
+
 def parse_m3u_paths(path: Path) -> List[str]:
     """Return ordered list of path-like lines from an M3U file.
 
@@ -25,13 +27,13 @@ def parse_m3u_paths(path: Path) -> List[str]:
         List of (string) paths in order they appeared (comments & metadata removed).
     """
     lines = []
-    text = path.read_text(encoding='utf-8', errors='ignore')
+    text = path.read_text(encoding="utf-8", errors="ignore")
     parent = path.parent
     for raw in text.splitlines():
         line = raw.strip()
         if not line:
             continue
-        if line.startswith('#'):
+        if line.startswith("#"):
             # Skip all comment / directive lines – we don't need metadata for reverse mapping
             continue
         p = Path(line)
@@ -47,5 +49,6 @@ def parse_m3u_paths(path: Path) -> List[str]:
                 pass
         lines.append(str(p))
     return lines
+
 
 __all__ = ["parse_m3u_paths"]

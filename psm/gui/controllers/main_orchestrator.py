@@ -1,4 +1,5 @@
 """Main orchestrator coordinating all GUI controllers."""
+
 from __future__ import annotations
 from typing import TYPE_CHECKING, Optional
 from PySide6.QtCore import QObject, QTimer
@@ -42,7 +43,7 @@ class MainOrchestrator(QObject):
         facade: DataFacade,
         executor: CliExecutor,
         facade_factory=None,
-        parent: Optional[QObject] = None
+        parent: Optional[QObject] = None,
     ):
         """Initialize orchestrator and all controllers.
 
@@ -63,44 +64,26 @@ class MainOrchestrator(QObject):
         self._db_monitor = self._setup_db_monitor()
 
         # Create action state manager for button colorization
-        self.action_state_manager = ActionStateManager(
-            on_state_change=self._on_action_state_change
-        )
+        self.action_state_manager = ActionStateManager(on_state_change=self._on_action_state_change)
 
         # Initialize controllers
         self.data_refresh = DataRefreshController(
-            window=window,
-            facade=facade,
-            facade_factory=self.facade_factory,
-            db_monitor=self._db_monitor,
-            parent=self
+            window=window, facade=facade, facade_factory=self.facade_factory, db_monitor=self._db_monitor, parent=self
         )
 
         self.selection_sync = SelectionSyncController(
-            window=window,
-            facade=facade,
-            facade_factory=self.facade_factory,
-            db_monitor=self._db_monitor,
-            parent=self
+            window=window, facade=facade, facade_factory=self.facade_factory, db_monitor=self._db_monitor, parent=self
         )
 
         self.command = CommandController(
-            window=window,
-            executor=executor,
-            db_monitor=self._db_monitor,
-            data_refresh=self.data_refresh,
-            parent=self
+            window=window, executor=executor, db_monitor=self._db_monitor, data_refresh=self.data_refresh, parent=self
         )
 
         # Pass action state manager to command controller
         self.command.command_service.action_state_manager = self.action_state_manager
 
         self.watch_mode = WatchModeController(
-            window=window,
-            executor=executor,
-            db_monitor=self._db_monitor,
-            data_refresh=self.data_refresh,
-            parent=self
+            window=window, executor=executor, db_monitor=self._db_monitor, data_refresh=self.data_refresh, parent=self
         )
 
         # Wire cross-controller dependencies
@@ -111,7 +94,7 @@ class MainOrchestrator(QObject):
 
         # Show welcome message first
         QTimer.singleShot(0, self._show_welcome_message)
-        
+
         # Initial data load - use async to avoid blocking UI
         QTimer.singleShot(100, self.data_refresh.refresh_all_async)
 
@@ -124,24 +107,26 @@ class MainOrchestrator(QObject):
         try:
             # Get DB path from active connection
             from psm.db import DatabaseInterface
+
             db_obj: DatabaseInterface = self.facade.db
 
             # Try to get path from db object (implementation-specific attributes)
-            if hasattr(db_obj, '_db_path'):
+            if hasattr(db_obj, "_db_path"):
                 db_path = Path(db_obj._db_path).resolve()  # type: ignore
-            elif hasattr(db_obj, 'path'):
+            elif hasattr(db_obj, "path"):
                 db_path = Path(db_obj.path).resolve()  # type: ignore
             else:
                 # Fallback to config
                 from psm.config import load_config
+
                 config = load_config()
-                db_path = Path(config['database']['path']).resolve()
+                db_path = Path(config["database"]["path"]).resolve()
 
             # Create controller - it will create DatabaseChangeDetector internally
             monitor = DbAutoRefreshController(
                 db_path=db_path,
-                get_write_epoch=lambda: self.facade.db.get_meta('last_write_epoch') or '0',
-                on_change_detected=self._on_external_db_change
+                get_write_epoch=lambda: self.facade.db.get_meta("last_write_epoch") or "0",
+                on_change_detected=self._on_external_db_change,
             )
 
             return monitor
@@ -156,7 +141,7 @@ class MainOrchestrator(QObject):
 
         # Try to get write source for better logging
         try:
-            write_source = self.facade.db.get_meta('last_write_source') or 'unknown'
+            write_source = self.facade.db.get_meta("last_write_source") or "unknown"
             self.window.append_log(f"🔄 Database changed externally ({write_source}), auto-refreshing...{watch_status}")
         except Exception:
             self.window.append_log(f"🔄 Database changed externally, auto-refreshing...{watch_status}")
@@ -231,20 +216,20 @@ Loading data from database...
             state: New state ('idle', 'running', 'success', 'error')
         """
         # Handle Build sub-step highlighting
-        if action_name.startswith('build:'):
-            sub_step = action_name.split(':', 1)[1]
-            if sub_step == 'clear':
+        if action_name.startswith("build:"):
+            sub_step = action_name.split(":", 1)[1]
+            if sub_step == "clear":
                 # Clear all sub-step highlighting
                 self.window.toolbar.highlightBuildStep(None)
             else:
                 # Highlight specific sub-step
                 self.window.toolbar.highlightBuildStep(sub_step)
         # Handle per-playlist actions (left panel buttons)
-        elif action_name.startswith('playlist:'):
-            playlist_action = action_name.split(':', 1)[1]  # e.g., 'pull', 'match', 'export'
+        elif action_name.startswith("playlist:"):
+            playlist_action = action_name.split(":", 1)[1]  # e.g., 'pull', 'match', 'export'
             self._set_playlist_button_state(playlist_action, state)
         # Handle per-track actions (tracks panel buttons)
-        elif action_name.endswith(':track'):
+        elif action_name.endswith(":track"):
             self._set_track_button_state(action_name, state)
         else:
             # Regular action state change - update toolbar button
@@ -258,16 +243,16 @@ Loading data from database...
             state: State ('idle', 'running', 'success', 'error')
         """
         # Get the playlists tab from left panel
-        if not hasattr(self.window, 'left_panel') or not hasattr(self.window.left_panel, 'playlists_tab'):
+        if not hasattr(self.window, "left_panel") or not hasattr(self.window.left_panel, "playlists_tab"):
             return
 
         playlists_tab = self.window.left_panel.playlists_tab
 
         # Map action to button
         button_map = {
-            'pull': getattr(playlists_tab, 'btn_pull_one', None),
-            'match': getattr(playlists_tab, 'btn_match_one', None),
-            'export': getattr(playlists_tab, 'btn_export_one', None),
+            "pull": getattr(playlists_tab, "btn_pull_one", None),
+            "match": getattr(playlists_tab, "btn_match_one", None),
+            "export": getattr(playlists_tab, "btn_export_one", None),
         }
 
         button = button_map.get(action)
@@ -275,11 +260,11 @@ Loading data from database...
             return
 
         # Apply state styling (reuse toolbar styling logic)
-        if state == 'running':
+        if state == "running":
             button.setStyleSheet(self._get_button_running_style())
-        elif state == 'error':
+        elif state == "error":
             button.setStyleSheet(self._get_button_error_style())
-        elif state == 'idle':
+        elif state == "idle":
             button.setStyleSheet("")  # Clear custom styling (return to default blue)
 
     def _set_track_button_state(self, action_name: str, state: str):
@@ -290,18 +275,18 @@ Loading data from database...
             state: State ('idle', 'running', 'error')
         """
         # Extract base action from 'match:track' → 'match'
-        base_action = action_name.split(':')[0]
+        base_action = action_name.split(":")[0]
 
         # Get tracks panel from main window
-        if not hasattr(self.window, 'tracks_panel'):
+        if not hasattr(self.window, "tracks_panel"):
             return
 
         tracks_panel = self.window.tracks_panel
 
         # Map action to button
         button_map = {
-            'match': getattr(tracks_panel, 'btn_match_one', None),
-            'diagnose': getattr(tracks_panel, 'btn_diagnose', None),
+            "match": getattr(tracks_panel, "btn_match_one", None),
+            "diagnose": getattr(tracks_panel, "btn_diagnose", None),
         }
 
         button = button_map.get(base_action)
@@ -309,11 +294,11 @@ Loading data from database...
             return
 
         # Apply state styling (reuse same styles as playlist buttons)
-        if state == 'running':
+        if state == "running":
             button.setStyleSheet(self._get_button_running_style())
-        elif state == 'error':
+        elif state == "error":
             button.setStyleSheet(self._get_button_error_style())
-        elif state == 'idle':
+        elif state == "idle":
             button.setStyleSheet("")  # Clear custom styling (return to default blue)
 
     def _get_button_running_style(self) -> str:

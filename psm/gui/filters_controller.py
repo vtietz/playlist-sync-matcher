@@ -6,6 +6,7 @@ This controller encapsulates all filter-related logic:
 - Filter coordination
 - FilterStore integration
 """
+
 from __future__ import annotations
 from typing import TYPE_CHECKING, Optional, Callable
 import logging
@@ -43,9 +44,7 @@ class FiltersController:
         logger.debug("All filters cleared")
 
     def handle_playlist_filter_change(
-        self,
-        playlist_name: Optional[str],
-        fetch_tracks_callback: Optional[Callable[[str], None]] = None
+        self, playlist_name: Optional[str], fetch_tracks_callback: Optional[Callable[[str], None]] = None
     ):
         """Handle playlist filter change from FilterBar.
 

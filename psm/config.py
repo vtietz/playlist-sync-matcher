@@ -87,7 +87,7 @@ def validate_single_provider(cfg: Dict[str, Any]) -> str:
     Raises:
         ValueError: If no provider or multiple providers are configured
     """
-    providers = cfg.get('providers', {})
+    providers = cfg.get("providers", {})
     if not providers:
         raise ValueError(
             "No providers section in configuration. "
@@ -95,10 +95,7 @@ def validate_single_provider(cfg: Dict[str, Any]) -> str:
         )
 
     # Find all providers with a client_id configured
-    configured = [
-        name for name, conf in providers.items()
-        if isinstance(conf, dict) and conf.get('client_id')
-    ]
+    configured = [name for name, conf in providers.items() if isinstance(conf, dict) and conf.get("client_id")]
 
     if len(configured) == 0:
         # Check if there are provider sections without client_id
@@ -109,8 +106,7 @@ def validate_single_provider(cfg: Dict[str, Any]) -> str:
                 f"Please set PSM__PROVIDERS__{provider_names[0].upper()}__CLIENT_ID"
             )
         raise ValueError(
-            "No provider configured. "
-            "Please set a provider client_id (e.g., PSM__PROVIDERS__SPOTIFY__CLIENT_ID)"
+            "No provider configured. " "Please set a provider client_id (e.g., PSM__PROVIDERS__SPOTIFY__CLIENT_ID)"
         )
 
     if len(configured) > 1:
@@ -142,15 +138,15 @@ def _load_dotenv(path: Path) -> Dict[str, str]:
     values: Dict[str, str] = {}
     if not path.exists():
         return values
-    for line in path.read_text(encoding='utf-8').splitlines():
+    for line in path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
-        if not line or line.startswith('#') or '=' not in line:
+        if not line or line.startswith("#") or "=" not in line:
             continue
-        key, val = line.split('=', 1)
+        key, val = line.split("=", 1)
         key = key.strip()
         val = val.strip()
         # Strip inline comments starting with # unless inside quotes
-        if '#' in val:
+        if "#" in val:
             in_single = False
             in_double = False
             result_chars = []
@@ -159,10 +155,10 @@ def _load_dotenv(path: Path) -> Dict[str, str]:
                     in_single = not in_single
                 elif ch == '"' and not in_single:
                     in_double = not in_double
-                if ch == '#' and not in_single and not in_double:
+                if ch == "#" and not in_single and not in_double:
                     break
                 result_chars.append(ch)
-            val = ''.join(result_chars).rstrip()
+            val = "".join(result_chars).rstrip()
         # Remove wrapping quotes if present
         if (val.startswith('"') and val.endswith('"')) or (val.startswith("'") and val.endswith("'")):
             if len(val) >= 2:
@@ -186,8 +182,8 @@ def load_config(explicit_file: str | None = None, overrides: Dict[str, Any] | No
         dict: Configuration dictionary (for typed access use load_typed_config()).
     """
     dotenv_values: Dict[str, str] = {}
-    if os.environ.get('PSM_ENABLE_DOTENV') or not os.environ.get('PYTEST_CURRENT_TEST'):
-        dotenv_values = _load_dotenv(Path('.env'))
+    if os.environ.get("PSM_ENABLE_DOTENV") or not os.environ.get("PYTEST_CURRENT_TEST"):
+        dotenv_values = _load_dotenv(Path(".env"))
     # Deep copy defaults to avoid cross-call mutation of nested dicts
     cfg: Dict[str, Any] = copy.deepcopy(_DEFAULTS)
 
@@ -196,10 +192,12 @@ def load_config(explicit_file: str | None = None, overrides: Dict[str, Any] | No
     # Environment variable prefix (legacy project prefix was different; now standardized on PSM__)
     prefix = "PSM__"
     # Merge .env and real environment (real env wins)
-    combined = {**{k: v for k, v in dotenv_values.items() if k.startswith(prefix)},
-                **{k: v for k, v in os.environ.items() if k.startswith(prefix)}}
+    combined = {
+        **{k: v for k, v in dotenv_values.items() if k.startswith(prefix)},
+        **{k: v for k, v in os.environ.items() if k.startswith(prefix)},
+    }
     for raw_key, value in combined.items():
-        path_parts = raw_key[len(prefix):].split("__")
+        path_parts = raw_key[len(prefix) :].split("__")
         cursor: Dict[str, Any] = cfg
         for part in path_parts[:-1]:
             cursor = cursor.setdefault(part.lower(), {})  # type: ignore[assignment]
@@ -208,7 +206,7 @@ def load_config(explicit_file: str | None = None, overrides: Dict[str, Any] | No
         cfg = deep_merge(cfg, overrides)
 
     # Configure logging based on log_level
-    _configure_logging(cfg.get('log_level', 'INFO'))
+    _configure_logging(cfg.get("log_level", "INFO"))
 
     return cfg
 
@@ -227,6 +225,7 @@ def load_typed_config(explicit_file: str | None = None, overrides: Dict[str, Any
         AppConfig: Typed configuration object with .to_dict() for dict conversion
     """
     from .config_types import AppConfig
+
     dict_config = load_config(explicit_file, overrides)
     return AppConfig.from_dict(dict_config)
 
@@ -239,11 +238,11 @@ def _configure_logging(level_str: str) -> None:
     """
     level_str = level_str.upper()
     level_map = {
-        'DEBUG': logging.DEBUG,
-        'INFO': logging.INFO,
-        'WARNING': logging.WARNING,
-        'ERROR': logging.ERROR,
-        'CRITICAL': logging.CRITICAL,
+        "DEBUG": logging.DEBUG,
+        "INFO": logging.INFO,
+        "WARNING": logging.WARNING,
+        "ERROR": logging.ERROR,
+        "CRITICAL": logging.CRITICAL,
     }
     level = level_map.get(level_str, logging.INFO)
 
@@ -253,7 +252,7 @@ def _configure_logging(level_str: str) -> None:
         # Configure root logger for CLI mode (simple format)
         logging.basicConfig(
             level=level,
-            format='%(message)s',  # Simple format - just the message
+            format="%(message)s",  # Simple format - just the message
         )
     else:
         # Logging already configured (e.g., by GUI), just update level
@@ -263,7 +262,7 @@ def _configure_logging(level_str: str) -> None:
 def coerce_scalar(value: str) -> Any:
     txt = value.strip()
     # JSON object or array
-    if (txt.startswith('[') and txt.endswith(']')) or (txt.startswith('{') and txt.endswith('}')):
+    if (txt.startswith("[") and txt.endswith("]")) or (txt.startswith("{") and txt.endswith("}")):
         try:
             return json.loads(txt)
         except Exception:
@@ -284,5 +283,6 @@ def coerce_scalar(value: str) -> Any:
         return float(txt)
     except Exception:
         return txt
+
 
 __all__ = ["load_config", "deep_merge", "load_typed_config", "validate_single_provider"]

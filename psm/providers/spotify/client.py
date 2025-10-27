@@ -51,14 +51,19 @@ class SpotifyAPIClient:
         Raises:
             requests.HTTPError: On non-retryable errors
         """
-        if os.environ.get('PSM__TEST__MODE') == '1':  # pragma: no cover - test shortcut
-            if path.startswith('/playlists/'):
-                pid = path.split('/')[-1]
-                return {'id': pid, 'name': 'Stub Playlist', 'snapshot_id': 'snap-stub', 'owner': {'id': 'owner', 'display_name': 'Owner'}}
-            if path.endswith('/tracks'):
-                return {'items': []}
-            if path == '/me':
-                return {'id': 'user-stub'}
+        if os.environ.get("PSM__TEST__MODE") == "1":  # pragma: no cover - test shortcut
+            if path.startswith("/playlists/"):
+                pid = path.split("/")[-1]
+                return {
+                    "id": pid,
+                    "name": "Stub Playlist",
+                    "snapshot_id": "snap-stub",
+                    "owner": {"id": "owner", "display_name": "Owner"},
+                }
+            if path.endswith("/tracks"):
+                return {"items": []}
+            if path == "/me":
+                return {"id": "user-stub"}
             return {}
         r = requests.get(API_BASE + path, headers=self._headers(), params=params, timeout=30)
         if r.status_code == 429:
@@ -121,7 +126,7 @@ class SpotifyAPIClient:
         Returns:
             User profile dict with 'id', 'display_name', etc.
         """
-        return self._get('/me')
+        return self._get("/me")
 
     def current_user_playlists(self) -> Iterator[Dict[str, Any]]:
         """Fetch all playlists for the current user.
@@ -132,8 +137,8 @@ class SpotifyAPIClient:
         limit = 50
         offset = 0
         while True:
-            data = self._get('/me/playlists', params={'limit': limit, 'offset': offset})
-            items = data.get('items', [])
+            data = self._get("/me/playlists", params={"limit": limit, "offset": offset})
+            items = data.get("items", [])
             logger.debug(f"Fetched {len(items)} playlists (offset={offset})")
             for pl in items:
                 yield pl
@@ -150,24 +155,26 @@ class SpotifyAPIClient:
         Returns:
             List of playlist item dicts with 'track' and 'added_at'
         """
-        if os.environ.get('PSM__TEST__MODE') == '1':  # pragma: no cover - test shortcut
-            return [{
-                'added_at': '2025-01-01T00:00:00Z',
-                'track': {
-                    'id': 'track_stub_1',
-                    'name': 'Stub Track',
-                    'artists': [{'name': 'Stub Artist'}],
-                    'album': {'name': 'Stub Album', 'release_date': '2024-01-01'},
-                    'external_ids': {'isrc': 'ISRCSTUB1'},
-                    'duration_ms': 180000,
+        if os.environ.get("PSM__TEST__MODE") == "1":  # pragma: no cover - test shortcut
+            return [
+                {
+                    "added_at": "2025-01-01T00:00:00Z",
+                    "track": {
+                        "id": "track_stub_1",
+                        "name": "Stub Track",
+                        "artists": [{"name": "Stub Artist"}],
+                        "album": {"name": "Stub Album", "release_date": "2024-01-01"},
+                        "external_ids": {"isrc": "ISRCSTUB1"},
+                        "duration_ms": 180000,
+                    },
                 }
-            }]
+            ]
         tracks: List[Dict[str, Any]] = []
         limit = 100
         offset = 0
         while True:
-            data = self._get(f'/playlists/{playlist_id}/tracks', params={'limit': limit, 'offset': offset})
-            items = data.get('items', [])
+            data = self._get(f"/playlists/{playlist_id}/tracks", params={"limit": limit, "offset": offset})
+            items = data.get("items", [])
             tracks.extend(items)
             logger.debug(f"Playlist {playlist_id} page fetched {len(items)} tracks (offset={offset})")
             if len(items) < limit:
@@ -186,7 +193,7 @@ class SpotifyAPIClient:
         Returns:
             Playlist dict with full metadata
         """
-        return self._get(f'/playlists/{playlist_id}')
+        return self._get(f"/playlists/{playlist_id}")
 
     def replace_playlist_tracks_remote(self, playlist_id: str, track_ids: Sequence[str]):  # pragma: no cover
         """Replace all tracks in a playlist with a new set.
@@ -200,21 +207,23 @@ class SpotifyAPIClient:
         """
         if not track_ids:
             # Clear playlist
-            self._put(f'/playlists/{playlist_id}/tracks', json={'uris': []})
+            self._put(f"/playlists/{playlist_id}/tracks", json={"uris": []})
             return
+
         # Helper to chunk
         def chunks(seq, size):
             for i in range(0, len(seq), size):
-                yield seq[i:i+size]
+                yield seq[i : i + size]
+
         if len(track_ids) <= 100:
-            uris = [f'spotify:track:{tid}' for tid in track_ids]
-            self._put(f'/playlists/{playlist_id}/tracks', json={'uris': uris})
+            uris = [f"spotify:track:{tid}" for tid in track_ids]
+            self._put(f"/playlists/{playlist_id}/tracks", json={"uris": uris})
             return
         # >100 – clear then add in batches
-        self._put(f'/playlists/{playlist_id}/tracks', json={'uris': []})
+        self._put(f"/playlists/{playlist_id}/tracks", json={"uris": []})
         for batch in chunks(track_ids, 100):
-            uris = [f'spotify:track:{tid}' for tid in batch]
-            self._post(f'/playlists/{playlist_id}/tracks', json={'uris': uris})
+            uris = [f"spotify:track:{tid}" for tid in batch]
+            self._post(f"/playlists/{playlist_id}/tracks", json={"uris": uris})
 
     def liked_tracks(self) -> Iterator[Dict[str, Any]]:
         """Fetch all liked (saved) tracks for the current user.
@@ -225,8 +234,8 @@ class SpotifyAPIClient:
         limit = 50
         offset = 0
         while True:
-            data = self._get('/me/tracks', params={'limit': limit, 'offset': offset})
-            items = data.get('items', [])
+            data = self._get("/me/tracks", params={"limit": limit, "offset": offset})
+            items = data.get("items", [])
             logger.debug(f"Fetched {len(items)} liked tracks (offset={offset})")
             for t in items:
                 yield t

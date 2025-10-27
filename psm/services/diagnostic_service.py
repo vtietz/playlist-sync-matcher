@@ -24,7 +24,7 @@ class DiagnosticResult:
         match_confidence: str | None = None,
         closest_files: List[Tuple[Dict[str, Any], float]] = None,
         total_files: int = 0,
-        fuzzy_threshold: float = 0.78
+        fuzzy_threshold: float = 0.78,
     ):
         self.track_found = track_found
         self.track_info = track_info
@@ -38,12 +38,7 @@ class DiagnosticResult:
         self.fuzzy_threshold = fuzzy_threshold
 
 
-def diagnose_track(
-    db: DatabaseInterface,
-    track_id: str,
-    provider: str = 'spotify',
-    top_n: int = 5
-) -> DiagnosticResult:
+def diagnose_track(db: DatabaseInterface, track_id: str, provider: str = "spotify", top_n: int = 5) -> DiagnosticResult:
     """Diagnose why a track isn't matching.
 
     Args:
@@ -57,7 +52,7 @@ def diagnose_track(
     """
     # Get fuzzy threshold from config metadata (using correct table name)
     fuzzy_threshold = 0.78
-    threshold_str = db.get_meta('fuzzy_threshold')
+    threshold_str = db.get_meta("fuzzy_threshold")
     if threshold_str:
         try:
             fuzzy_threshold = float(threshold_str)
@@ -71,14 +66,14 @@ def diagnose_track(
         return DiagnosticResult(track_found=False)
 
     track_info = {
-        'id': track_row.id,
-        'name': track_row.name,
-        'artist': track_row.artist,
-        'album': track_row.album,
-        'duration_ms': track_row.duration_ms,
-        'year': track_row.year,
-        'normalized': track_row.normalized,
-        'isrc': track_row.isrc,
+        "id": track_row.id,
+        "name": track_row.name,
+        "artist": track_row.artist,
+        "album": track_row.album,
+        "duration_ms": track_row.duration_ms,
+        "year": track_row.year,
+        "normalized": track_row.normalized,
+        "isrc": track_row.isrc,
     }
 
     # 2. Check if already matched using repository method
@@ -90,14 +85,14 @@ def diagnose_track(
             track_info=track_info,
             is_matched=True,
             matched_file=match_info,
-            match_score=match_info['score'],
-            match_method=match_info['method'],
-            match_confidence=match_info.get('confidence'),
-            fuzzy_threshold=fuzzy_threshold
+            match_score=match_info["score"],
+            match_method=match_info["method"],
+            match_confidence=match_info.get("confidence"),
+            fuzzy_threshold=fuzzy_threshold,
         )
 
     # 3. Find closest files using fuzzy matching
-    track_norm = track_info.get('normalized') or ''
+    track_norm = track_info.get("normalized") or ""
 
     # Get total file count and all files for matching
     total_files = db.count_library_files()
@@ -108,7 +103,7 @@ def diagnose_track(
             track_info=track_info,
             is_matched=False,
             total_files=total_files,
-            fuzzy_threshold=fuzzy_threshold
+            fuzzy_threshold=fuzzy_threshold,
         )
 
     # Fetch all files using repository method
@@ -117,21 +112,21 @@ def diagnose_track(
     scored_files: List[Tuple[Dict[str, Any], float]] = []
 
     for file_row in all_files:
-        file_norm = file_row.normalized or ''
+        file_norm = file_row.normalized or ""
         if not file_norm:
             continue
 
         # Calculate fuzzy score
         score = fuzz.token_set_ratio(track_norm, file_norm) / 100.0
         file_dict = {
-            'id': file_row.id,
-            'path': file_row.path,
-            'title': file_row.title,
-            'artist': file_row.artist,
-            'album': file_row.album,
-            'duration': file_row.duration,
-            'normalized': file_row.normalized,
-            'year': file_row.year,
+            "id": file_row.id,
+            "path": file_row.path,
+            "title": file_row.title,
+            "artist": file_row.artist,
+            "album": file_row.album,
+            "duration": file_row.duration,
+            "normalized": file_row.normalized,
+            "year": file_row.year,
         }
         scored_files.append((file_dict, score))
 
@@ -145,7 +140,7 @@ def diagnose_track(
         is_matched=False,
         closest_files=closest_files,
         total_files=total_files,
-        fuzzy_threshold=fuzzy_threshold
+        fuzzy_threshold=fuzzy_threshold,
     )
 
 
@@ -162,8 +157,8 @@ def _get_confidence_info(method_str: str) -> Dict[str, str]:
     confidence = "UNKNOWN"
     if "MatchConfidence." in method_str:
         confidence = method_str.split(".")[-1]
-    elif ':' in method_str:
-        parts = method_str.split(':')
+    elif ":" in method_str:
+        parts = method_str.split(":")
         if len(parts) >= 2:
             confidence = parts[1]
 
@@ -173,13 +168,10 @@ def _get_confidence_info(method_str: str) -> Dict[str, str]:
         "HIGH": "Strong match with high similarity score (>85%)",
         "MODERATE": "Reasonable match with moderate similarity (70-85%)",
         "LOW": "Weak match with low similarity (<70%)",
-        "UNKNOWN": "Matching method not recorded"
+        "UNKNOWN": "Matching method not recorded",
     }
 
-    return {
-        'level': confidence,
-        'description': descriptions.get(confidence, "Confidence level unknown")
-    }
+    return {"level": confidence, "description": descriptions.get(confidence, "Confidence level unknown")}
 
 
 def _get_quality_info(file_info: Dict[str, Any]) -> Dict[str, Any]:
@@ -193,17 +185,17 @@ def _get_quality_info(file_info: Dict[str, Any]) -> Dict[str, Any]:
     """
     # Count missing metadata
     missing_fields = []
-    if not file_info.get('title'):
-        missing_fields.append('title')
-    if not file_info.get('artist'):
-        missing_fields.append('artist')
-    if not file_info.get('album'):
-        missing_fields.append('album')
-    if not file_info.get('year'):
-        missing_fields.append('year')
+    if not file_info.get("title"):
+        missing_fields.append("title")
+    if not file_info.get("artist"):
+        missing_fields.append("artist")
+    if not file_info.get("album"):
+        missing_fields.append("album")
+    if not file_info.get("year"):
+        missing_fields.append("year")
 
     missing_count = len(missing_fields)
-    bitrate_kbps = file_info.get('bitrate_kbps')
+    bitrate_kbps = file_info.get("bitrate_kbps")
 
     # Determine quality level (same logic as formatters.py)
     if missing_count >= 3:
@@ -260,14 +252,10 @@ def _get_quality_info(file_info: Dict[str, Any]) -> Dict[str, Any]:
         "EXCELLENT": "Complete metadata and high-quality audio",
         "GOOD": "Good metadata but lower bitrate or minor gaps",
         "PARTIAL": "Some metadata missing or low audio quality",
-        "POOR": "Significant metadata gaps or very low audio quality"
+        "POOR": "Significant metadata gaps or very low audio quality",
     }
 
-    return {
-        'level': overall_quality,
-        'summary': summaries.get(overall_quality, "Quality unknown"),
-        'details': details
-    }
+    return {"level": overall_quality, "summary": summaries.get(overall_quality, "Quality unknown"), "details": details}
 
 
 def format_diagnostic_output(result: DiagnosticResult) -> str:
@@ -297,15 +285,15 @@ def format_diagnostic_output(result: DiagnosticResult) -> str:
     lines.append("🎵 Track Information")
     lines.append("=" * 70)
     lines.append(f"Track:    {track['artist']} - {track['name']}")
-    if track.get('album'):
+    if track.get("album"):
         lines.append(f"Album:    {track['album']}")
-    if track.get('year'):
+    if track.get("year"):
         lines.append(f"Year:     {track['year']}")
-    if track.get('duration_ms'):
-        duration_sec = track['duration_ms'] / 1000
+    if track.get("duration_ms"):
+        duration_sec = track["duration_ms"] / 1000
         duration_str = f"{int(duration_sec // 60)}:{int(duration_sec % 60):02d}"
         lines.append(f"Duration: {duration_str} ({track['duration_ms']}ms)")
-    if track.get('isrc'):
+    if track.get("isrc"):
         lines.append(f"ISRC:     {track['isrc']}")
     lines.append(f"ID:       {track['id']}")
     lines.append("")
@@ -321,7 +309,7 @@ def format_diagnostic_output(result: DiagnosticResult) -> str:
         lines.append(f"Score:       {result.match_score:.2%} ({result.match_method})")
 
         # Add confidence information (prioritize explicit MANUAL confidence)
-        if result.match_confidence == 'MANUAL':
+        if result.match_confidence == "MANUAL":
             lines.append("Confidence:  MANUAL - User-selected override")
         else:
             confidence_info = _get_confidence_info(result.match_method)
@@ -330,8 +318,8 @@ def format_diagnostic_output(result: DiagnosticResult) -> str:
         # Add quality information
         quality_info = _get_quality_info(matched)
         lines.append(f"Quality:     {quality_info['level']} - {quality_info['summary']}")
-        if quality_info['details']:
-            for detail in quality_info['details']:
+        if quality_info["details"]:
+            for detail in quality_info["details"]:
                 lines.append(f"             {detail}")
 
         lines.append("")
@@ -340,10 +328,10 @@ def format_diagnostic_output(result: DiagnosticResult) -> str:
         lines.append(f"  Title:      {matched.get('title', 'N/A')}")
         lines.append(f"  Album:      {matched.get('album', 'N/A')}")
         lines.append(f"  Year:       {matched.get('year', 'N/A')}")
-        if matched.get('duration'):
+        if matched.get("duration"):
             file_duration_str = f"{int(matched['duration'] // 60)}:{int(matched['duration'] % 60):02d}"
             lines.append(f"  Duration:   {file_duration_str} ({matched['duration']}s)")
-        if matched.get('bitrate_kbps'):
+        if matched.get("bitrate_kbps"):
             lines.append(f"  Bitrate:    {matched['bitrate_kbps']} kbps")
         lines.append(f"  Normalized: {matched.get('normalized', 'N/A')}")
         return "\n".join(lines)
@@ -385,12 +373,12 @@ def format_diagnostic_output(result: DiagnosticResult) -> str:
         lines.append(f"{idx}. Score: {score_pct:.1f}% - {status}")
         lines.append(f"   Path:       {file_info['path']}")
         lines.append(f"   File tags:  {file_info.get('artist', 'N/A')} - {file_info.get('title', 'N/A')}")
-        if file_info.get('album'):
+        if file_info.get("album"):
             lines.append(f"   Album:      {file_info['album']}")
-        if file_info.get('duration'):
+        if file_info.get("duration"):
             file_duration_str = f"{int(file_info['duration'] // 60)}:{int(file_info['duration'] % 60):02d}"
-            track_duration_sec = track.get('duration_ms', 0) / 1000
-            duration_diff = abs(file_info['duration'] - track_duration_sec)
+            track_duration_sec = track.get("duration_ms", 0) / 1000
+            duration_diff = abs(file_info["duration"] - track_duration_sec)
             lines.append(f"   Duration:   {file_duration_str} (diff: {duration_diff:.1f}s)")
         lines.append(f"   Normalized: {file_info.get('normalized', 'N/A')}")
         lines.append("")
@@ -409,16 +397,20 @@ def format_diagnostic_output(result: DiagnosticResult) -> str:
 
         # Calculate duration difference
         best_file = result.closest_files[0][0]
-        if best_file.get('duration') and track.get('duration_ms'):
-            track_duration_sec = track['duration_ms'] / 1000
-            file_duration_sec = best_file['duration']
+        if best_file.get("duration") and track.get("duration_ms"):
+            track_duration_sec = track["duration_ms"] / 1000
+            file_duration_sec = best_file["duration"]
             duration_diff = abs(file_duration_sec - track_duration_sec)
 
             lines.append(f"  Duration difference: {duration_diff:.1f} seconds")
-            lines.append(f"  (Spotify: {int(track_duration_sec//60)}:{int(track_duration_sec%60):02d}, File: {int(file_duration_sec//60)}:{int(file_duration_sec%60):02d})")
+            lines.append(
+                f"  (Spotify: {int(track_duration_sec//60)}:{int(track_duration_sec%60):02d}, File: {int(file_duration_sec//60)}:{int(file_duration_sec%60):02d})"
+            )
             lines.append("")
             lines.append("  Recommended fix:")
-            lines.append(f"  → Increase duration_tolerance from current value to at least {int(duration_diff) + 2} seconds")
+            lines.append(
+                f"  → Increase duration_tolerance from current value to at least {int(duration_diff) + 2} seconds"
+            )
             lines.append("  → Edit config or set: PSM__MATCHING__DURATION_TOLERANCE=" + str(int(duration_diff) + 2))
         else:
             lines.append("  Recommended fixes:")
@@ -432,7 +424,9 @@ def format_diagnostic_output(result: DiagnosticResult) -> str:
         # Calculate the right direction: need to LOWER threshold to be more permissive
         # Suggest a threshold slightly below the best score (with 5% margin)
         recommended_threshold = max(0.5, best_score - 0.05)
-        lines.append(f"  → Consider lowering fuzzy_threshold from {result.fuzzy_threshold:.1%} to {recommended_threshold:.1%}")
+        lines.append(
+            f"  → Consider lowering fuzzy_threshold from {result.fuzzy_threshold:.1%} to {recommended_threshold:.1%}"
+        )
         lines.append("  → Edit config or set: PSM__MATCHING__FUZZY_THRESHOLD=" + f"{recommended_threshold:.2f}")
 
     # Low scores: Tag issues

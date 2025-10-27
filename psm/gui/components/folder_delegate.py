@@ -3,6 +3,7 @@
 Adds a small folder icon (📁) next to local file paths that opens the containing
 folder in the system file explorer when clicked.
 """
+
 from __future__ import annotations
 import os
 import subprocess
@@ -120,12 +121,12 @@ class FolderDelegate(QStyledItemDelegate):
                 if self._hover_index != index:
                     self._hover_index = index
                     # Request repaint
-                    if hasattr(self.parent(), 'viewport'):
+                    if hasattr(self.parent(), "viewport"):
                         self.parent().viewport().update()
             else:
                 if self._hover_index == index:
                     self._hover_index = None
-                    if hasattr(self.parent(), 'viewport'):
+                    if hasattr(self.parent(), "viewport"):
                         self.parent().viewport().update()
 
         return super().editorEvent(event, model, option, index)
@@ -191,4 +192,4 @@ class FolderDelegate(QStyledItemDelegate):
             logger.error(f"Failed to open folder for {file_path}: {e}")
 
 
-__all__ = ['FolderDelegate']
+__all__ = ["FolderDelegate"]

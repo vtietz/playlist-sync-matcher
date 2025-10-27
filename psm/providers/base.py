@@ -13,6 +13,7 @@ Key abstractions:
 - ProviderClient: API client interface
 - Provider: Complete provider factory
 """
+
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -20,16 +21,19 @@ from typing import Sequence, Protocol, Dict, Any
 
 # ---------------- Domain Models (minimal for current needs) -----------------
 
+
 @dataclass(frozen=True)
 class Artist:
     name: str
     external_id: str | None = None
+
 
 @dataclass(frozen=True)
 class Album:
     title: str
     external_id: str | None = None
     year: int | None = None
+
 
 @dataclass(frozen=True)
 class Track:
@@ -43,6 +47,7 @@ class Track:
     year: int | None = None
     provider: str = "spotify"
 
+
 @dataclass(frozen=True)
 class Playlist:
     playlist_id: str
@@ -52,7 +57,9 @@ class Playlist:
     snapshot_id: str | None
     provider: str = "spotify"
 
+
 # ---------------- Capability descriptor -----------------
+
 
 @dataclass(frozen=True)
 class ProviderCapabilities:
@@ -64,7 +71,9 @@ class ProviderCapabilities:
     # Indicates provider can fully replace (overwrite) playlist track ordering
     replace_playlist: bool = False
 
+
 # ---------------- Link Generator (for web URLs) -----------------
+
 
 class ProviderLinkGenerator(Protocol):
     """Protocol for generating web links to provider resources.
@@ -89,7 +98,9 @@ class ProviderLinkGenerator(Protocol):
         """Generate URL for a playlist page."""
         ...  # pragma: no cover
 
+
 # ---------------- Authentication Provider -----------------
+
 
 class AuthProvider(ABC):
     """Abstract authentication provider interface.
@@ -127,7 +138,9 @@ class AuthProvider(ABC):
             Complete redirect URI (e.g., http://127.0.0.1:9876/callback)
         """
 
+
 # ---------------- Provider Factory (Complete Provider) -----------------
+
 
 class Provider(ABC):
     """Complete provider abstraction with auth + client factory.
@@ -236,7 +249,15 @@ def available_provider_instances() -> list[str]:
 
 
 __all__ = [
-    'Artist', 'Album', 'Track', 'Playlist', 'ProviderCapabilities',
-    'ProviderLinkGenerator', 'AuthProvider', 'Provider',
-    'register_provider', 'get_provider_instance', 'available_provider_instances',
+    "Artist",
+    "Album",
+    "Track",
+    "Playlist",
+    "ProviderCapabilities",
+    "ProviderLinkGenerator",
+    "AuthProvider",
+    "Provider",
+    "register_provider",
+    "get_provider_instance",
+    "available_provider_instances",
 ]

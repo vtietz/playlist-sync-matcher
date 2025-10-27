@@ -8,7 +8,7 @@ from psm.gui.models import UnifiedTracksModel
 from psm.gui.state import FilterStore
 
 
-@pytest.fixture(scope='module')
+@pytest.fixture(scope="module")
 def qapp():
     """Create QApplication instance for GUI tests."""
     app = QApplication.instance()
@@ -25,14 +25,12 @@ def tracks_panel(qapp):
 
     # Create filter store
     from PySide6.QtCore import QObject
+
     parent = QObject()
     filter_store = FilterStore(parent)
 
     # Create panel
-    panel = TracksPanel(
-        unified_tracks_model,
-        filter_store
-    )
+    panel = TracksPanel(unified_tracks_model, filter_store)
 
     # Store references to prevent premature deletion
     panel._test_model = unified_tracks_model
@@ -51,12 +49,12 @@ class TestTracksPanelCreation:
 
     def test_has_unified_tracks_view(self, tracks_panel):
         """Panel should have a unified tracks view."""
-        assert hasattr(tracks_panel, 'unified_tracks_view')
+        assert hasattr(tracks_panel, "unified_tracks_view")
         assert tracks_panel.unified_tracks_view is not None
 
     def test_has_diagnose_button(self, tracks_panel):
         """Panel should have a diagnose button."""
-        assert hasattr(tracks_panel, 'btn_diagnose')
+        assert hasattr(tracks_panel, "btn_diagnose")
         assert tracks_panel.btn_diagnose is not None
 
     def test_diagnose_button_initially_disabled(self, tracks_panel):
@@ -101,15 +99,15 @@ class TestTracksPanelSignals:
 
     def test_track_selected_signal_exists(self, tracks_panel):
         """Panel should have track_selected signal."""
-        assert hasattr(tracks_panel, 'track_selected')
+        assert hasattr(tracks_panel, "track_selected")
 
     def test_diagnose_clicked_signal_exists(self, tracks_panel):
         """Panel should have diagnose_clicked signal."""
-        assert hasattr(tracks_panel, 'diagnose_clicked')
+        assert hasattr(tracks_panel, "diagnose_clicked")
 
     def test_selection_changed_signal_exists(self, tracks_panel):
         """Panel should have selection_changed signal."""
-        assert hasattr(tracks_panel, 'selection_changed')
+        assert hasattr(tracks_panel, "selection_changed")
 
     def test_track_selected_signal_delegation(self, tracks_panel):
         """Should delegate track_selected signal from unified_tracks_view."""
@@ -147,41 +145,41 @@ class TestTracksPanelDataUpdates:
         """Should update tracks data in model."""
         tracks = [
             {
-                'track_id': 'track1',
-                'name': 'Test Track 1',
-                'artist': 'Artist 1',
-                'album': 'Album 1',
-                'year': 2023,
-                'matched': True,
-                'confidence': 0.95,
-                'quality': 'High',
-                'local_file': '/path/to/track1.mp3',
-                'playlists': ['Playlist 1']
+                "track_id": "track1",
+                "name": "Test Track 1",
+                "artist": "Artist 1",
+                "album": "Album 1",
+                "year": 2023,
+                "matched": True,
+                "confidence": 0.95,
+                "quality": "High",
+                "local_file": "/path/to/track1.mp3",
+                "playlists": ["Playlist 1"],
             },
             {
-                'track_id': 'track2',
-                'name': 'Test Track 2',
-                'artist': 'Artist 2',
-                'album': 'Album 2',
-                'year': 2024,
-                'matched': False,
-                'confidence': 0.0,
-                'quality': 'N/A',
-                'local_file': '',
-                'playlists': ['Playlist 2']
-            }
+                "track_id": "track2",
+                "name": "Test Track 2",
+                "artist": "Artist 2",
+                "album": "Album 2",
+                "year": 2024,
+                "matched": False,
+                "confidence": 0.0,
+                "quality": "N/A",
+                "local_file": "",
+                "playlists": ["Playlist 2"],
+            },
         ]
-        playlists = [{'name': 'Playlist 1'}, {'name': 'Playlist 2'}]
+        playlists = [{"name": "Playlist 1"}, {"name": "Playlist 2"}]
 
         # Should not raise an exception
         tracks_panel.update_tracks(tracks, playlists)
 
     def test_populate_filter_options(self, tracks_panel):
         """Should populate filter dropdown options."""
-        playlists = ['Playlist 1', 'Playlist 2', 'Playlist 3']
-        artists = ['Artist A', 'Artist B', 'Artist C']
-        albums = ['Album X', 'Album Y', 'Album Z']
-        years = ['2023', '2024', '2025']
+        playlists = ["Playlist 1", "Playlist 2", "Playlist 3"]
+        artists = ["Artist A", "Artist B", "Artist C"]
+        albums = ["Album X", "Album Y", "Album Z"]
+        years = ["2023", "2024", "2025"]
 
         # Should not raise an exception
         tracks_panel.populate_filter_options(playlists, artists, albums, years)
@@ -199,23 +197,23 @@ class TestTracksPanelIntegration:
         # Update with tracks data
         tracks = [
             {
-                'track_id': 'track1',
-                'name': 'Song 1',
-                'artist': 'Artist 1',
-                'album': 'Album 1',
-                'year': 2023,
-                'matched': True,
-                'confidence': 0.9,
-                'quality': 'High',
-                'local_file': '/path/song1.mp3',
-                'playlists': ['Favorites']
+                "track_id": "track1",
+                "name": "Song 1",
+                "artist": "Artist 1",
+                "album": "Album 1",
+                "year": 2023,
+                "matched": True,
+                "confidence": 0.9,
+                "quality": "High",
+                "local_file": "/path/song1.mp3",
+                "playlists": ["Favorites"],
             }
         ]
-        playlists = [{'name': 'Favorites'}]
+        playlists = [{"name": "Favorites"}]
         tracks_panel.update_tracks(tracks, playlists)
 
         # Populate filter options
-        tracks_panel.populate_filter_options(['Favorites'], ['Artist 1'], ['Album 1'], ['2023'])
+        tracks_panel.populate_filter_options(["Favorites"], ["Artist 1"], ["Album 1"], ["2023"])
 
         # Verify still no selection
         assert not tracks_panel.has_selection()

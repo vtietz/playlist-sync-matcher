@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ScanResult:
     """Results from a library scan operation."""
+
     files_seen: int = 0
     inserted: int = 0
     updated: int = 0
@@ -26,6 +27,7 @@ class ScanResult:
     deleted: int = 0
     errors: int = 0
     duration_seconds: float = 0.0
+
 
 TAG_CANDIDATES = [
     ("title", ["title", "TIT2"]),
@@ -40,7 +42,7 @@ def extract_tags(audio) -> Dict[str, Any]:
     tags = {}
     if not audio:
         return tags
-    if getattr(audio, 'tags', None):
+    if getattr(audio, "tags", None):
         for field, keys in TAG_CANDIDATES:
             for k in keys:
                 if k in audio.tags:
@@ -82,17 +84,17 @@ def parse_time_string(time_str: str) -> float:
         pass
 
     # Try relative time (e.g., "2 hours ago")
-    match = re.match(r'(\d+)\s*(second|minute|hour|day|week)s?\s+ago', time_str)
+    match = re.match(r"(\d+)\s*(second|minute|hour|day|week)s?\s+ago", time_str)
     if match:
         amount = int(match.group(1))
         unit = match.group(2)
 
         unit_map = {
-            'second': timedelta(seconds=1),
-            'minute': timedelta(minutes=1),
-            'hour': timedelta(hours=1),
-            'day': timedelta(days=1),
-            'week': timedelta(weeks=1),
+            "second": timedelta(seconds=1),
+            "minute": timedelta(minutes=1),
+            "hour": timedelta(hours=1),
+            "day": timedelta(days=1),
+            "week": timedelta(weeks=1),
         }
 
         delta = unit_map[unit] * amount
@@ -101,11 +103,7 @@ def parse_time_string(time_str: str) -> float:
     raise ValueError(f"Unable to parse time string: {time_str}")
 
 
-def scan_specific_files(
-    db,
-    cfg: Dict[str, Any],
-    file_paths: List[Path]
-) -> ScanResult:
+def scan_specific_files(db, cfg: Dict[str, Any], file_paths: List[Path]) -> ScanResult:
     """Scan only specific files (used by watch mode).
 
     Args:
@@ -116,9 +114,9 @@ def scan_specific_files(
     Returns:
         ScanResult with scan statistics
     """
-    lib_cfg = cfg['library']
-    use_year = cfg.get('matching', {}).get('use_year')
-    commit_interval = int(lib_cfg.get('commit_interval', 100) or 0)
+    lib_cfg = cfg["library"]
+    use_year = cfg.get("matching", {}).get("use_year")
+    commit_interval = int(lib_cfg.get("commit_interval", 100) or 0)
 
     result = ScanResult()
     start = time.time()
@@ -135,7 +133,7 @@ def scan_specific_files(
             path_str = str(p.resolve())
             row = db.conn.execute("SELECT id FROM library_files WHERE path=?", (path_str,)).fetchone()
             if row:
-                file_id = row['id']
+                file_id = row["id"]
                 db.conn.execute("DELETE FROM library_files WHERE id=?", (file_id,))
                 db.conn.execute("DELETE FROM matches WHERE file_id=?", (file_id,))
                 result.deleted += 1
@@ -162,10 +160,7 @@ def scan_specific_files(
 
 
 def scan_library_incremental(
-    db,
-    cfg: Dict[str, Any],
-    changed_since: float | None = None,
-    specific_paths: List[Path] | None = None
+    db, cfg: Dict[str, Any], changed_since: float | None = None, specific_paths: List[Path] | None = None
 ) -> ScanResult:
     """Scan library with incremental mode support.
 
@@ -182,28 +177,17 @@ def scan_library_incremental(
     if specific_paths and all(p.is_file() if isinstance(p, Path) else Path(p).is_file() for p in specific_paths):
         return scan_specific_files(db, cfg, specific_paths)
 
-    lib_cfg = cfg['library']
+    lib_cfg = cfg["library"]
 
     # Override paths if specific paths provided
     if specific_paths:
-        lib_cfg = {**lib_cfg, 'paths': [str(p) for p in specific_paths]}
+        lib_cfg = {**lib_cfg, "paths": [str(p) for p in specific_paths]}
 
     # Perform full scan with filtering
-    return _scan_library_internal(
-        db,
-        cfg,
-        lib_cfg,
-        changed_since=changed_since
-    )
+    return _scan_library_internal(db, cfg, lib_cfg, changed_since=changed_since)
 
 
-def _process_single_file(
-    db,
-    cfg: Dict[str, Any],
-    p: Path,
-    result: ScanResult,
-    use_year: bool
-) -> None:
+def _process_single_file(db, cfg: Dict[str, Any], p: Path, result: ScanResult, use_year: bool) -> None:
     """Process a single file and update the database.
 
     Helper function used by both full and incremental scans.
@@ -226,10 +210,10 @@ def _process_single_file(
         result.errors += 1
 
     tags = extract_tags(audio)
-    title = tags.get('title') or p.stem
-    artist = tags.get('artist') or ''
-    album = tags.get('album') or ''
-    year_raw = tags.get('year') or ''
+    title = tags.get("title") or p.stem
+    artist = tags.get("artist") or ""
+    album = tags.get("album") or ""
+    year_raw = tags.get("year") or ""
     year = None
     if year_raw:
         m = re.search(r"(19|20)\d{2}", str(year_raw))
@@ -237,18 +221,18 @@ def _process_single_file(
             year = int(m.group(0))
 
     duration = None
-    if audio and getattr(audio, 'info', None) and getattr(audio.info, 'length', None):
+    if audio and getattr(audio, "info", None) and getattr(audio.info, "length", None):
         duration = float(audio.info.length)
 
     # Extract bitrate
     bitrate_kbps = None
-    if audio and getattr(audio, 'info', None):
-        if hasattr(audio.info, 'bitrate') and audio.info.bitrate:
+    if audio and getattr(audio, "info", None):
+        if hasattr(audio.info, "bitrate") and audio.info.bitrate:
             bitrate_kbps = int(audio.info.bitrate / 1000)
-        elif hasattr(audio.info, 'sample_rate') and hasattr(audio.info, 'bits_per_sample'):
+        elif hasattr(audio.info, "sample_rate") and hasattr(audio.info, "bits_per_sample"):
             sample_rate = audio.info.sample_rate
             bits_per_sample = audio.info.bits_per_sample
-            channels = getattr(audio.info, 'channels', 2)
+            channels = getattr(audio.info, "channels", 2)
             bitrate_kbps = int((sample_rate * bits_per_sample * channels) / 1000)
 
     ph = partial_hash(p)
@@ -259,50 +243,51 @@ def _process_single_file(
     # Check if exists
     existing = db.conn.execute("SELECT id FROM library_files WHERE path=?", (path_str,)).fetchone()
 
-    db.add_library_file({
-        'path': path_str,
-        'size': st.st_size,
-        'mtime': st.st_mtime,
-        'partial_hash': ph,
-        'title': title,
-        'album': album,
-        'artist': artist,
-        'duration': duration,
-        'normalized': combo,
-        'year': year,
-        'bitrate_kbps': bitrate_kbps,
-    })
+    db.add_library_file(
+        {
+            "path": path_str,
+            "size": st.st_size,
+            "mtime": st.st_mtime,
+            "partial_hash": ph,
+            "title": title,
+            "album": album,
+            "artist": artist,
+            "duration": duration,
+            "normalized": combo,
+            "year": year,
+            "bitrate_kbps": bitrate_kbps,
+        }
+    )
 
     if existing:
         result.updated += 1
         action = "updated"
-        color = 'blue'
+        color = "blue"
     else:
         result.inserted += 1
         action = "new"
-        color = 'green'
+        color = "green"
 
-    logger.debug(f"{click.style(f'[{action}]', fg=color)} {p} | title='{title}' artist='{artist}' album='{album}' year={year if year is not None else '-'}")
+    logger.debug(
+        f"{click.style(f'[{action}]', fg=color)} {p} | title='{title}' artist='{artist}' album='{album}' year={year if year is not None else '-'}"
+    )
 
 
 def _scan_library_internal(
-    db,
-    cfg: Dict[str, Any],
-    lib_cfg: Dict[str, Any],
-    changed_since: float | None = None
+    db, cfg: Dict[str, Any], lib_cfg: Dict[str, Any], changed_since: float | None = None
 ) -> ScanResult:
     """Internal scan implementation with optional time-based filtering.
 
     This is refactored from the original scan_library to support incremental mode.
     """
-    paths = lib_cfg['paths']
-    extensions = lib_cfg['extensions']
-    ignore_patterns = lib_cfg.get('ignore_patterns', [])
-    follow_symlinks = lib_cfg.get('follow_symlinks', False)
-    skip_unchanged = lib_cfg.get('skip_unchanged', True)
-    fast_scan = lib_cfg.get('fast_scan', True)
-    commit_interval = int(lib_cfg.get('commit_interval', 100) or 0)
-    use_year = cfg.get('matching', {}).get('use_year')
+    paths = lib_cfg["paths"]
+    extensions = lib_cfg["extensions"]
+    ignore_patterns = lib_cfg.get("ignore_patterns", [])
+    follow_symlinks = lib_cfg.get("follow_symlinks", False)
+    skip_unchanged = lib_cfg.get("skip_unchanged", True)
+    fast_scan = lib_cfg.get("fast_scan", True)
+    commit_interval = int(lib_cfg.get("commit_interval", 100) or 0)
+    use_year = cfg.get("matching", {}).get("use_year")
 
     result = ScanResult()
     start = time.time()
@@ -320,23 +305,23 @@ def _scan_library_internal(
                 "SELECT path, size, mtime, partial_hash, title, artist, album, year, duration, normalized, bitrate_kbps FROM library_files"
             ).fetchall()
             existing_files = {
-                row['path']: {
-                    'size': row['size'],
-                    'mtime': row['mtime'],
-                    'hash': row['partial_hash'],
-                    'title': row['title'],
-                    'artist': row['artist'],
-                    'album': row['album'],
-                    'year': row['year'],
-                    'duration': row['duration'],
-                    'normalized': row['normalized'],
-                    'bitrate_kbps': row['bitrate_kbps'],
+                row["path"]: {
+                    "size": row["size"],
+                    "mtime": row["mtime"],
+                    "hash": row["partial_hash"],
+                    "title": row["title"],
+                    "artist": row["artist"],
+                    "album": row["album"],
+                    "year": row["year"],
+                    "duration": row["duration"],
+                    "normalized": row["normalized"],
+                    "bitrate_kbps": row["bitrate_kbps"],
                 }
                 for row in rows
             }
         else:
             rows = db.conn.execute("SELECT path, size, mtime, partial_hash FROM library_files").fetchall()
-            existing_files = {row['path']: (row['size'], row['mtime'], row['partial_hash']) for row in rows}
+            existing_files = {row["path"]: (row["size"], row["mtime"], row["partial_hash"]) for row in rows}
         logger.debug(f"Loaded {len(existing_files)} existing files for skip-unchanged checks")
 
     try:
@@ -379,7 +364,7 @@ def _scan_library_internal(
                             updated=result.updated,
                             skipped=result.skipped,
                             elapsed_seconds=elapsed,
-                            item_name="files"
+                            item_name="files",
                         )
                         last_progress_log = result.files_seen
                     continue
@@ -389,7 +374,7 @@ def _scan_library_internal(
                 existing_data = existing_files[path_str]
 
                 if isinstance(existing_data, dict):
-                    size_db, mtime_db = existing_data['size'], existing_data['mtime']
+                    size_db, mtime_db = existing_data["size"], existing_data["mtime"]
                     if size_db == st.st_size and abs(mtime_db - st.st_mtime) < 1.0:
                         result.skipped += 1
                         logger.debug(f"{click.style('[skip]', fg='yellow')} {p} unchanged (fast mode - no parsing)")
@@ -403,7 +388,7 @@ def _scan_library_internal(
                                 updated=result.updated,
                                 skipped=result.skipped,
                                 elapsed_seconds=elapsed,
-                                item_name="files"
+                                item_name="files",
                             )
                             last_progress_log = result.files_seen
                         continue
@@ -422,7 +407,7 @@ def _scan_library_internal(
                                 updated=result.updated,
                                 skipped=result.skipped,
                                 elapsed_seconds=elapsed,
-                                item_name="files"
+                                item_name="files",
                             )
                             last_progress_log = result.files_seen
                         continue
@@ -444,7 +429,7 @@ def _scan_library_internal(
                     updated=result.updated,
                     skipped=result.skipped,
                     elapsed_seconds=elapsed,
-                    item_name="files"
+                    item_name="files",
                 )
                 last_progress_log = result.files_seen
 
@@ -453,7 +438,7 @@ def _scan_library_internal(
     finally:
         # Cleanup: remove deleted files
         rows = db.conn.execute("SELECT id, path FROM library_files").fetchall()
-        db_paths = {row['path']: row['id'] for row in rows}
+        db_paths = {row["path"]: row["id"] for row in rows}
 
         deleted_paths = set(db_paths.keys()) - seen_paths
 
@@ -476,12 +461,12 @@ def scan_library(db, cfg):
     This is the main entry point for library scanning.
     For incremental scans, use scan_library_incremental() instead.
     """
-    lib_cfg = cfg['library']
+    lib_cfg = cfg["library"]
 
-    click.echo(click.style("=== Scanning local library ===", fg='cyan', bold=True))
+    click.echo(click.style("=== Scanning local library ===", fg="cyan", bold=True))
 
     # Log directories being scanned
-    paths = lib_cfg['paths']
+    paths = lib_cfg["paths"]
     if isinstance(paths, list):
         logger.info(f"Scanning {len(paths)} director{'y' if len(paths) == 1 else 'ies'}:")
         for path in paths:
@@ -500,7 +485,7 @@ def scan_library(db, cfg):
         unchanged=result.skipped,
         deleted=result.deleted,
         duration_seconds=result.duration_seconds,
-        item_name="Library"
+        item_name="Library",
     )
     logger.info(summary)
     if result.errors:
@@ -508,4 +493,3 @@ def scan_library(db, cfg):
 
 
 __all__ = ["scan_library", "scan_library_incremental", "scan_specific_files", "parse_time_string", "ScanResult"]
-

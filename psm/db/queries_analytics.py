@@ -3,6 +3,7 @@
 Contains SQL queries for DISTINCT values, coverage metrics, and batch operations
 to avoid Python-side iteration and N+1 queries.
 """
+
 from __future__ import annotations
 import sqlite3
 from typing import List, Dict, Any
@@ -25,7 +26,7 @@ def get_distinct_artists(conn: sqlite3.Connection, provider: str) -> List[str]:
         WHERE provider = ? AND artist IS NOT NULL AND artist != ''
         ORDER BY artist
         """,
-        (provider,)
+        (provider,),
     )
     return [row[0] for row in cursor.fetchall()]
 
@@ -47,7 +48,7 @@ def get_distinct_albums(conn: sqlite3.Connection, provider: str) -> List[str]:
         WHERE provider = ? AND album IS NOT NULL AND album != ''
         ORDER BY album
         """,
-        (provider,)
+        (provider,),
     )
     return [row[0] for row in cursor.fetchall()]
 
@@ -69,7 +70,7 @@ def get_distinct_years(conn: sqlite3.Connection, provider: str) -> List[int]:
         WHERE provider = ? AND year IS NOT NULL
         ORDER BY year DESC
         """,
-        (provider,)
+        (provider,),
     )
     return [row[0] for row in cursor.fetchall()]
 
@@ -104,7 +105,7 @@ def get_playlist_coverage(conn: sqlite3.Connection, provider: str) -> List[Dict[
         GROUP BY p.id, p.name, p.owner_id, p.owner_name
         ORDER BY p.owner_name, p.name
         """,
-        (provider,)
+        (provider,),
     )
 
     results = []
@@ -113,25 +114,23 @@ def get_playlist_coverage(conn: sqlite3.Connection, provider: str) -> List[Dict[
         matched = row[5]
         coverage_pct = int((matched / total * 100) if total > 0 else 0)
 
-        results.append({
-            'id': row[0],
-            'name': row[1],
-            'owner_id': row[2],
-            'owner_name': row[3],
-            'track_count': total,  # Total number of tracks in playlist
-            'matched_count': matched,
-            'unmatched_count': total - matched,
-            'coverage': coverage_pct,
-        })
+        results.append(
+            {
+                "id": row[0],
+                "name": row[1],
+                "owner_id": row[2],
+                "owner_name": row[3],
+                "track_count": total,  # Total number of tracks in playlist
+                "matched_count": matched,
+                "unmatched_count": total - matched,
+                "coverage": coverage_pct,
+            }
+        )
 
     return results
 
 
-def get_playlists_for_track_ids(
-    conn: sqlite3.Connection,
-    track_ids: List[str],
-    provider: str
-) -> Dict[str, str]:
+def get_playlists_for_track_ids(conn: sqlite3.Connection, track_ids: List[str], provider: str) -> Dict[str, str]:
     """Get comma-separated playlist names for each track ID.
 
     Uses GROUP_CONCAT to aggregate playlist names in SQL instead of Python loops.
@@ -152,8 +151,8 @@ def get_playlists_for_track_ids(
     result = {}
 
     for i in range(0, len(track_ids), BATCH_SIZE):
-        batch = track_ids[i:i + BATCH_SIZE]
-        placeholders = ','.join('?' * len(batch))
+        batch = track_ids[i : i + BATCH_SIZE]
+        placeholders = ",".join("?" * len(batch))
 
         query = f"""
         SELECT
@@ -170,7 +169,7 @@ def get_playlists_for_track_ids(
             # Sort playlist names for consistency
             playlists = row[1]
             if playlists:
-                playlist_list = [p.strip() for p in playlists.split(',')]
-                result[row[0]] = ', '.join(sorted(playlist_list))
+                playlist_list = [p.strip() for p in playlists.split(",")]
+                result[row[0]] = ", ".join(sorted(playlist_list))
 
     return result

@@ -11,11 +11,15 @@ logger = logging.getLogger(__name__)
 
 
 @cli.command()
-@click.option('--since', type=str, help='Only scan files modified since this time (e.g., "2 hours ago", "2025-10-08 10:00")')
-@click.option('--deep', is_flag=True, help='Force full rescan of all library paths (default: smart incremental)')
-@click.option('--paths', multiple=True, help='Override config: scan only these specific paths')
-@click.option('--watch', is_flag=True, help='Watch library paths and continuously update DB on changes')
-@click.option('--debounce', type=float, default=2.0, help='Seconds to wait after last change before processing (watch mode only)')
+@click.option(
+    "--since", type=str, help='Only scan files modified since this time (e.g., "2 hours ago", "2025-10-08 10:00")'
+)
+@click.option("--deep", is_flag=True, help="Force full rescan of all library paths (default: smart incremental)")
+@click.option("--paths", multiple=True, help="Override config: scan only these specific paths")
+@click.option("--watch", is_flag=True, help="Watch library paths and continuously update DB on changes")
+@click.option(
+    "--debounce", type=float, default=2.0, help="Seconds to wait after last change before processing (watch mode only)"
+)
 @click.pass_context
 def scan(ctx: click.Context, since: str | None, deep: bool, paths: tuple, watch: bool, debounce: float):
     """Scan local music library and index track metadata.
@@ -54,8 +58,9 @@ def scan(ctx: click.Context, since: str | None, deep: bool, paths: tuple, watch:
                 with get_db(cfg) as db:
                     result = scan_specific_files(db, cfg, changed_files)
                     import time
-                    db.set_meta('last_scan_time', str(time.time()))
-                    db.set_meta('library_last_modified', str(time.time()))
+
+                    db.set_meta("last_scan_time", str(time.time()))
+                    db.set_meta("library_last_modified", str(time.time()))
 
                 # Print summary
                 changes = []
@@ -86,6 +91,7 @@ def scan(ctx: click.Context, since: str | None, deep: bool, paths: tuple, watch:
 
             # Keep running until interrupted
             import time
+
             while True:
                 time.sleep(1)
 
@@ -112,17 +118,23 @@ def scan(ctx: click.Context, since: str | None, deep: bool, paths: tuple, watch:
         try:
             changed_since = parse_time_string(since)
             from datetime import datetime
-            click.echo(f"Scanning files modified since {datetime.fromtimestamp(changed_since).strftime('%Y-%m-%d %H:%M:%S')}")
+
+            click.echo(
+                f"Scanning files modified since {datetime.fromtimestamp(changed_since).strftime('%Y-%m-%d %H:%M:%S')}"
+            )
         except ValueError as e:
             raise click.UsageError(str(e))
     elif not deep and not since:
         # Default: Smart mode - use last scan time
         with get_db(cfg) as db:
-            last_scan = db.get_meta('last_scan_time')
+            last_scan = db.get_meta("last_scan_time")
         if last_scan:
             changed_since = float(last_scan)
             from datetime import datetime
-            click.echo(f"Smart mode: scanning files modified since last scan ({datetime.fromtimestamp(changed_since).strftime('%Y-%m-%d %H:%M:%S')})")
+
+            click.echo(
+                f"Smart mode: scanning files modified since last scan ({datetime.fromtimestamp(changed_since).strftime('%Y-%m-%d %H:%M:%S')})"
+            )
             click.echo("  (Use --deep to force complete rescan)")
         else:
             click.echo("Smart mode: no previous scan found, performing full scan")
@@ -132,6 +144,7 @@ def scan(ctx: click.Context, since: str | None, deep: bool, paths: tuple, watch:
 
     if paths:
         from pathlib import Path
+
         specific_paths = [Path(p) for p in paths]
         click.echo(f"Scanning {len(specific_paths)} specific path(s)")
 
@@ -142,21 +155,23 @@ def scan(ctx: click.Context, since: str | None, deep: bool, paths: tuple, watch:
             result = scan_library_incremental(db, cfg, changed_since=changed_since, specific_paths=specific_paths)
             # Update last scan time
             import time
-            db.set_meta('last_scan_time', str(time.time()))
-            db.set_meta('library_last_modified', str(time.time()))
+
+            db.set_meta("last_scan_time", str(time.time()))
+            db.set_meta("library_last_modified", str(time.time()))
             # Set write signal for GUI auto-refresh
-            db.set_meta('last_write_epoch', str(time.time()))
-            db.set_meta('last_write_source', 'scan')
+            db.set_meta("last_write_epoch", str(time.time()))
+            db.set_meta("last_write_source", "scan")
 
         # Print summary
         from ..utils.logging_helpers import format_summary
+
         summary = format_summary(
             new=result.inserted,
             updated=result.updated,
             unchanged=result.skipped,
             deleted=result.deleted,
             duration_seconds=result.duration_seconds,
-            item_name="Library"
+            item_name="Library",
         )
         logger.info(summary)
         if result.errors:
@@ -167,13 +182,14 @@ def scan(ctx: click.Context, since: str | None, deep: bool, paths: tuple, watch:
             scan_library(db, cfg)
             # Update last scan time
             import time
-            db.set_meta('last_scan_time', str(time.time()))
-            db.set_meta('library_last_modified', str(time.time()))
+
+            db.set_meta("last_scan_time", str(time.time()))
+            db.set_meta("library_last_modified", str(time.time()))
             # Set write signal for GUI auto-refresh
-            db.set_meta('last_write_epoch', str(time.time()))
-            db.set_meta('last_write_source', 'scan')
+            db.set_meta("last_write_epoch", str(time.time()))
+            db.set_meta("last_write_source", "scan")
 
-    click.echo('Scan complete')
+    click.echo("Scan complete")
 
 
-__all__ = ['scan']
+__all__ = ["scan"]

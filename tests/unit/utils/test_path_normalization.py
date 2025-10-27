@@ -1,4 +1,5 @@
 """Unit tests for path normalization utilities."""
+
 from __future__ import annotations
 import pytest
 import sys
@@ -31,6 +32,7 @@ class TestNormalizeLibraryPath:
 
         # Create a relative path by using parent navigation
         import os
+
         old_cwd = os.getcwd()
         try:
             os.chdir(tmp_path)
@@ -64,7 +66,7 @@ class TestNormalizeLibraryPath:
         assert isinstance(normalized, str)
         assert Path(normalized).exists()
 
-    @pytest.mark.skipif(sys.platform != 'win32', reason="Windows-specific test")
+    @pytest.mark.skipif(sys.platform != "win32", reason="Windows-specific test")
     def test_normalize_windows_drive_letter_uppercase(self, tmp_path: Path):
         """Test Windows drive letters are normalized to uppercase."""
         test_file = tmp_path / "music.mp3"
@@ -74,10 +76,10 @@ class TestNormalizeLibraryPath:
         normalized = normalize_library_path(test_file)
 
         # On Windows, drive letter should be uppercase
-        if len(normalized) >= 2 and normalized[1] == ':':
+        if len(normalized) >= 2 and normalized[1] == ":":
             assert normalized[0].isupper(), f"Expected uppercase drive letter in {normalized}"
 
-    @pytest.mark.skipif(sys.platform != 'win32', reason="Windows-specific test")
+    @pytest.mark.skipif(sys.platform != "win32", reason="Windows-specific test")
     def test_normalize_windows_backslashes(self, tmp_path: Path):
         """Test Windows paths use backslashes."""
         test_file = tmp_path / "sub" / "music.mp3"
@@ -87,9 +89,9 @@ class TestNormalizeLibraryPath:
         normalized = normalize_library_path(test_file)
 
         # Should contain backslashes, not forward slashes
-        assert '\\' in normalized or '/' not in normalized
+        assert "\\" in normalized or "/" not in normalized
         # After normalization, forward slashes should be replaced
-        assert '/' not in normalized, f"Found forward slash in Windows path: {normalized}"
+        assert "/" not in normalized, f"Found forward slash in Windows path: {normalized}"
 
     def test_normalize_idempotent(self, tmp_path: Path):
         """Test normalizing a normalized path returns the same result."""
@@ -116,7 +118,7 @@ class TestNormalizeLibraryPath:
         # Should still resolve correctly
         assert Path(normalized).exists()
         # Should not have trailing separator
-        assert not normalized.endswith(('/', '\\'))
+        assert not normalized.endswith(("/", "\\"))
 
     def test_normalize_handles_symlinks(self, tmp_path: Path):
         """Test symlinks are resolved to their target."""

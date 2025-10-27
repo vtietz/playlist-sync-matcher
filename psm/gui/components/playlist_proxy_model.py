@@ -4,6 +4,7 @@ This proxy model filters playlist rows based on:
 - Owner name filter
 - Search text (matches against playlist name and owner name)
 """
+
 from __future__ import annotations
 from typing import Optional
 from PySide6.QtCore import QSortFilterProxyModel, QModelIndex, Qt
@@ -68,25 +69,24 @@ class PlaylistProxyModel(QSortFilterProxyModel):
             return True
 
         # Get row data if available (BaseTableModel has get_row_data)
-        if hasattr(source_model, 'get_row_data'):
+        if hasattr(source_model, "get_row_data"):
             row_data = source_model.get_row_data(source_row)
             if row_data is None:
                 return False
 
             # Apply owner filter
             if self._owner_filter:
-                owner_name = row_data.get('owner_name', '')
+                owner_name = row_data.get("owner_name", "")
                 if owner_name != self._owner_filter:
                     return False
 
             # Apply search text filter (search in name and owner_name)
             if self._search_text:
-                name = (row_data.get('name', '') or '').lower()
-                owner_name = (row_data.get('owner_name', '') or '').lower()
+                name = (row_data.get("name", "") or "").lower()
+                owner_name = (row_data.get("owner_name", "") or "").lower()
 
                 # Match if search text is found in either field
-                if (self._search_text not in name and
-                    self._search_text not in owner_name):
+                if self._search_text not in name and self._search_text not in owner_name:
                     return False
 
             return True
@@ -101,4 +101,4 @@ class PlaylistProxyModel(QSortFilterProxyModel):
         self.invalidateFilter()
 
 
-__all__ = ['PlaylistProxyModel']
+__all__ = ["PlaylistProxyModel"]

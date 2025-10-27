@@ -1,4 +1,5 @@
 """Tracks tab builder - encapsulates unified tracks view and track actions."""
+
 from __future__ import annotations
 from typing import TYPE_CHECKING
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton

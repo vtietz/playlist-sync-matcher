@@ -1,4 +1,5 @@
 """SQL-based exact matching strategy using indexed normalized fields."""
+
 from __future__ import annotations
 from typing import Dict, Any, List, Tuple, Set
 import time
@@ -15,8 +16,9 @@ class ExactMatchStrategy(MatchStrategy):
     def get_name(self) -> str:
         return "sql_exact"
 
-    def match(self, tracks: List[Dict[str, Any]], files: List[Dict[str, Any]],
-              already_matched: Set[str]) -> Tuple[List[Tuple[str, int, float, str]], Set[str]]:
+    def match(
+        self, tracks: List[Dict[str, Any]], files: List[Dict[str, Any]], already_matched: Set[str]
+    ) -> Tuple[List[Tuple[str, int, float, str]], Set[str]]:
         """Execute SQL-based exact matching."""
         start = time.time()
 
@@ -33,7 +35,7 @@ class ExactMatchStrategy(MatchStrategy):
 
         # If we have already matched tracks, exclude them
         if already_matched:
-            placeholders = ','.join('?' * len(already_matched))
+            placeholders = ",".join("?" * len(already_matched))
             sql_exact += f" AND t.id NOT IN ({placeholders})"
             exact_matches = self.db.conn.execute(sql_exact, tuple(already_matched)).fetchall()
         else:
@@ -44,12 +46,12 @@ class ExactMatchStrategy(MatchStrategy):
         matched_track_ids: Set[str] = set()
 
         # Build lookup maps for detailed logging
-        file_by_id = {f['id']: f for f in files}
-        track_by_id = {t['id']: t for t in tracks}
+        file_by_id = {f["id"]: f for f in files}
+        track_by_id = {t["id"]: t for t in tracks}
 
         for row in exact_matches:
-            track_id = row['track_id']
-            file_id = row['file_id']
+            track_id = row["track_id"]
+            file_id = row["file_id"]
             matches.append((track_id, file_id, 1.0, self.get_name()))
             matched_track_ids.add(track_id)
 
@@ -57,8 +59,10 @@ class ExactMatchStrategy(MatchStrategy):
             if self.debug:
                 track = track_by_id.get(track_id, {})
                 file = file_by_id.get(file_id, {})
-                print(f"[{self.get_name()}] [MATCH] Exact: "
-                      f"{track.get('artist', '')} - {track.get('name', '')} -> {file.get('path', '')}")
+                print(
+                    f"[{self.get_name()}] [MATCH] Exact: "
+                    f"{track.get('artist', '')} - {track.get('name', '')} -> {file.get('path', '')}"
+                )
 
         duration = time.time() - start
 

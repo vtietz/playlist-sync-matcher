@@ -3,6 +3,7 @@
 Provides strongly-typed configuration objects that can be used throughout
 the application for better type safety and IDE support.
 """
+
 from __future__ import annotations
 from dataclasses import dataclass, field, asdict
 from typing import List, Dict, Any
@@ -11,6 +12,7 @@ from typing import List, Dict, Any
 @dataclass
 class SpotifyConfig:
     """Spotify OAuth and API configuration."""
+
     client_id: str | None = None
     redirect_scheme: str = "http"
     redirect_host: str = "127.0.0.1"
@@ -29,6 +31,7 @@ class SpotifyConfig:
 @dataclass
 class LibraryConfig:
     """Local music library scanning configuration."""
+
     paths: List[str] = field(default_factory=lambda: ["music"])
     extensions: List[str] = field(default_factory=lambda: [".mp3", ".flac", ".m4a", ".ogg"])
     follow_symlinks: bool = False
@@ -46,6 +49,7 @@ class LibraryConfig:
 @dataclass
 class LoggingConfig:
     """Progress logging configuration."""
+
     progress_enabled: bool = True  # Enable/disable progress logging
     progress_interval: int = 100  # Log progress every N items (default for matching)
     scan_progress_interval: int = 500  # Log progress for scan operations (higher due to faster processing)
@@ -59,6 +63,7 @@ class LoggingConfig:
 @dataclass
 class MatchingConfig:
     """Track matching algorithm configuration (aligned with _DEFAULTS)."""
+
     fuzzy_threshold: float = 0.78  # 0.0-1.0 scale
     use_year: bool = False
     duration_tolerance: float = 5.0  # seconds (aligned with _DEFAULTS)
@@ -74,6 +79,7 @@ class MatchingConfig:
 @dataclass
 class ProvidersConfig:
     """Configuration for all providers."""
+
     spotify: SpotifyConfig = field(default_factory=SpotifyConfig)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -84,6 +90,7 @@ class ProvidersConfig:
 @dataclass
 class ExportConfig:
     """Playlist export configuration."""
+
     directory: str = "export/playlists"
     mode: str = "mirrored"
     placeholder_extension: str = ".missing"
@@ -103,6 +110,7 @@ class ExportConfig:
 @dataclass
 class ReportsConfig:
     """Reporting configuration."""
+
     directory: str = "export/reports"
 
     def to_dict(self) -> Dict[str, Any]:
@@ -113,6 +121,7 @@ class ReportsConfig:
 @dataclass
 class DatabaseConfig:
     """Database configuration."""
+
     path: str = "data/spotify_sync.db"
     pragma_journal_mode: str = "WAL"
 
@@ -124,6 +133,7 @@ class DatabaseConfig:
 @dataclass
 class AppConfig:
     """Root application configuration with all subsections."""
+
     log_level: str = "INFO"
     provider: str = "spotify"
     providers: ProvidersConfig = field(default_factory=ProvidersConfig)

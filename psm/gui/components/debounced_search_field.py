@@ -2,6 +2,7 @@
 
 A reusable QLineEdit with built-in debouncing for search functionality.
 """
+
 from __future__ import annotations
 from typing import Optional
 from PySide6.QtWidgets import QLineEdit
@@ -32,11 +33,7 @@ class DebouncedSearchField(QLineEdit):
     # Signal emitted after debounce delay
     debouncedTextChanged = Signal(str)
 
-    def __init__(
-        self,
-        debounce_ms: int = 500,
-        parent: Optional[QLineEdit] = None
-    ):
+    def __init__(self, debounce_ms: int = 500, parent: Optional[QLineEdit] = None):
         """Initialize debounced search field.
 
         Args:
@@ -89,4 +86,4 @@ class DebouncedSearchField(QLineEdit):
         return self._debounce_ms
 
 
-__all__ = ['DebouncedSearchField']
+__all__ = ["DebouncedSearchField"]

@@ -1,4 +1,5 @@
 """Enhanced reporting utilities for standardized table structure."""
+
 from __future__ import annotations
 from pathlib import Path
 from typing import Optional
@@ -117,7 +118,7 @@ def get_coverage_badge_class(percentage: float) -> str:
     elif percentage >= 50:
         return "badge-warning"  # PARTIAL
     else:
-        return "badge-danger"   # LOW
+        return "badge-danger"  # LOW
 
 
 def format_badge(text: str, badge_class: str) -> str:
@@ -210,7 +211,7 @@ def format_playlist_count_badge(count: int) -> str:
         HTML badge showing priority based on playlist count
     """
     if count >= 5:
-        badge_class = "badge-danger"   # HIGH priority (many playlists)
+        badge_class = "badge-danger"  # HIGH priority (many playlists)
         text = f"HIGH ({count})"
     elif count >= 2:
         badge_class = "badge-warning"  # MEDIUM priority
@@ -219,7 +220,7 @@ def format_playlist_count_badge(count: int) -> str:
         badge_class = "badge-primary"  # LOW priority
         text = f"LOW ({count})"
     else:
-        badge_class = "badge-secondary" # No playlists
+        badge_class = "badge-secondary"  # No playlists
         text = "NONE"
 
     return format_badge(text, badge_class)
@@ -235,13 +236,13 @@ def format_playlist_count_simple(count: int) -> str:
         HTML badge showing just the count with color-coding
     """
     if count >= 5:
-        badge_class = "badge-danger"   # HIGH priority (many playlists)
+        badge_class = "badge-danger"  # HIGH priority (many playlists)
     elif count >= 2:
         badge_class = "badge-warning"  # MEDIUM priority
     elif count == 1:
         badge_class = "badge-primary"  # LOW priority
     else:
-        badge_class = "badge-secondary" # No playlists
+        badge_class = "badge-secondary"  # No playlists
 
     text = str(count) if count > 0 else "0"
     return format_badge(text, badge_class)

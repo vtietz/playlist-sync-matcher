@@ -6,6 +6,7 @@ This module handles all window state persistence including:
 - Table column widths
 - Table sort states
 """
+
 from __future__ import annotations
 from typing import Optional, Tuple, TYPE_CHECKING
 from PySide6.QtCore import QSettings, Qt
@@ -133,10 +134,7 @@ class WindowStateManager:
         return None
 
     def save_all_window_state(
-        self,
-        window: QMainWindow,
-        main_splitter: QSplitter,
-        table_headers: dict[str, QHeaderView]
+        self, window: QMainWindow, main_splitter: QSplitter, table_headers: dict[str, QHeaderView]
     ):
         """Save all window state in one call.
 
@@ -154,10 +152,7 @@ class WindowStateManager:
         logger.info("Window state saved")
 
     def restore_all_window_state(
-        self,
-        window: QMainWindow,
-        main_splitter: QSplitter,
-        table_headers: dict[str, QHeaderView]
+        self, window: QMainWindow, main_splitter: QSplitter, table_headers: dict[str, QHeaderView]
     ) -> dict[str, Optional[Tuple[int, Qt.SortOrder]]]:
         """Restore all window state in one call.
 

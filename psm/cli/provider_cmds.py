@@ -19,9 +19,9 @@ def validate_single_provider(cfg: dict) -> str:
         ValueError: If no providers or multiple providers are configured
     """
     enabled = []
-    provider_section = cfg.get('providers', {})
-    for name in ['spotify']:  # Future: add more providers
-        if provider_section.get(name, {}).get('client_id'):
+    provider_section = cfg.get("providers", {})
+    for name in ["spotify"]:  # Future: add more providers
+        if provider_section.get(name, {}).get("client_id"):
             enabled.append(name)
 
     if len(enabled) == 0:
@@ -33,8 +33,10 @@ def validate_single_provider(cfg: dict) -> str:
 
 
 @cli.command()
-@click.option('--force-auth', is_flag=True, help='Force full auth flow ignoring cached token')
-@click.option('--force-refresh', is_flag=True, help='Force refresh all tracks even if playlists unchanged (populates new fields)')
+@click.option("--force-auth", is_flag=True, help="Force full auth flow ignoring cached token")
+@click.option(
+    "--force-refresh", is_flag=True, help="Force refresh all tracks even if playlists unchanged (populates new fields)"
+)
 @click.pass_context
 def pull(ctx: click.Context, force_auth: bool, force_refresh: bool):
     """Pull playlists and liked tracks from streaming provider.
@@ -52,34 +54,44 @@ def pull(ctx: click.Context, force_auth: bool, force_refresh: bool):
 
     provider_cfg = get_provider_config(cfg, provider)
 
-    if provider == 'spotify':
-        if not provider_cfg.get('client_id'):
-            raise click.UsageError('providers.spotify.client_id not configured')
+    if provider == "spotify":
+        if not provider_cfg.get("client_id"):
+            raise click.UsageError("providers.spotify.client_id not configured")
     else:
         raise click.UsageError(f"Provider '{provider}' not supported yet")
 
     with get_db(cfg) as db:
-        result = pull_data(db=db, provider=provider, provider_config=provider_cfg, matching_config=cfg['matching'], force_auth=force_auth, force_refresh=force_refresh)
+        result = pull_data(
+            db=db,
+            provider=provider,
+            provider_config=provider_cfg,
+            matching_config=cfg["matching"],
+            force_auth=force_auth,
+            force_refresh=force_refresh,
+        )
 
         # Store changed track IDs in metadata for incremental matching in watch mode
         if result.changed_track_ids:
-            changed_ids_str = ','.join(result.changed_track_ids)
-            db.set_meta('last_pull_changed_tracks', changed_ids_str)
+            changed_ids_str = ",".join(result.changed_track_ids)
+            db.set_meta("last_pull_changed_tracks", changed_ids_str)
             db.commit()
             click.echo(f"  → {len(result.changed_track_ids)} track(s) added/updated")
 
         # Set write signal for GUI auto-refresh
         import time
-        db.set_meta('last_write_epoch', str(time.time()))
-        db.set_meta('last_write_source', 'pull')
 
-    click.echo(f"\n[summary] Provider={provider} | Playlists: {result.playlist_count} | Unique playlist tracks: {result.unique_playlist_tracks} | Liked tracks: {result.liked_tracks} | Total tracks: {result.total_tracks}")
+        db.set_meta("last_write_epoch", str(time.time()))
+        db.set_meta("last_write_source", "pull")
+
+    click.echo(
+        f"\n[summary] Provider={provider} | Playlists: {result.playlist_count} | Unique playlist tracks: {result.unique_playlist_tracks} | Liked tracks: {result.liked_tracks} | Total tracks: {result.total_tracks}"
+    )
     logger.debug(f"Completed in {result.duration_seconds:.2f}s")
-    click.echo('Pull complete')
+    click.echo("Pull complete")
 
 
 @cli.command()
-@click.option('--force', is_flag=True, help='Force full auth ignoring cache')
+@click.option("--force", is_flag=True, help="Force full auth ignoring cache")
 @click.pass_context
 def login(ctx: click.Context, force: bool):
     """Authenticate with streaming provider (Spotify OAuth).
@@ -96,24 +108,24 @@ def login(ctx: click.Context, force: bool):
         raise click.UsageError(str(e))
 
     provider_cfg = get_provider_config(cfg)
-    if not provider_cfg.get('client_id'):
-        raise click.UsageError(f'providers.{provider}.client_id not configured')
+    if not provider_cfg.get("client_id"):
+        raise click.UsageError(f"providers.{provider}.client_id not configured")
     auth = build_auth(cfg)
     tok = auth.get_token(force=force)
-    exp = tok.get('expires_at') if isinstance(tok, dict) else None
+    exp = tok.get("expires_at") if isinstance(tok, dict) else None
     if exp:
         click.echo(f"Token acquired; expires at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(exp))}")
     else:
-        click.echo('Token acquired.')
+        click.echo("Token acquired.")
 
 
-@cli.group(name='providers')
+@cli.group(name="providers")
 @click.pass_context
 def providers_group(ctx: click.Context):  # pragma: no cover simple group
     """Provider related utilities."""
 
 
-@providers_group.command(name='capabilities')
+@providers_group.command(name="capabilities")
 @click.pass_context
 def providers_capabilities(ctx: click.Context):
     """List registered providers and their capabilities."""
@@ -135,4 +147,4 @@ def providers_capabilities(ctx: click.Context):
         click.echo(f"  {name.ljust(width)}  {desc}")
 
 
-__all__ = ['pull', 'login', 'providers_group', 'providers_capabilities']
+__all__ = ["pull", "login", "providers_group", "providers_capabilities"]

@@ -23,17 +23,16 @@ def write_album_completeness_report(db: Database, out_dir: Path) -> Path:
     rows = list(_compute_album_completeness(db))
 
     # Sort: status priority (MISSING, PARTIAL, COMPLETE) then artist/album
-    status_order = {'MISSING': 0, 'PARTIAL': 1, 'COMPLETE': 2}
-    rows.sort(key=lambda r: (status_order.get(r['status'], 99), r['artist'] or '', r['album'] or ''))
+    status_order = {"MISSING": 0, "PARTIAL": 1, "COMPLETE": 2}
+    rows.sort(key=lambda r: (status_order.get(r["status"], 99), r["artist"] or "", r["album"] or ""))
 
-    with path.open('w', newline='', encoding='utf-8') as fh:
+    with path.open("w", newline="", encoding="utf-8") as fh:
         w = csv.writer(fh)
         w.writerow(["artist", "album", "total", "matched", "missing", "percent_complete", "status"])
         for r in rows:
-            w.writerow([
-                r['artist'], r['album'], r['total'], r['matched'],
-                r['missing'], r['percent_complete'], r['status']
-            ])
+            w.writerow(
+                [r["artist"], r["album"], r["total"], r["matched"], r["missing"], r["percent_complete"], r["status"]]
+            )
 
     return path
 
@@ -56,12 +55,12 @@ def _compute_album_completeness(db: Database) -> Iterable[dict[str, Any]]:
 
     # Pre-compute matched track_ids
     matched_rows = db.conn.execute("SELECT DISTINCT track_id FROM matches").fetchall()
-    {r['track_id'] for r in matched_rows}
+    {r["track_id"] for r in matched_rows}
 
     for row in album_rows:
-        artist = row['artist']
-        album = row['album']
-        total = row['total']
+        artist = row["artist"]
+        album = row["album"]
+        total = row["total"]
 
         # Count matched in this album
         matched_in_album = db.conn.execute(
@@ -73,18 +72,18 @@ def _compute_album_completeness(db: Database) -> Iterable[dict[str, Any]]:
         percent = (matched_in_album / total) * 100.0 if total else 0.0
 
         if matched_in_album == 0:
-            status = 'MISSING'
+            status = "MISSING"
         elif missing == 0:
-            status = 'COMPLETE'
+            status = "COMPLETE"
         else:
-            status = 'PARTIAL'
+            status = "PARTIAL"
 
         yield {
-            'artist': artist,
-            'album': album,
-            'total': total,
-            'matched': matched_in_album,
-            'missing': missing,
-            'percent_complete': round(percent, 2),
-            'status': status,
+            "artist": artist,
+            "album": album,
+            "total": total,
+            "matched": matched_in_album,
+            "missing": missing,
+            "percent_complete": round(percent, 2),
+            "status": status,
         }

@@ -7,7 +7,7 @@ from PySide6.QtCore import Qt, QSettings
 from psm.gui.window_state_manager import WindowStateManager
 
 
-@pytest.fixture(scope='module')
+@pytest.fixture(scope="module")
 def qapp():
     """Create QApplication instance for GUI tests."""
     app = QApplication.instance()
@@ -43,6 +43,7 @@ def main_window(qapp):
 def splitter(qapp):
     """Create a test splitter with widgets."""
     from PySide6.QtWidgets import QWidget
+
     splitter = QSplitter()
     # Add two widgets so splitter can have sizes
     splitter.addWidget(QWidget())
@@ -55,6 +56,7 @@ def splitter(qapp):
 def table_view(qapp):
     """Create a test table view with header."""
     from psm.gui.models import PlaylistsModel
+
     table = QTableView()
     model = PlaylistsModel()
     table.setModel(model)
@@ -80,7 +82,7 @@ class TestWindowStateManagerCreation:
 
     def test_has_settings(self, manager):
         """Manager should have QSettings instance."""
-        assert hasattr(manager, 'settings')
+        assert hasattr(manager, "settings")
         assert isinstance(manager.settings, QSettings)
 
     def test_settings_organization(self, manager):
@@ -252,9 +254,7 @@ class TestBulkOperations:
         manager.save_all_window_state(main_window, splitter, table_headers)
 
         # Restore state
-        pending_sorts = manager.restore_all_window_state(
-            main_window, splitter, table_headers
-        )
+        pending_sorts = manager.restore_all_window_state(main_window, splitter, table_headers)
 
         # Should return pending sorts dict
         assert isinstance(pending_sorts, dict)
@@ -272,9 +272,7 @@ class TestBulkOperations:
         manager.save_all_window_state(main_window, splitter, table_headers)
 
         # Restore
-        pending_sorts = manager.restore_all_window_state(
-            main_window, splitter, table_headers
-        )
+        pending_sorts = manager.restore_all_window_state(main_window, splitter, table_headers)
 
         # Verify pending sort returned
         assert "test" in pending_sorts
@@ -285,6 +283,7 @@ class TestBulkOperations:
         """Should handle multiple tables in bulk operations."""
         # Create second table
         from psm.gui.models import UnifiedTracksModel
+
         table2 = QTableView()
         model2 = UnifiedTracksModel()
         table2.setModel(model2)
@@ -296,9 +295,7 @@ class TestBulkOperations:
 
         # Save and restore
         manager.save_all_window_state(main_window, splitter, table_headers)
-        pending_sorts = manager.restore_all_window_state(
-            main_window, splitter, table_headers
-        )
+        pending_sorts = manager.restore_all_window_state(main_window, splitter, table_headers)
 
         # Should handle both tables
         assert isinstance(pending_sorts, dict)
@@ -333,8 +330,6 @@ class TestEdgeCases:
         table_headers = {}
 
         manager.save_all_window_state(main_window, splitter, table_headers)
-        pending_sorts = manager.restore_all_window_state(
-            main_window, splitter, table_headers
-        )
+        pending_sorts = manager.restore_all_window_state(main_window, splitter, table_headers)
 
         assert pending_sorts == {}

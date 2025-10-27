@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 """Database interface abstraction for testability.
 
 This interface defines the contract used by service-layer code. A concrete
@@ -15,19 +16,31 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, Protoco
 # Import domain models for typed returns
 from .models import TrackRow, LibraryFileRow, PlaylistRow
 
+
 class SupportsRowMapping(Protocol):  # pragma: no cover - structural helper
     def __getitem__(self, key: str) -> Any: ...
+
 
 class DatabaseInterface(ABC):
     # --- Playlist metadata ---
     @abstractmethod
-    def upsert_playlist(self, pid: str, name: str, snapshot_id: str | None, owner_id: str | None = None, owner_name: str | None = None, provider: str | None = None) -> None: ...
+    def upsert_playlist(
+        self,
+        pid: str,
+        name: str,
+        snapshot_id: str | None,
+        owner_id: str | None = None,
+        owner_name: str | None = None,
+        provider: str | None = None,
+    ) -> None: ...
 
     @abstractmethod
     def playlist_snapshot_changed(self, pid: str, snapshot_id: str, provider: str | None = None) -> bool: ...
 
     @abstractmethod
-    def replace_playlist_tracks(self, pid: str, tracks: Sequence[Tuple[int, str, str | None]], provider: str | None = None): ...
+    def replace_playlist_tracks(
+        self, pid: str, tracks: Sequence[Tuple[int, str, str | None]], provider: str | None = None
+    ): ...
 
     @abstractmethod
     def get_playlist_by_id(self, playlist_id: str, provider: str | None = None) -> Optional[PlaylistRow]: ...
@@ -49,7 +62,15 @@ class DatabaseInterface(ABC):
     def add_library_file(self, data: Dict[str, Any]): ...
 
     @abstractmethod
-    def add_match(self, track_id: str, file_id: int, score: float, method: str, provider: str | None = None, confidence: str | None = None): ...
+    def add_match(
+        self,
+        track_id: str,
+        file_id: int,
+        score: float,
+        method: str,
+        provider: str | None = None,
+        confidence: str | None = None,
+    ): ...
 
     @abstractmethod
     def count_tracks(self, provider: str | None = None) -> int: ...
@@ -215,7 +236,9 @@ class DatabaseInterface(ABC):
 
     # --- Export service methods ---
     @abstractmethod
-    def list_playlists(self, playlist_ids: Optional[List[str]] = None, provider: str | None = None) -> List[Dict[str, Any]]:
+    def list_playlists(
+        self, playlist_ids: Optional[List[str]] = None, provider: str | None = None
+    ) -> List[Dict[str, Any]]:
         """List playlists with stable ordering.
 
         Args:
@@ -228,7 +251,9 @@ class DatabaseInterface(ABC):
         ...
 
     @abstractmethod
-    def get_playlist_tracks_with_local_paths(self, playlist_id: str, provider: str | None = None) -> List[Dict[str, Any]]:
+    def get_playlist_tracks_with_local_paths(
+        self, playlist_id: str, provider: str | None = None
+    ) -> List[Dict[str, Any]]:
         """Get playlist tracks with matched local file paths (best match only per track).
 
         Args:
@@ -336,9 +361,9 @@ class DatabaseInterface(ABC):
         self,
         provider: str | None = None,
         sort_column: Optional[str] = None,
-        sort_order: str = 'ASC',
+        sort_order: str = "ASC",
         limit: Optional[int] = None,
-        offset: int = 0
+        offset: int = 0,
     ) -> List[Dict[str, Any]]:
         """Get minimal unified tracks (one row per track, no playlists aggregation).
 
@@ -358,11 +383,7 @@ class DatabaseInterface(ABC):
         ...
 
     @abstractmethod
-    def get_playlists_for_track_ids(
-        self,
-        track_ids: List[str],
-        provider: str | None = None
-    ) -> Dict[str, str]:
+    def get_playlists_for_track_ids(self, track_ids: List[str], provider: str | None = None) -> Dict[str, str]:
         """Get comma-separated playlist names for each track ID.
 
         Uses SQL GROUP_CONCAT for performance instead of Python loops.
@@ -377,11 +398,7 @@ class DatabaseInterface(ABC):
         ...
 
     @abstractmethod
-    def get_track_ids_for_playlist(
-        self,
-        playlist_name: str,
-        provider: str | None = None
-    ) -> set:
+    def get_track_ids_for_playlist(self, playlist_name: str, provider: str | None = None) -> set:
         """Get set of track IDs that belong to a specific playlist.
 
         Used for efficient playlist filtering in GUI without loading playlists column.
@@ -396,11 +413,7 @@ class DatabaseInterface(ABC):
         ...
 
     @abstractmethod
-    def get_playlists_containing_tracks(
-        self,
-        track_ids: List[str],
-        provider: str | None = None
-    ) -> List[str]:
+    def get_playlists_containing_tracks(self, track_ids: List[str], provider: str | None = None) -> List[str]:
         """Get playlist IDs that contain any of the given track IDs.
 
         Used in watch mode to determine which playlists are affected by track matches.
@@ -427,5 +440,6 @@ class DatabaseInterface(ABC):
 
     @abstractmethod
     def close(self): ...
+
 
 __all__ = ["DatabaseInterface"]

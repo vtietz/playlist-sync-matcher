@@ -19,7 +19,7 @@ def test_logging_config_custom_values():
         progress_enabled=False,
         progress_interval=50,
         scan_progress_interval=250,
-        item_name_overrides={"tracks": "songs"}
+        item_name_overrides={"tracks": "songs"},
     )
 
     assert config.progress_enabled is False
@@ -31,10 +31,7 @@ def test_logging_config_custom_values():
 def test_logging_config_to_dict():
     """Test LoggingConfig conversion to dictionary."""
     config = LoggingConfig(
-        progress_enabled=False,
-        progress_interval=75,
-        scan_progress_interval=300,
-        item_name_overrides={"files": "items"}
+        progress_enabled=False, progress_interval=75, scan_progress_interval=300, item_name_overrides={"files": "items"}
     )
 
     result = config.to_dict()
@@ -43,6 +40,5 @@ def test_logging_config_to_dict():
         "progress_enabled": False,
         "progress_interval": 75,
         "scan_progress_interval": 300,
-        "item_name_overrides": {"files": "items"}
+        "item_name_overrides": {"files": "items"},
     }
-

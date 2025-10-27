@@ -6,10 +6,7 @@ Follows composition pattern: builds UI, exposes signals and widgets.
 
 from __future__ import annotations
 from typing import TYPE_CHECKING
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
-    QTableView, QHeaderView
-)
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QTableView, QHeaderView
 from PySide6.QtCore import Qt, Signal, QItemSelection, QSignalBlocker, QItemSelectionModel
 
 if TYPE_CHECKING:
@@ -32,13 +29,7 @@ class PlaylistsTab(QWidget):
     match_one_clicked = Signal()
     export_one_clicked = Signal()
 
-    def __init__(
-        self,
-        playlists_model,
-        playlist_proxy_model,
-        playlist_filter_bar,
-        parent=None
-    ):
+    def __init__(self, playlists_model, playlist_proxy_model, playlist_filter_bar, parent=None):
         """Initialize playlists tab.
 
         Args:
@@ -100,7 +91,7 @@ class PlaylistsTab(QWidget):
         table.setColumnWidth(0, 250)  # Name
         table.setColumnWidth(1, 120)  # Owner
         table.setColumnWidth(2, 120)  # Coverage
-        table.setColumnWidth(3, 80)   # Relevance
+        table.setColumnWidth(3, 80)  # Relevance
 
         # Apply link delegate to Name column
         link_delegate = LinkDelegate(provider="spotify", parent=table)
@@ -115,8 +106,11 @@ class PlaylistsTab(QWidget):
             # Use a lambda to add logging and ensure signal propagation
             def on_selection_changed(selected, deselected):
                 import logging
+
                 logger = logging.getLogger(__name__)
-                logger.info(f"PlaylistsTab: Selection changed - selected: {selected.count()}, deselected: {deselected.count()}")
+                logger.info(
+                    f"PlaylistsTab: Selection changed - selected: {selected.count()}, deselected: {deselected.count()}"
+                )
                 self.selection_changed.emit(selected, deselected)
 
             selection_model.selectionChanged.connect(on_selection_changed)
@@ -179,10 +173,10 @@ class PlaylistsTab(QWidget):
         source_row = source_index.row()
 
         # Get ID from the model
-        if hasattr(self.playlists_model, 'get_row_data'):
+        if hasattr(self.playlists_model, "get_row_data"):
             row_data = self.playlists_model.get_row_data(source_row)
             if row_data:
-                return row_data.get('id', '')
+                return row_data.get("id", "")
 
         return ""
 
@@ -203,16 +197,13 @@ class PlaylistsTab(QWidget):
 
             # Get playlist data
             row_data = self.playlists_model.get_row_data(source_row)
-            if row_data and (row_data.get('name') == playlist_name or row_data.get('id') == playlist_name):
+            if row_data and (row_data.get("name") == playlist_name or row_data.get("id") == playlist_name):
                 # Found it - select with signal blocking
                 selection_model = self.table_view.selectionModel()
                 if selection_model:
                     with QSignalBlocker(selection_model):
                         selection_model.clearSelection()
-                        selection_model.select(
-                            proxy_index,
-                            QItemSelectionModel.Select | QItemSelectionModel.Rows
-                        )
+                        selection_model.select(proxy_index, QItemSelectionModel.Select | QItemSelectionModel.Rows)
                         self.table_view.scrollTo(proxy_index)
                 return
 

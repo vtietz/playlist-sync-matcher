@@ -8,9 +8,9 @@ def _make_file(file_dict):
 
     Mimics the behavior of MatchingEngine._normalize_file_dict().
     """
-    if 'normalized' in file_dict and 'normalized_tokens' not in file_dict:
-        normalized_str = file_dict.get('normalized') or ''
-        file_dict['normalized_tokens'] = set(normalized_str.split())
+    if "normalized" in file_dict and "normalized_tokens" not in file_dict:
+        normalized_str = file_dict.get("normalized") or ""
+        file_dict["normalized_tokens"] = set(normalized_str.split())
     return file_dict
 
 
@@ -21,17 +21,17 @@ class TestDurationPrefilter:
         """Files outside duration window should be filtered out."""
         selector = CandidateSelector()
 
-        track = {'duration_ms': 180000}  # 3 minutes = 180 seconds
+        track = {"duration_ms": 180000}  # 3 minutes = 180 seconds
         files = [
-            {'id': 1, 'duration': 180},  # Exact match
-            {'id': 2, 'duration': 183},  # +3s (within ±4s)
-            {'id': 3, 'duration': 177},  # -3s (within ±4s)
-            {'id': 4, 'duration': 200},  # +20s (outside ±4s)
-            {'id': 5, 'duration': 160},  # -20s (outside ±4s)
+            {"id": 1, "duration": 180},  # Exact match
+            {"id": 2, "duration": 183},  # +3s (within ±4s)
+            {"id": 3, "duration": 177},  # -3s (within ±4s)
+            {"id": 4, "duration": 200},  # +20s (outside ±4s)
+            {"id": 5, "duration": 160},  # -20s (outside ±4s)
         ]
 
         result = selector.duration_prefilter(track, files, dur_tolerance=2.0)
-        result_ids = [f['id'] for f in result]
+        result_ids = [f["id"] for f in result]
 
         assert 1 in result_ids
         assert 2 in result_ids
@@ -43,17 +43,17 @@ class TestDurationPrefilter:
         """Duration window should be at least ±4 seconds."""
         selector = CandidateSelector()
 
-        track = {'duration_ms': 180000}  # 180 seconds
+        track = {"duration_ms": 180000}  # 180 seconds
         files = [
-            {'id': 1, 'duration': 184},  # +4s (should pass)
-            {'id': 2, 'duration': 176},  # -4s (should pass)
-            {'id': 3, 'duration': 185},  # +5s (should fail)
-            {'id': 4, 'duration': 175},  # -5s (should fail)
+            {"id": 1, "duration": 184},  # +4s (should pass)
+            {"id": 2, "duration": 176},  # -4s (should pass)
+            {"id": 3, "duration": 185},  # +5s (should fail)
+            {"id": 4, "duration": 175},  # -5s (should fail)
         ]
 
         # Even with dur_tolerance=1.0, window should be max(4, 1*2) = 4
         result = selector.duration_prefilter(track, files, dur_tolerance=1.0)
-        result_ids = [f['id'] for f in result]
+        result_ids = [f["id"] for f in result]
 
         assert 1 in result_ids
         assert 2 in result_ids
@@ -64,15 +64,15 @@ class TestDurationPrefilter:
         """Larger tolerance should expand the window beyond ±4s."""
         selector = CandidateSelector()
 
-        track = {'duration_ms': 180000}  # 180 seconds
+        track = {"duration_ms": 180000}  # 180 seconds
         files = [
-            {'id': 1, 'duration': 190},  # +10s
-            {'id': 2, 'duration': 170},  # -10s
+            {"id": 1, "duration": 190},  # +10s
+            {"id": 2, "duration": 170},  # -10s
         ]
 
         # dur_tolerance=5.0 -> window = max(4, 5*2) = 10
         result = selector.duration_prefilter(track, files, dur_tolerance=5.0)
-        result_ids = [f['id'] for f in result]
+        result_ids = [f["id"] for f in result]
 
         assert 1 in result_ids
         assert 2 in result_ids
@@ -81,14 +81,14 @@ class TestDurationPrefilter:
         """Files with no duration metadata should always pass the filter."""
         selector = CandidateSelector()
 
-        track = {'duration_ms': 180000}
+        track = {"duration_ms": 180000}
         files = [
-            {'id': 1, 'duration': None},  # No metadata
-            {'id': 2, 'duration': 500},   # Way off, but should be filtered
+            {"id": 1, "duration": None},  # No metadata
+            {"id": 2, "duration": 500},  # Way off, but should be filtered
         ]
 
         result = selector.duration_prefilter(track, files, dur_tolerance=2.0)
-        result_ids = [f['id'] for f in result]
+        result_ids = [f["id"] for f in result]
 
         assert 1 in result_ids  # No duration -> always included
         assert 2 not in result_ids
@@ -97,11 +97,11 @@ class TestDurationPrefilter:
         """If track lacks duration, all files should be returned."""
         selector = CandidateSelector()
 
-        track = {'duration_ms': None}
+        track = {"duration_ms": None}
         files = [
-            {'id': 1, 'duration': 180},
-            {'id': 2, 'duration': 500},
-            {'id': 3, 'duration': None},
+            {"id": 1, "duration": 180},
+            {"id": 2, "duration": 500},
+            {"id": 3, "duration": None},
         ]
 
         result = selector.duration_prefilter(track, files, dur_tolerance=2.0)
@@ -112,11 +112,11 @@ class TestDurationPrefilter:
         """dur_tolerance=None should return all files."""
         selector = CandidateSelector()
 
-        track = {'duration_ms': 180000}
+        track = {"duration_ms": 180000}
         files = [
-            {'id': 1, 'duration': 180},
-            {'id': 2, 'duration': 500},
-            {'id': 3, 'duration': 10},
+            {"id": 1, "duration": 180},
+            {"id": 2, "duration": 500},
+            {"id": 3, "duration": 10},
         ]
 
         result = selector.duration_prefilter(track, files, dur_tolerance=None)
@@ -131,10 +131,10 @@ class TestTokenPrescore:
         """If file count < max_candidates, return all without sorting."""
         selector = CandidateSelector()
 
-        track = {'normalized': 'artist album title'}
+        track = {"normalized": "artist album title"}
         files = [
-            {'id': 1, 'normalized': 'artist album title'},
-            {'id': 2, 'normalized': 'different artist'},
+            {"id": 1, "normalized": "artist album title"},
+            {"id": 2, "normalized": "different artist"},
         ]
 
         result = selector.token_prescore(track, files, max_candidates=10)
@@ -146,11 +146,8 @@ class TestTokenPrescore:
         """Should return at most max_candidates files."""
         selector = CandidateSelector()
 
-        track = {'normalized': 'artist album title'}
-        files = [
-            _make_file({'id': i, 'normalized': f'artist album title {i}'})
-            for i in range(100)
-        ]
+        track = {"normalized": "artist album title"}
+        files = [_make_file({"id": i, "normalized": f"artist album title {i}"}) for i in range(100)]
 
         result = selector.token_prescore(track, files, max_candidates=10)
 
@@ -160,16 +157,16 @@ class TestTokenPrescore:
         """Files with higher Jaccard similarity should be ranked first."""
         selector = CandidateSelector()
 
-        track = {'normalized': 'pink floyd dark side moon'}
+        track = {"normalized": "pink floyd dark side moon"}
         files = [
-            _make_file({'id': 1, 'normalized': 'pink floyd dark side moon'}),  # Perfect match (1.0)
-            _make_file({'id': 2, 'normalized': 'pink floyd dark side'}),       # 4/5 = 0.8
-            _make_file({'id': 3, 'normalized': 'pink floyd'}),                 # 2/5 = 0.4
-            _make_file({'id': 4, 'normalized': 'beatles abbey road'}),         # 0/7 = 0.0
+            _make_file({"id": 1, "normalized": "pink floyd dark side moon"}),  # Perfect match (1.0)
+            _make_file({"id": 2, "normalized": "pink floyd dark side"}),  # 4/5 = 0.8
+            _make_file({"id": 3, "normalized": "pink floyd"}),  # 2/5 = 0.4
+            _make_file({"id": 4, "normalized": "beatles abbey road"}),  # 0/7 = 0.0
         ]
 
         result = selector.token_prescore(track, files, max_candidates=3)
-        result_ids = [f['id'] for f in result]
+        result_ids = [f["id"] for f in result]
 
         # Top 3 should be IDs 1, 2, 3 (in that order)
         assert result_ids == [1, 2, 3]
@@ -178,11 +175,11 @@ class TestTokenPrescore:
         """Should handle empty or missing normalized fields gracefully."""
         selector = CandidateSelector()
 
-        track = {'normalized': ''}
+        track = {"normalized": ""}
         files = [
-            _make_file({'id': 1, 'normalized': ''}),
-            _make_file({'id': 2, 'normalized': 'some tokens'}),
-            _make_file({'id': 3, 'normalized': None}),
+            _make_file({"id": 1, "normalized": ""}),
+            _make_file({"id": 2, "normalized": "some tokens"}),
+            _make_file({"id": 3, "normalized": None}),
         ]
 
         # Should not crash
@@ -193,18 +190,18 @@ class TestTokenPrescore:
         """Results should be sorted by similarity descending when over cap."""
         selector = CandidateSelector()
 
-        track = {'normalized': 'a b c d'}
+        track = {"normalized": "a b c d"}
         files = [
-            _make_file({'id': 1, 'normalized': 'a b'}),          # 2/4 = 0.5
-            _make_file({'id': 2, 'normalized': 'a b c'}),        # 3/4 = 0.75
-            _make_file({'id': 3, 'normalized': 'a b c d'}),      # 4/4 = 1.0
-            _make_file({'id': 4, 'normalized': 'a'}),            # 1/4 = 0.25
-            _make_file({'id': 5, 'normalized': 'x y z'}),        # 0/7 = 0.0
+            _make_file({"id": 1, "normalized": "a b"}),  # 2/4 = 0.5
+            _make_file({"id": 2, "normalized": "a b c"}),  # 3/4 = 0.75
+            _make_file({"id": 3, "normalized": "a b c d"}),  # 4/4 = 1.0
+            _make_file({"id": 4, "normalized": "a"}),  # 1/4 = 0.25
+            _make_file({"id": 5, "normalized": "x y z"}),  # 0/7 = 0.0
         ]
 
         # Use max_candidates < len(files) to force sorting
         result = selector.token_prescore(track, files, max_candidates=4)
-        result_ids = [f['id'] for f in result]
+        result_ids = [f["id"] for f in result]
 
         # Should be ordered by similarity: 3, 2, 1, 4 (5 excluded)
         assert result_ids == [3, 2, 1, 4]
@@ -217,8 +214,8 @@ class TestJaccardSimilarity:
         """Identical sets should have similarity of 1.0."""
         selector = CandidateSelector()
 
-        set1 = {'a', 'b', 'c'}
-        set2 = {'a', 'b', 'c'}
+        set1 = {"a", "b", "c"}
+        set2 = {"a", "b", "c"}
 
         assert selector._jaccard_similarity(set1, set2) == 1.0
 
@@ -226,8 +223,8 @@ class TestJaccardSimilarity:
         """Completely different sets should have similarity of 0.0."""
         selector = CandidateSelector()
 
-        set1 = {'a', 'b', 'c'}
-        set2 = {'x', 'y', 'z'}
+        set1 = {"a", "b", "c"}
+        set2 = {"x", "y", "z"}
 
         assert selector._jaccard_similarity(set1, set2) == 0.0
 
@@ -235,8 +232,8 @@ class TestJaccardSimilarity:
         """Partial overlap should return correct ratio."""
         selector = CandidateSelector()
 
-        set1 = {'a', 'b', 'c'}
-        set2 = {'b', 'c', 'd'}
+        set1 = {"a", "b", "c"}
+        set2 = {"b", "c", "d"}
         # Intersection: {b, c} = 2
         # Union: {a, b, c, d} = 4
         # Similarity: 2/4 = 0.5
@@ -253,7 +250,7 @@ class TestJaccardSimilarity:
         """If one set is empty, similarity should be 0.0."""
         selector = CandidateSelector()
 
-        set1 = {'a', 'b', 'c'}
+        set1 = {"a", "b", "c"}
         set2 = set()
 
         assert selector._jaccard_similarity(set1, set2) == 0.0
@@ -267,22 +264,19 @@ class TestCandidateSelectorIntegration:
         """Realistic scenario: duration filter then token prescore."""
         selector = CandidateSelector()
 
-        track = {
-            'duration_ms': 240000,  # 4 minutes
-            'normalized': 'led zeppelin stairway heaven'
-        }
+        track = {"duration_ms": 240000, "normalized": "led zeppelin stairway heaven"}  # 4 minutes
 
         files = [
-            _make_file({'id': 1, 'duration': 240, 'normalized': 'led zeppelin stairway heaven'}),  # Perfect
-            _make_file({'id': 2, 'duration': 242, 'normalized': 'led zeppelin stairway heaven'}),  # Close
-            _make_file({'id': 3, 'duration': 180, 'normalized': 'led zeppelin'}),                  # Duration fail
-            _make_file({'id': 4, 'duration': 240, 'normalized': 'pink floyd'}),                    # Token fail
-            _make_file({'id': 5, 'duration': 300, 'normalized': 'led zeppelin stairway heaven'}),  # Duration fail
+            _make_file({"id": 1, "duration": 240, "normalized": "led zeppelin stairway heaven"}),  # Perfect
+            _make_file({"id": 2, "duration": 242, "normalized": "led zeppelin stairway heaven"}),  # Close
+            _make_file({"id": 3, "duration": 180, "normalized": "led zeppelin"}),  # Duration fail
+            _make_file({"id": 4, "duration": 240, "normalized": "pink floyd"}),  # Token fail
+            _make_file({"id": 5, "duration": 300, "normalized": "led zeppelin stairway heaven"}),  # Duration fail
         ]
 
         # Stage 1: Duration filter
         duration_filtered = selector.duration_prefilter(track, files, dur_tolerance=2.0)
-        duration_ids = [f['id'] for f in duration_filtered]
+        duration_ids = [f["id"] for f in duration_filtered]
 
         assert 1 in duration_ids
         assert 2 in duration_ids
@@ -292,7 +286,7 @@ class TestCandidateSelectorIntegration:
 
         # Stage 2: Token prescore
         top_candidates = selector.token_prescore(track, duration_filtered, max_candidates=2)
-        top_ids = [f['id'] for f in top_candidates]
+        top_ids = [f["id"] for f in top_candidates]
 
         # Should prioritize 1 and 2 (perfect token matches) over 4
         assert 1 in top_ids

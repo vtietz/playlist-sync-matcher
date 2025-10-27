@@ -3,12 +3,13 @@
 Provides fast queries that return one row per track with minimal fields,
 deferring expensive aggregations like playlist concatenation.
 """
+
 from __future__ import annotations
 import sqlite3
 from typing import List, Dict, Any, Optional, Set
 
 # Detect SQLite version for window function support
-_SQLITE_VERSION = tuple(map(int, sqlite3.sqlite_version.split('.')))
+_SQLITE_VERSION = tuple(map(int, sqlite3.sqlite_version.split(".")))
 _SUPPORTS_WINDOW_FUNCTIONS = _SQLITE_VERSION >= (3, 25, 0)
 
 
@@ -16,9 +17,9 @@ def list_unified_tracks_min(
     conn: sqlite3.Connection,
     provider: str,
     sort_column: Optional[str] = None,
-    sort_order: str = 'ASC',
+    sort_order: str = "ASC",
     limit: Optional[int] = None,
-    offset: int = 0
+    offset: int = 0,
 ) -> List[Dict[str, Any]]:
     """Get minimal unified tracks (one row per track, no playlists aggregation).
 
@@ -40,7 +41,7 @@ def list_unified_tracks_min(
     order_by = ""
     if sort_column:
         # Sanitize column name (whitelist approach)
-        valid_columns = {'name', 'artist', 'album', 'year'}
+        valid_columns = {"name", "artist", "album", "year"}
         if sort_column.lower() in valid_columns:
             order_by = f"ORDER BY t.{sort_column.lower()} {sort_order}"
     else:
@@ -196,32 +197,30 @@ def list_unified_tracks_min(
         if not row[14]:  # file_year
             missing_count += 1
 
-        results.append({
-            'id': row[0],
-            'name': row[1] or '',
-            'artist': row[2] or '',
-            'album': row[3] or '',
-            'year': row[4],  # May be None
-            'matched': bool(row[5]),  # 1/0 -> True/False
-            'local_path': row[6],
-            'artist_id': row[7],  # Artist Spotify ID
-            'album_id': row[8],   # Album Spotify ID
-            'score': row[9],  # Match score (0.0-1.0)
-            'method': row[10],  # Match method string
-            'missing_metadata_count': missing_count,  # For quality calculation
-            'bitrate_kbps': row[15],  # For quality calculation
-            'playlist_count': row[16],  # Number of playlists containing this track
-            'is_liked': bool(row[17]),  # Liked status (1/0 -> True/False)
-        })
+        results.append(
+            {
+                "id": row[0],
+                "name": row[1] or "",
+                "artist": row[2] or "",
+                "album": row[3] or "",
+                "year": row[4],  # May be None
+                "matched": bool(row[5]),  # 1/0 -> True/False
+                "local_path": row[6],
+                "artist_id": row[7],  # Artist Spotify ID
+                "album_id": row[8],  # Album Spotify ID
+                "score": row[9],  # Match score (0.0-1.0)
+                "method": row[10],  # Match method string
+                "missing_metadata_count": missing_count,  # For quality calculation
+                "bitrate_kbps": row[15],  # For quality calculation
+                "playlist_count": row[16],  # Number of playlists containing this track
+                "is_liked": bool(row[17]),  # Liked status (1/0 -> True/False)
+            }
+        )
 
     return results
 
 
-def get_track_ids_for_playlist(
-    conn: sqlite3.Connection,
-    playlist_name: str,
-    provider: str
-) -> Set[str]:
+def get_track_ids_for_playlist(conn: sqlite3.Connection, playlist_name: str, provider: str) -> Set[str]:
     """Get set of track IDs that belong to a specific playlist.
 
     Used for efficient playlist filtering in GUI without loading playlists column.
@@ -241,7 +240,7 @@ def get_track_ids_for_playlist(
         JOIN playlists p ON pt.playlist_id = p.id AND pt.provider = p.provider
         WHERE p.name = ? AND p.provider = ?
         """,
-        (playlist_name, provider)
+        (playlist_name, provider),
     )
 
     return {row[0] for row in cursor.fetchall()}

@@ -1,4 +1,5 @@
 """Base class for matching strategies."""
+
 from __future__ import annotations
 from typing import Dict, Any, List, Tuple, Set
 from abc import ABC, abstractmethod
@@ -18,8 +19,9 @@ class MatchStrategy(ABC):
         self.debug = debug
 
     @abstractmethod
-    def match(self, tracks: List[Dict[str, Any]], files: List[Dict[str, Any]],
-              already_matched: Set[str]) -> Tuple[List[Tuple[str, int, float, str]], Set[str]]:
+    def match(
+        self, tracks: List[Dict[str, Any]], files: List[Dict[str, Any]], already_matched: Set[str]
+    ) -> Tuple[List[Tuple[str, int, float, str]], Set[str]]:
         """Execute matching strategy.
 
         Args:

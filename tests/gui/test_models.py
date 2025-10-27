@@ -1,4 +1,5 @@
 """Tests for GUI models (PlaylistsModel, UnifiedTracksModel, etc.)."""
+
 from PySide6.QtCore import Qt
 from psm.gui.models import PlaylistsModel, UnifiedTracksModel
 
@@ -15,7 +16,7 @@ class TestPlaylistsModel:
     def test_column_headers(self):
         """Test column headers are correct."""
         model = PlaylistsModel()
-        expected_headers = ['Name', 'Owner', 'Coverage', 'Relevance']
+        expected_headers = ["Name", "Owner", "Coverage", "Relevance"]
 
         for col, expected in enumerate(expected_headers):
             actual = model.headerData(col, Qt.Horizontal, Qt.DisplayRole)
@@ -27,23 +28,23 @@ class TestPlaylistsModel:
 
         playlists = [
             {
-                'id': None,  # All Playlists marker
-                'name': 'All Playlists',
-                'owner_name': '',
-                'track_count': 100,
-                'matched_count': 75,
-                'unmatched_count': 25,
-                'coverage': 75
+                "id": None,  # All Playlists marker
+                "name": "All Playlists",
+                "owner_name": "",
+                "track_count": 100,
+                "matched_count": 75,
+                "unmatched_count": 25,
+                "coverage": 75,
             },
             {
-                'id': 'playlist1',
-                'name': 'Workout Mix',
-                'owner_name': 'testuser',
-                'track_count': 50,
-                'matched_count': 40,
-                'unmatched_count': 10,
-                'coverage': 80
-            }
+                "id": "playlist1",
+                "name": "Workout Mix",
+                "owner_name": "testuser",
+                "track_count": 50,
+                "matched_count": 40,
+                "unmatched_count": 10,
+                "coverage": 80,
+            },
         ]
 
         model.set_data(playlists)
@@ -51,13 +52,13 @@ class TestPlaylistsModel:
         assert model.rowCount() == 2
 
         # Check "All Playlists" row (coverage column shows formatted string)
-        assert model.data(model.index(0, 0), Qt.DisplayRole) == 'All Playlists'
-        assert model.data(model.index(0, 2), Qt.DisplayRole) == '75% (75/100)'  # Coverage formatted
+        assert model.data(model.index(0, 0), Qt.DisplayRole) == "All Playlists"
+        assert model.data(model.index(0, 2), Qt.DisplayRole) == "75% (75/100)"  # Coverage formatted
 
         # Check regular playlist row
-        assert model.data(model.index(1, 0), Qt.DisplayRole) == 'Workout Mix'
-        assert model.data(model.index(1, 1), Qt.DisplayRole) == 'testuser'
-        assert model.data(model.index(1, 2), Qt.DisplayRole) == '80% (40/50)'  # Coverage formatted
+        assert model.data(model.index(1, 0), Qt.DisplayRole) == "Workout Mix"
+        assert model.data(model.index(1, 1), Qt.DisplayRole) == "testuser"
+        assert model.data(model.index(1, 2), Qt.DisplayRole) == "80% (40/50)"  # Coverage formatted
 
     def test_get_row_data(self):
         """Test retrieving row data by index."""
@@ -65,13 +66,13 @@ class TestPlaylistsModel:
 
         playlists = [
             {
-                'id': None,
-                'name': 'All Playlists',
-                'owner_name': '',
-                'track_count': 100,
-                'matched_count': 75,
-                'unmatched_count': 25,
-                'coverage': 75
+                "id": None,
+                "name": "All Playlists",
+                "owner_name": "",
+                "track_count": 100,
+                "matched_count": 75,
+                "unmatched_count": 25,
+                "coverage": 75,
             }
         ]
 
@@ -79,9 +80,9 @@ class TestPlaylistsModel:
         row_data = model.get_row_data(0)
 
         assert row_data is not None
-        assert row_data['id'] is None
-        assert row_data['name'] == 'All Playlists'
-        assert row_data['track_count'] == 100
+        assert row_data["id"] is None
+        assert row_data["name"] == "All Playlists"
+        assert row_data["track_count"] == 100
 
     def test_get_row_data_invalid_index(self):
         """Test get_row_data with invalid index."""
@@ -100,14 +101,25 @@ class TestUnifiedTracksModel:
         """Test model starts empty."""
         model = UnifiedTracksModel()
         assert model.rowCount() == 0
-        assert model.columnCount() == 11  # Track, Liked, Artist, Album, Year, Matched, Confidence, Quality, Local File, #PL, Playlists
+        assert (
+            model.columnCount() == 11
+        )  # Track, Liked, Artist, Album, Year, Matched, Confidence, Quality, Local File, #PL, Playlists
 
     def test_column_headers(self):
         """Test column headers are correct."""
         model = UnifiedTracksModel()
         expected_headers = [
-            'Track', '❤️', 'Artist', 'Album', 'Year', 'Matched',
-            'Confidence', 'Quality', 'Local File', '#PL', 'Playlists'
+            "Track",
+            "❤️",
+            "Artist",
+            "Album",
+            "Year",
+            "Matched",
+            "Confidence",
+            "Quality",
+            "Local File",
+            "#PL",
+            "Playlists",
         ]
 
         for col, expected in enumerate(expected_headers):
@@ -120,27 +132,27 @@ class TestUnifiedTracksModel:
 
         tracks = [
             {
-                'name': 'Song 1',
-                'artist': 'Artist 1',
-                'album': 'Album 1',
-                'year': 2020,
-                'matched': True,
-                'confidence': 'HIGH',
-                'quality': 'GOOD',
-                'local_path': '/music/song1.mp3',
-                'playlists': ''  # Initially empty
+                "name": "Song 1",
+                "artist": "Artist 1",
+                "album": "Album 1",
+                "year": 2020,
+                "matched": True,
+                "confidence": "HIGH",
+                "quality": "GOOD",
+                "local_path": "/music/song1.mp3",
+                "playlists": "",  # Initially empty
             },
             {
-                'name': 'Song 2',
-                'artist': 'Artist 2',
-                'album': 'Album 2',
-                'year': 2021,
-                'matched': False,
-                'confidence': None,
-                'quality': None,
-                'local_path': None,
-                'playlists': ''
-            }
+                "name": "Song 2",
+                "artist": "Artist 2",
+                "album": "Album 2",
+                "year": 2021,
+                "matched": False,
+                "confidence": None,
+                "quality": None,
+                "local_path": None,
+                "playlists": "",
+            },
         ]
 
         model.set_data(tracks)
@@ -149,16 +161,16 @@ class TestUnifiedTracksModel:
 
         # Check matched track (columns shifted by Liked column):
         # 0=Track, 1=Liked, 2=Artist, 3=Album, 4=Year, 5=Matched, 6=Confidence, 7=Quality, 8=Local File, 9=#PL, 10=Playlists
-        assert model.data(model.index(0, 0), Qt.DisplayRole) == 'Song 1'  # Track name
-        assert model.data(model.index(0, 2), Qt.DisplayRole) == 'Artist 1'  # Artist (shifted by Liked)
-        assert model.data(model.index(0, 3), Qt.DisplayRole) == 'Album 1'  # Album (shifted by Liked)
-        assert model.data(model.index(0, 4), Qt.DisplayRole) == '2020'  # Year (shifted by Liked)
+        assert model.data(model.index(0, 0), Qt.DisplayRole) == "Song 1"  # Track name
+        assert model.data(model.index(0, 2), Qt.DisplayRole) == "Artist 1"  # Artist (shifted by Liked)
+        assert model.data(model.index(0, 3), Qt.DisplayRole) == "Album 1"  # Album (shifted by Liked)
+        assert model.data(model.index(0, 4), Qt.DisplayRole) == "2020"  # Year (shifted by Liked)
         # Note: matched column shows ✓ or ✗, not 'True'/'False'
-        assert model.data(model.index(0, 8), Qt.DisplayRole) == '/music/song1.mp3'  # Local File (shifted by Liked)
+        assert model.data(model.index(0, 8), Qt.DisplayRole) == "/music/song1.mp3"  # Local File (shifted by Liked)
 
         # Check unmatched track
-        assert model.data(model.index(1, 0), Qt.DisplayRole) == 'Song 2'
-        assert model.data(model.index(1, 8), Qt.DisplayRole) in ['', None]  # No local file (shifted by Liked)
+        assert model.data(model.index(1, 0), Qt.DisplayRole) == "Song 2"
+        assert model.data(model.index(1, 8), Qt.DisplayRole) in ["", None]  # No local file (shifted by Liked)
 
     def test_get_row_data(self):
         """Test retrieving row data by index."""
@@ -166,15 +178,15 @@ class TestUnifiedTracksModel:
 
         tracks = [
             {
-                'id': 'track123',
-                'playlist_name': 'Test',
-                'owner': 'user',
-                'name': 'Song',
-                'artist': 'Artist',
-                'album': 'Album',
-                'matched': True,
-                'local_path': '/music/song.mp3',
-                'completeness': 90
+                "id": "track123",
+                "playlist_name": "Test",
+                "owner": "user",
+                "name": "Song",
+                "artist": "Artist",
+                "album": "Album",
+                "matched": True,
+                "local_path": "/music/song.mp3",
+                "completeness": 90,
             }
         ]
 
@@ -182,6 +194,6 @@ class TestUnifiedTracksModel:
         row_data = model.get_row_data(0)
 
         assert row_data is not None
-        assert row_data['id'] == 'track123'
-        assert row_data['name'] == 'Song'
-        assert row_data['matched'] is True
+        assert row_data["id"] == "track123"
+        assert row_data["name"] == "Song"
+        assert row_data["matched"] is True

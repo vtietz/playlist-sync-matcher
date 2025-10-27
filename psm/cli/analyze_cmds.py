@@ -13,9 +13,9 @@ logger = logging.getLogger(__name__)
 
 
 @cli.command()
-@click.option('--min-bitrate', type=int, help='Minimum acceptable bitrate in kbps (overrides config)')
-@click.option('--max-issues', type=int, default=50, help='Max number of detailed issues to show')
-@click.option('--top-offenders', type=int, default=10, help='Number of top offenders to show per category')
+@click.option("--min-bitrate", type=int, help="Minimum acceptable bitrate in kbps (overrides config)")
+@click.option("--max-issues", type=int, default=50, help="Max number of detailed issues to show")
+@click.option("--top-offenders", type=int, default=10, help="Number of top offenders to show per category")
 @click.pass_context
 def analyze(ctx: click.Context, min_bitrate: int | None, max_issues: int, top_offenders: int):
     """Analyze local library quality (missing tags, low bitrate).
@@ -26,7 +26,7 @@ def analyze(ctx: click.Context, min_bitrate: int | None, max_issues: int, top_of
     """
     cfg = ctx.obj
     if min_bitrate is None:
-        min_bitrate = cfg.get('library', {}).get('min_bitrate_kbps', 320)
+        min_bitrate = cfg.get("library", {}).get("min_bitrate_kbps", 320)
     min_bitrate = int(min_bitrate) if min_bitrate is not None else 320
 
     with get_db(cfg) as db:
@@ -35,7 +35,7 @@ def analyze(ctx: click.Context, min_bitrate: int | None, max_issues: int, top_of
 
         # Auto-generate CSV and HTML reports
         if report.issues:
-            out_dir = Path(cfg['reports']['directory'])
+            out_dir = Path(cfg["reports"]["directory"])
             csv_path, html_path = write_analysis_quality_reports(report, out_dir, min_bitrate_kbps=min_bitrate)
             write_index_page(out_dir, db)
             logger.info("")
@@ -47,4 +47,4 @@ def analyze(ctx: click.Context, min_bitrate: int | None, max_issues: int, top_of
             logger.info("✓ No quality issues found - library metadata is excellent!")
 
 
-__all__ = ['analyze']
+__all__ = ["analyze"]

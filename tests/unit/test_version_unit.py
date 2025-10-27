@@ -14,13 +14,9 @@ def test_version_constant_format():
 
 def test_cli_global_version_option():
     # Invoke the CLI using current interpreter to ensure we are in the venv
-    proc = subprocess.run([
-        sys.executable,
-        '-m', 'psm.cli',
-        '--version'
-    ], capture_output=True, text=True, check=False)
+    proc = subprocess.run([sys.executable, "-m", "psm.cli", "--version"], capture_output=True, text=True, check=False)
     assert proc.returncode == 0, proc.stderr or proc.stdout
     out = (proc.stdout + proc.stderr).strip()
     # Expected pattern: 'playlist-sync-matcher, version X.Y.Z'
-    assert 'playlist-sync-matcher' in out.lower()
+    assert "playlist-sync-matcher" in out.lower()
     assert v.__version__ in out, f"CLI output did not contain version: {out}"

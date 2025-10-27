@@ -1,4 +1,5 @@
 """Controller for CLI command execution and action handlers."""
+
 from __future__ import annotations
 from typing import TYPE_CHECKING, Optional
 from PySide6.QtCore import QObject, QTimer, Qt
@@ -31,7 +32,7 @@ class CommandController(QObject):
         executor: CliExecutor,
         db_monitor: Optional[DbAutoRefreshController] = None,
         data_refresh: Optional[DataRefreshController] = None,
-        parent: Optional[QObject] = None
+        parent: Optional[QObject] = None,
     ):
         """Initialize controller.
 
@@ -52,7 +53,7 @@ class CommandController(QObject):
         self.command_service = CommandService(
             executor=executor,
             enable_actions=window.enable_actions,
-            watch_mode_controller=None  # Will be set later via set_watch_mode_controller()
+            watch_mode_controller=None,  # Will be set later via set_watch_mode_controller()
         )
 
         # Connect action buttons
@@ -94,8 +95,7 @@ class CommandController(QObject):
         self.window.on_cancel_clicked.connect(self._on_cancel)
 
     def _patch_track_match_state(
-        self, track_id: str, matched: bool,
-        local_path: str = "", method: Optional[str] = None
+        self, track_id: str, matched: bool, local_path: str = "", method: Optional[str] = None
     ):
         """Optimistically update a single track's match state in the GUI.
 
@@ -116,21 +116,19 @@ class CommandController(QObject):
         # Find the row with this track_id
         row_idx = None
         for i, row_data in enumerate(model.data_rows):
-            if row_data.get('id') == track_id or row_data.get('track_id') == track_id:
+            if row_data.get("id") == track_id or row_data.get("track_id") == track_id:
                 row_idx = i
                 break
 
         if row_idx is None:
-            logger.warning(
-                f"Cannot patch track state: track_id {track_id} not found in model"
-            )
+            logger.warning(f"Cannot patch track state: track_id {track_id} not found in model")
             return
 
         # Update row data
         row_data = model.data_rows[row_idx]
-        row_data['matched'] = matched
-        row_data['local_path'] = local_path
-        row_data['method'] = method
+        row_data["matched"] = matched
+        row_data["local_path"] = local_path
+        row_data["method"] = method
 
         # Emit dataChanged for affected columns
         # Columns: matched(5), confidence(6), quality(7), local_path(8)
@@ -140,22 +138,17 @@ class CommandController(QObject):
         top_left = model.index(row_idx, matched_col)
         bottom_right = model.index(row_idx, local_path_col)
         model.dataChanged.emit(
-            top_left, bottom_right,
-            [Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.UserRole,
-             Qt.ItemDataRole.ToolTipRole]
+            top_left, bottom_right, [Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.UserRole, Qt.ItemDataRole.ToolTipRole]
         )
 
-        logger.debug(
-            f"Patched track {track_id}: matched={matched}, local_path='{local_path}'"
-        )
+        logger.debug(f"Patched track {track_id}: matched={matched}, local_path='{local_path}'")
 
         # Refresh button states to update Remove Match button availability
-        if hasattr(self.window, 'ui_state') and self.window.ui_state:
+        if hasattr(self.window, "ui_state") and self.window.ui_state:
             self.window.ui_state.on_track_selection_changed(True)
 
     def _execute_command(
-        self, args: list, success_message: str,
-        refresh_after: bool = True, fast_refresh: bool = False
+        self, args: list, success_message: str, refresh_after: bool = True, fast_refresh: bool = False
     ):
         """Execute a CLI command using CommandService.
 
@@ -175,8 +168,7 @@ class CommandController(QObject):
         # Choose refresh method
         if refresh_after and self._data_refresh:
             refresh_callback = (
-                self._data_refresh.refresh_tracks_only_async if fast_refresh
-                else self._data_refresh.refresh_all_async
+                self._data_refresh.refresh_tracks_only_async if fast_refresh else self._data_refresh.refresh_all_async
             )
         else:
             refresh_callback = None
@@ -215,9 +207,7 @@ class CommandController(QObject):
                 # Schedule suppression clear after ignore window expires
                 if self._db_monitor:
                     QTimer.singleShot(
-                        2500,
-                        lambda: self._db_monitor.set_suppression(False)
-                        if self._db_monitor else None
+                        2500, lambda: self._db_monitor.set_suppression(False) if self._db_monitor else None
                     )
 
         try:
@@ -227,7 +217,7 @@ class CommandController(QObject):
                 on_log=self.window.append_log,
                 on_execution_status=self.window.set_execution_status,
                 on_success=on_success,  # Use wrapper that clears suppression flag
-                success_message=success_message
+                success_message=success_message,
             )
         finally:
             # Restore original callback
@@ -245,7 +235,7 @@ class CommandController(QObject):
         Pull updates playlist structure (adds/removes playlists, changes track lists),
         so requires full refresh to reload playlists + tracks + counts.
         """
-        self._execute_command(['pull'], "✓ Pull completed")  # Full refresh
+        self._execute_command(["pull"], "✓ Pull completed")  # Full refresh
 
     def _on_scan(self):
         """Handle library scan.
@@ -253,14 +243,14 @@ class CommandController(QObject):
         Scan updates track metadata and may add new tracks. Uses fast refresh
         since playlists themselves don't change (tracks-only update is sufficient).
         """
-        self._execute_command(['scan'], "✓ Scan completed", fast_refresh=True)
+        self._execute_command(["scan"], "✓ Scan completed", fast_refresh=True)
 
     def _on_match(self):
         """Handle match all tracks.
 
         Match only updates match scores/methods, so uses fast tracks-only refresh.
         """
-        self._execute_command(['match'], "✓ Match completed", fast_refresh=True)
+        self._execute_command(["match"], "✓ Match completed", fast_refresh=True)
 
     def _on_export(self):
         """Handle export all playlists.
@@ -268,7 +258,7 @@ class CommandController(QObject):
         Export writes M3U files but doesn't change the database,
         so no refresh is needed.
         """
-        self._execute_command(['export'], "✓ Export completed", refresh_after=False)
+        self._execute_command(["export"], "✓ Export completed", refresh_after=False)
 
     def _on_report(self):
         """Handle generate reports.
@@ -276,7 +266,7 @@ class CommandController(QObject):
         Report generates HTML files but doesn't change the database,
         so no refresh is needed.
         """
-        self._execute_command(['report'], "✓ Reports generated", refresh_after=False)
+        self._execute_command(["report"], "✓ Reports generated", refresh_after=False)
 
     def _on_analyze(self):
         """Handle analyze library quality (read-only - no refresh needed).
@@ -289,7 +279,7 @@ class CommandController(QObject):
         if self._db_monitor:
             self._db_monitor.set_ignore_window(2.5)
             self._db_monitor.set_suppression(True)
-        self._execute_command(['analyze'], "✓ Library quality analysis completed", refresh_after=False)
+        self._execute_command(["analyze"], "✓ Library quality analysis completed", refresh_after=False)
 
     def _on_diagnose(self, track_id: str):
         """Handle diagnose specific track (read-only - no refresh needed).
@@ -302,41 +292,32 @@ class CommandController(QObject):
             track_id: ID of the track to diagnose
         """
         # Add visible log message to confirm click is received
-        self.window.append_log(
-            f"🔍 Diagnose button clicked - track ID: {track_id}"
-        )
+        self.window.append_log(f"🔍 Diagnose button clicked - track ID: {track_id}")
         # Set ignore window to cover the operation plus brief aftermath
         if self._db_monitor:
             self._db_monitor.set_ignore_window(2.5)
             self._db_monitor.set_suppression(True)
         self._execute_command(
-            ['diagnose', track_id],
-            f"✓ Diagnosis completed for track {track_id}",
-            refresh_after=False
+            ["diagnose", track_id], f"✓ Diagnosis completed for track {track_id}", refresh_after=False
         )
 
     def _on_open_reports(self):
         """Handle opening reports index page in web browser."""
         try:
             from psm.config import load_config
+
             config = load_config()
-            reports_dir = Path(config['reports']['directory']).resolve()  # Convert to absolute path
-            index_file = reports_dir / 'index.html'
+            reports_dir = Path(config["reports"]["directory"]).resolve()  # Convert to absolute path
+            index_file = reports_dir / "index.html"
 
             if not reports_dir.exists():
                 logger.warning(f"Reports directory does not exist: {reports_dir}")
-                self.window.append_log(
-                    f"⚠ Reports directory not found: {reports_dir}\n"
-                    "Generate reports first."
-                )
+                self.window.append_log(f"⚠ Reports directory not found: {reports_dir}\n" "Generate reports first.")
                 return
 
             if not index_file.exists():
                 logger.warning(f"Reports index not found: {index_file}")
-                self.window.append_log(
-                    "⚠ Reports index.html not found\n"
-                    "Generate reports first with: psm report"
-                )
+                self.window.append_log("⚠ Reports index.html not found\n" "Generate reports first with: psm report")
                 return
 
             # Open index.html in default web browser
@@ -361,7 +342,7 @@ class CommandController(QObject):
 
     def _on_build(self):
         """Handle build (scan + match + export)."""
-        self._execute_command(['build'], "✓ Build completed")
+        self._execute_command(["build"], "✓ Build completed")
 
     def _on_pull_one(self):
         """Handle pull single playlist."""
@@ -371,9 +352,7 @@ class CommandController(QObject):
             logger.info(f"Executing: playlist pull {playlist_id}")
             # Use fast tracks-only refresh after single playlist operations
             self._execute_command(
-                ['playlist', 'pull', playlist_id],
-                f"✓ Pulled playlist {playlist_id}",
-                fast_refresh=True
+                ["playlist", "pull", playlist_id], f"✓ Pulled playlist {playlist_id}", fast_refresh=True
             )
         else:
             logger.warning("Pull one clicked but no playlist selected")
@@ -387,9 +366,7 @@ class CommandController(QObject):
             logger.info(f"Executing: playlist match {playlist_id}")
             # Use fast tracks-only refresh after single playlist operations
             self._execute_command(
-                ['playlist', 'match', playlist_id],
-                f"✓ Matched playlist {playlist_id}",
-                fast_refresh=True
+                ["playlist", "match", playlist_id], f"✓ Matched playlist {playlist_id}", fast_refresh=True
             )
         else:
             logger.warning("Match one clicked but no playlist selected")
@@ -403,9 +380,9 @@ class CommandController(QObject):
             logger.info(f"Executing: playlist export {playlist_id}")
             # Export doesn't change DB data, so no refresh needed
             self._execute_command(
-                ['playlist', 'export', playlist_id],
+                ["playlist", "export", playlist_id],
                 f"✓ Exported playlist {playlist_id}",
-                refresh_after=False  # Don't refresh for export
+                refresh_after=False,  # Don't refresh for export
             )
         else:
             logger.warning("Export one clicked but no playlist selected")
@@ -422,10 +399,10 @@ class CommandController(QObject):
             logger.info(f"Matching single track: {track_id}")
             # Use standard CLI command execution (consistent with other buttons)
             self._execute_command(
-                ['match', '--track-id', track_id],
+                ["match", "--track-id", track_id],
                 f"✓ Matched track {track_id}",
                 refresh_after=True,
-                fast_refresh=True  # Only refresh tracks table
+                fast_refresh=True,  # Only refresh tracks table
             )
         else:
             logger.warning("Match track clicked but no track ID provided")
@@ -447,18 +424,18 @@ class CommandController(QObject):
 
             # Use standard CLI command execution with optimistic UI update
             self._execute_command(
-                ['set-match', '--track-id', track_id, '--file-path', file_path],
+                ["set-match", "--track-id", track_id, "--file-path", file_path],
                 f"✓ Manual match set for track {track_id}",
-                refresh_after=False  # Optimistic update - no full refresh
+                refresh_after=False,  # Optimistic update - no full refresh
             )
 
             # Patch GUI row directly after suppression clears
-            QTimer.singleShot(2500, lambda: self._patch_track_match_state(
-                track_id=track_id,
-                matched=True,
-                local_path=file_path,
-                method="score:MANUAL:manual-selected"
-            ))
+            QTimer.singleShot(
+                2500,
+                lambda: self._patch_track_match_state(
+                    track_id=track_id, matched=True, local_path=file_path, method="score:MANUAL:manual-selected"
+                ),
+            )
         else:
             logger.warning(f"Manual match called with missing parameters: track_id={track_id}, file_path={file_path}")
             self.window.append_log("⚠ Invalid manual match parameters")
@@ -478,18 +455,16 @@ class CommandController(QObject):
 
             # Use standard CLI command execution with optimistic UI update
             self._execute_command(
-                ['remove-match', '--track-id', track_id],
+                ["remove-match", "--track-id", track_id],
                 f"✓ Match removed for track {track_id}",
-                refresh_after=False  # Optimistic update - no full refresh
+                refresh_after=False,  # Optimistic update - no full refresh
             )
 
             # Patch GUI row directly after suppression clears
-            QTimer.singleShot(2500, lambda: self._patch_track_match_state(
-                track_id=track_id,
-                matched=False,
-                local_path="",
-                method=None
-            ))
+            QTimer.singleShot(
+                2500,
+                lambda: self._patch_track_match_state(track_id=track_id, matched=False, local_path="", method=None),
+            )
         else:
             logger.warning("Remove match called with no track_id")
             self.window.append_log("⚠ No track selected")

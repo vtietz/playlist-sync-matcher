@@ -13,7 +13,7 @@ def log_progress(
     updated: int = 0,
     skipped: int = 0,
     elapsed_seconds: float = 0.0,
-    item_name: str = "files"
+    item_name: str = "files",
 ) -> None:
     """Log progress info with consistent formatting.
 
@@ -26,9 +26,7 @@ def log_progress(
         elapsed_seconds: Time elapsed since start
         item_name: Name of items being processed (e.g., "files", "tracks")
     """
-    parts = [
-        f"{click.style(f'{processed}', fg='cyan')} {item_name} processed"
-    ]
+    parts = [f"{click.style(f'{processed}', fg='cyan')} {item_name} processed"]
 
     if total:
         pct = (processed / total * 100) if total > 0 else 0
@@ -49,12 +47,7 @@ def log_progress(
 
 
 def format_summary(
-    new: int,
-    updated: int,
-    unchanged: int,
-    deleted: int = 0,
-    duration_seconds: float = 0.0,
-    item_name: str = "items"
+    new: int, updated: int, unchanged: int, deleted: int = 0, duration_seconds: float = 0.0, item_name: str = "items"
 ) -> str:
     """Format a summary line with colored counts.
 
@@ -70,15 +63,15 @@ def format_summary(
         Formatted summary string with colors
     """
     parts = [
-        click.style('✓', fg='green'),
+        click.style("✓", fg="green"),
         f"{item_name}:",
-        click.style(f'{new} new', fg='green'),
-        click.style(f'{updated} updated', fg='blue'),
-        click.style(f'{unchanged} unchanged', fg='yellow')
+        click.style(f"{new} new", fg="green"),
+        click.style(f"{updated} updated", fg="blue"),
+        click.style(f"{unchanged} unchanged", fg="yellow"),
     ]
 
     if deleted > 0:
-        parts.append(click.style(f'{deleted} deleted', fg='red'))
+        parts.append(click.style(f"{deleted} deleted", fg="red"))
 
     if duration_seconds > 0:
         parts.append(f"in {duration_seconds:.2f}s")

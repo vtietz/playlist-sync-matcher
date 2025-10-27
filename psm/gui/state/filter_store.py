@@ -74,11 +74,13 @@ class FilterState:
         # Album filter can be used alone or with artist (no longer requires artist)
 
         # Only one dimension active (album and artist together count as one: "album")
-        dimensions_set = sum([
-            self.playlist_name is not None,
-            self.album_name is not None,
-            self.artist_name is not None and self.album_name is None,
-        ])
+        dimensions_set = sum(
+            [
+                self.playlist_name is not None,
+                self.album_name is not None,
+                self.artist_name is not None and self.album_name is None,
+            ]
+        )
         if dimensions_set > 1:
             raise ValueError(
                 "Only one filter dimension allowed at a time: "
@@ -90,49 +92,30 @@ class FilterState:
     @property
     def is_cleared(self) -> bool:
         """Check if all filters are cleared."""
-        return (
-            self.playlist_name is None
-            and self.album_name is None
-            and self.artist_name is None
-        )
+        return self.playlist_name is None and self.album_name is None and self.artist_name is None
 
     @property
     def active_dimension(self) -> Optional[str]:
         """Get the active filter dimension name."""
         if self.playlist_name:
-            return 'playlist'
+            return "playlist"
         elif self.album_name:
-            return 'album'
+            return "album"
         elif self.artist_name:
-            return 'artist'
+            return "artist"
         return None
 
     def with_playlist(self, playlist_name: Optional[str], track_ids: Set[str] = None) -> FilterState:
         """Create new state with playlist filter (clears album/artist)."""
-        return FilterState(
-            playlist_name=playlist_name,
-            album_name=None,
-            artist_name=None,
-            track_ids=track_ids or set()
-        )
+        return FilterState(playlist_name=playlist_name, album_name=None, artist_name=None, track_ids=track_ids or set())
 
     def with_album(self, album_name: Optional[str], artist_name: Optional[str]) -> FilterState:
         """Create new state with album filter (clears playlist)."""
-        return FilterState(
-            playlist_name=None,
-            album_name=album_name,
-            artist_name=artist_name,
-            track_ids=set()
-        )
+        return FilterState(playlist_name=None, album_name=album_name, artist_name=artist_name, track_ids=set())
 
     def with_artist(self, artist_name: Optional[str]) -> FilterState:
         """Create new state with artist filter (clears playlist/album)."""
-        return FilterState(
-            playlist_name=None,
-            album_name=None,
-            artist_name=artist_name,
-            track_ids=set()
-        )
+        return FilterState(playlist_name=None, album_name=None, artist_name=artist_name, track_ids=set())
 
     def cleared(self) -> FilterState:
         """Create new cleared state."""

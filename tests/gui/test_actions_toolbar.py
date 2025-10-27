@@ -6,7 +6,7 @@ from PySide6.QtWidgets import QApplication
 from psm.gui.components.actions_toolbar import ActionsToolbar
 
 
-@pytest.fixture(scope='module')
+@pytest.fixture(scope="module")
 def qapp():
     """Create QApplication instance for GUI tests."""
     app = QApplication.instance()
@@ -35,14 +35,14 @@ class TestActionsToolbarCreation:
     def test_all_workflow_buttons_exist(self, toolbar):
         """All workflow buttons should be created."""
         # Internal buttons exist (private attributes)
-        assert hasattr(toolbar, '_btn_build')
-        assert hasattr(toolbar, '_btn_pull')
-        assert hasattr(toolbar, '_btn_scan')
-        assert hasattr(toolbar, '_btn_match')
-        assert hasattr(toolbar, '_btn_report')
-        assert hasattr(toolbar, '_btn_export')
-        assert hasattr(toolbar, '_btn_open_reports')
-        assert hasattr(toolbar, '_btn_watch')
+        assert hasattr(toolbar, "_btn_build")
+        assert hasattr(toolbar, "_btn_pull")
+        assert hasattr(toolbar, "_btn_scan")
+        assert hasattr(toolbar, "_btn_match")
+        assert hasattr(toolbar, "_btn_report")
+        assert hasattr(toolbar, "_btn_export")
+        assert hasattr(toolbar, "_btn_open_reports")
+        assert hasattr(toolbar, "_btn_watch")
 
     def test_watch_button_is_checkable(self, toolbar):
         """Watch Mode button should be checkable."""

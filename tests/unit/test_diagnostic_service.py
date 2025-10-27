@@ -14,32 +14,32 @@ def test_threshold_recommendation_shows_meaningful_difference():
     result = DiagnosticResult(
         track_found=True,
         track_info={
-            'id': 'test123',
-            'name': 'Test Song',
-            'artist': 'Test Artist',
-            'album': 'Test Album',
-            'duration_ms': 180000,
-            'year': 2024,
-            'normalized': 'test artist test song',
-            'isrc': None,
+            "id": "test123",
+            "name": "Test Song",
+            "artist": "Test Artist",
+            "album": "Test Album",
+            "duration_ms": 180000,
+            "year": 2024,
+            "normalized": "test artist test song",
+            "isrc": None,
         },
         is_matched=False,
         matched_file=None,
         closest_files=[
             (
                 {
-                    'path': '/music/test.mp3',
-                    'artist': 'Test Artist',
-                    'title': 'Test Song',
-                    'album': 'Test Album',
-                    'duration': 180.0,
-                    'normalized': 'test artist test song'
+                    "path": "/music/test.mp3",
+                    "artist": "Test Artist",
+                    "title": "Test Song",
+                    "album": "Test Album",
+                    "duration": 180.0,
+                    "normalized": "test artist test song",
                 },
-                0.76  # Score just below 0.78 threshold
+                0.76,  # Score just below 0.78 threshold
             )
         ],
         total_files=100,
-        fuzzy_threshold=0.78
+        fuzzy_threshold=0.78,
     )
 
     output = format_diagnostic_output(result)
@@ -50,8 +50,8 @@ def test_threshold_recommendation_shows_meaningful_difference():
 
     # Verify the recommendation shows DIFFERENT values (not "78% to 78%")
     # Should show something like "78.0% to 71.0%" with at least 5% difference
-    lines = output.split('\n')
-    recommendation_line = [l for l in lines if 'Consider lowering fuzzy_threshold' in l]
+    lines = output.split("\n")
+    recommendation_line = [l for l in lines if "Consider lowering fuzzy_threshold" in l]
 
     assert len(recommendation_line) == 1, "Should have exactly one threshold recommendation"
 
@@ -59,12 +59,12 @@ def test_threshold_recommendation_shows_meaningful_difference():
 
     # Extract the two percentage values using simple string parsing
     # Format: "from XX.X% to YY.Y%"
-    assert 'from' in rec_line and 'to' in rec_line
+    assert "from" in rec_line and "to" in rec_line
 
     # Split and extract percentages
-    parts = rec_line.split('from')[1].split('to')
-    from_value = parts[0].strip().rstrip('%')
-    to_value = parts[1].strip().split()[0].rstrip('%')  # Get first word after 'to'
+    parts = rec_line.split("from")[1].split("to")
+    from_value = parts[0].strip().rstrip("%")
+    to_value = parts[1].strip().split()[0].rstrip("%")  # Get first word after 'to'
 
     from_pct = float(from_value)
     to_pct = float(to_value)
@@ -86,32 +86,32 @@ def test_near_perfect_match_recommendation():
     result = DiagnosticResult(
         track_found=True,
         track_info={
-            'id': 'test123',
-            'name': 'Test Song',
-            'artist': 'Test Artist',
-            'album': 'Test Album',
-            'duration_ms': 180000,  # 3:00
-            'year': 2024,
-            'normalized': 'test artist test song',
-            'isrc': None,
+            "id": "test123",
+            "name": "Test Song",
+            "artist": "Test Artist",
+            "album": "Test Album",
+            "duration_ms": 180000,  # 3:00
+            "year": 2024,
+            "normalized": "test artist test song",
+            "isrc": None,
         },
         is_matched=False,
         matched_file=None,
         closest_files=[
             (
                 {
-                    'path': '/music/test.mp3',
-                    'artist': 'Test Artist',
-                    'title': 'Test Song',
-                    'album': 'Test Album',
-                    'duration': 195.0,  # 3:15 (15 seconds difference)
-                    'normalized': 'test artist test song'
+                    "path": "/music/test.mp3",
+                    "artist": "Test Artist",
+                    "title": "Test Song",
+                    "album": "Test Album",
+                    "duration": 195.0,  # 3:15 (15 seconds difference)
+                    "normalized": "test artist test song",
                 },
-                0.97  # Near-perfect score
+                0.97,  # Near-perfect score
             )
         ],
         total_files=100,
-        fuzzy_threshold=0.78
+        fuzzy_threshold=0.78,
     )
 
     output = format_diagnostic_output(result)
@@ -128,32 +128,32 @@ def test_low_score_recommendation():
     result = DiagnosticResult(
         track_found=True,
         track_info={
-            'id': 'test123',
-            'name': 'Test Song',
-            'artist': 'Test Artist',
-            'album': 'Test Album',
-            'duration_ms': 180000,
-            'year': 2024,
-            'normalized': 'test artist test song',
-            'isrc': None,
+            "id": "test123",
+            "name": "Test Song",
+            "artist": "Test Artist",
+            "album": "Test Album",
+            "duration_ms": 180000,
+            "year": 2024,
+            "normalized": "test artist test song",
+            "isrc": None,
         },
         is_matched=False,
         matched_file=None,
         closest_files=[
             (
                 {
-                    'path': '/music/other.mp3',
-                    'artist': 'Other Artist',
-                    'title': 'Other Song',
-                    'album': 'Other Album',
-                    'duration': 200.0,
-                    'normalized': 'other artist other song'
+                    "path": "/music/other.mp3",
+                    "artist": "Other Artist",
+                    "title": "Other Song",
+                    "album": "Other Album",
+                    "duration": 200.0,
+                    "normalized": "other artist other song",
                 },
-                0.35  # Low score
+                0.35,  # Low score
             )
         ],
         total_files=100,
-        fuzzy_threshold=0.78
+        fuzzy_threshold=0.78,
     )
 
     output = format_diagnostic_output(result)

@@ -12,9 +12,9 @@ logger = logging.getLogger(__name__)
 
 
 @cli.command()
-@click.argument('track_id')
-@click.option('--provider', default='spotify', help='Provider name (default: spotify)')
-@click.option('--top-n', default=5, type=int, help='Number of closest files to show (default: 5)')
+@click.argument("track_id")
+@click.option("--provider", default="spotify", help="Provider name (default: spotify)")
+@click.option("--top-n", default=5, type=int, help="Number of closest files to show (default: 5)")
 @click.pass_context
 def diagnose(ctx: click.Context, track_id: str, provider: str, top_n: int):
     """Diagnose why a specific track isn't matching.
@@ -43,4 +43,4 @@ def diagnose(ctx: click.Context, track_id: str, provider: str, top_n: int):
         click.echo(output)
 
 
-__all__ = ['diagnose']
+__all__ = ["diagnose"]

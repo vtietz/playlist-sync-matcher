@@ -61,7 +61,7 @@ def pull_single_playlist(
     start = time.time()
 
     # Get provider instance (currently hard-coded to Spotify)
-    provider = get_provider_instance('spotify')
+    provider = get_provider_instance("spotify")
 
     # Validate configuration
     provider.validate_config(spotify_config)
@@ -72,19 +72,19 @@ def pull_single_playlist(
     # In test mode we avoid invoking the real auth flow entirely (no browser / network)
     # Tests should use MockDatabase and mock the service layer, not call real Spotify services
     tok_dict = auth.get_token(force=force_auth)
-    if not isinstance(tok_dict, dict) or 'access_token' not in tok_dict:
-        raise RuntimeError('Failed to obtain access token')
+    if not isinstance(tok_dict, dict) or "access_token" not in tok_dict:
+        raise RuntimeError("Failed to obtain access token")
 
-    client = provider.create_client(tok_dict['access_token'])
-    use_year = matching_config.get('use_year', False)
+    client = provider.create_client(tok_dict["access_token"])
+    use_year = matching_config.get("use_year", False)
 
     # Fetch playlist metadata
-    pl_data = client._get(f'/playlists/{playlist_id}')
-    pl_name = pl_data.get('name', 'Unknown')
-    snapshot_id = pl_data.get('snapshot_id')
-    owner = pl_data.get('owner', {})
-    owner_id = owner.get('id')
-    owner_name = owner.get('display_name')
+    pl_data = client._get(f"/playlists/{playlist_id}")
+    pl_name = pl_data.get("name", "Unknown")
+    snapshot_id = pl_data.get("snapshot_id")
+    owner = pl_data.get("owner", {})
+    owner_id = owner.get("id")
+    owner_name = owner.get("display_name")
 
     result.playlist_name = pl_name
 
@@ -95,35 +95,38 @@ def pull_single_playlist(
     simplified = []
 
     for idx, item in enumerate(tracks):
-        track = item.get('track') or {}
+        track = item.get("track") or {}
         if not track:
             continue
-        t_id = track.get('id')
+        t_id = track.get("id")
         if not t_id:
             continue
 
-        artist_names = ', '.join(a['name'] for a in track.get('artists', []) if a.get('name'))
-        nt, na, combo = normalize_title_artist(track.get('name') or '', artist_names)
-        year = extract_year(((track.get('album') or {}).get('release_date')))
+        artist_names = ", ".join(a["name"] for a in track.get("artists", []) if a.get("name"))
+        nt, na, combo = normalize_title_artist(track.get("name") or "", artist_names)
+        year = extract_year(((track.get("album") or {}).get("release_date")))
 
         if use_year and year:
             combo = f"{combo} {year}"
 
-        simplified.append((idx, t_id, item.get('added_at')))
-        db.upsert_track({
-            'id': t_id,
-            'name': track.get('name'),
-            'album': (track.get('album') or {}).get('name'),
-            'artist': artist_names,
-            'isrc': ((track.get('external_ids') or {}).get('isrc')),
-            'duration_ms': track.get('duration_ms'),
-            'normalized': combo,
-            'year': year,
-        }, provider='spotify')
+        simplified.append((idx, t_id, item.get("added_at")))
+        db.upsert_track(
+            {
+                "id": t_id,
+                "name": track.get("name"),
+                "album": (track.get("album") or {}).get("name"),
+                "artist": artist_names,
+                "isrc": ((track.get("external_ids") or {}).get("isrc")),
+                "duration_ms": track.get("duration_ms"),
+                "normalized": combo,
+                "year": year,
+            },
+            provider="spotify",
+        )
 
     # Update playlist and tracks
-    db.upsert_playlist(playlist_id, pl_name, snapshot_id, owner_id, owner_name, provider='spotify')
-    db.replace_playlist_tracks(playlist_id, simplified, provider='spotify')
+    db.upsert_playlist(playlist_id, pl_name, snapshot_id, owner_id, owner_name, provider="spotify")
+    db.replace_playlist_tracks(playlist_id, simplified, provider="spotify")
     db.commit()
 
     result.tracks_processed = len(simplified)
@@ -134,11 +137,7 @@ def pull_single_playlist(
     return result
 
 
-def match_single_playlist(
-    db: DatabaseInterface,
-    playlist_id: str,
-    config: Dict[str, Any]
-) -> SinglePlaylistResult:
+def match_single_playlist(db: DatabaseInterface, playlist_id: str, config: Dict[str, Any]) -> SinglePlaylistResult:
     """Match tracks from a single playlist against local library.
 
     Args:
@@ -155,7 +154,7 @@ def match_single_playlist(
     start = time.time()
 
     # Get playlist metadata
-    pl = db.get_playlist_by_id(playlist_id, provider='spotify')
+    pl = db.get_playlist_by_id(playlist_id, provider="spotify")
     if not pl:
         raise ValueError(f"Playlist {playlist_id} not found in database")
 
@@ -164,25 +163,25 @@ def match_single_playlist(
     logger.debug(f"[playlist] Matching '{result.playlist_name}' ({playlist_id})")
 
     # Get track IDs for this specific playlist only
-    provider = config.get('provider', 'spotify')
+    provider = config.get("provider", "spotify")
     playlist_track_rows = db.get_playlist_tracks_with_local_paths(playlist_id, provider)
-    playlist_track_ids = [row['track_id'] for row in playlist_track_rows if row.get('track_id')]
+    playlist_track_ids = [row["track_id"] for row in playlist_track_rows if row.get("track_id")]
 
     logger.info(f"Matching {len(playlist_track_ids)} tracks from playlist '{result.playlist_name}'")
 
     # Get matching config
-    fuzzy_threshold = config.get('matching', {}).get('fuzzy_threshold', 0.78)
-    duration_tolerance = config.get('matching', {}).get('duration_tolerance', 5.0)
+    fuzzy_threshold = config.get("matching", {}).get("fuzzy_threshold", 0.78)
+    duration_tolerance = config.get("matching", {}).get("duration_tolerance", 5.0)
 
     # Run matching using MatchingEngine for only this playlist's tracks
     from ..config_types import MatchingConfig
     from psm.config import _DEFAULTS
 
     matching_config_dict = {
-        'fuzzy_threshold': fuzzy_threshold,
-        'duration_tolerance': duration_tolerance,
+        "fuzzy_threshold": fuzzy_threshold,
+        "duration_tolerance": duration_tolerance,
     }
-    matching_cfg = MatchingConfig(**{**_DEFAULTS.get('matching', {}), **matching_config_dict})
+    matching_cfg = MatchingConfig(**{**_DEFAULTS.get("matching", {}), **matching_config_dict})
 
     engine = MatchingEngine(db, matching_cfg, provider=provider)  # type: ignore
     new_matches = engine.match_tracks(track_ids=playlist_track_ids)  # Match only this playlist's tracks
@@ -199,7 +198,9 @@ def match_single_playlist(
     result.tracks_matched = matched_count
     result.duration_seconds = time.time() - start
 
-    logger.debug(f"[playlist] Found {new_matches} match(es) ({matched_count}/{len(playlist_track_ids)} total) in {result.duration_seconds:.2f}s")
+    logger.debug(
+        f"[playlist] Found {new_matches} match(es) ({matched_count}/{len(playlist_track_ids)} total) in {result.duration_seconds:.2f}s"
+    )
 
     return result
 
@@ -211,7 +212,7 @@ def export_single_playlist(
     organize_by_owner: bool = False,
     current_user_id: str | None = None,
     library_paths: list[str] | None = None,
-    provider: str = 'spotify'
+    provider: str = "spotify",
 ) -> SinglePlaylistResult:
     """Export a single playlist to M3U file.
 
@@ -241,40 +242,36 @@ def export_single_playlist(
     logger.debug(f"[playlist] Exporting '{result.playlist_name}' ({playlist_id})")
 
     # Extract config
-    export_dir = Path(export_config['directory'])
-    mode = export_config.get('mode', 'strict')
-    placeholder_ext = export_config.get('placeholder_extension', '.missing')
-    path_format = export_config.get('path_format', 'absolute')
-    use_library_roots = export_config.get('use_library_roots', True)
+    export_dir = Path(export_config["directory"])
+    mode = export_config.get("mode", "strict")
+    placeholder_ext = export_config.get("placeholder_extension", ".missing")
+    path_format = export_config.get("path_format", "absolute")
+    use_library_roots = export_config.get("use_library_roots", True)
 
     # Prepare library roots for path reconstruction (if enabled)
     library_roots_param = library_paths if (use_library_roots and library_paths) else None
 
     # Get current user ID from metadata if not provided
     if organize_by_owner and current_user_id is None:
-        current_user_id = db.get_meta('current_user_id')
+        current_user_id = db.get_meta("current_user_id")
 
     # Determine target directory using consistent resolution logic
-    target_dir = _resolve_export_dir(
-        export_dir,
-        organize_by_owner,
-        pl.owner_id,
-        pl.owner_name,
-        current_user_id
-    )
+    target_dir = _resolve_export_dir(export_dir, organize_by_owner, pl.owner_id, pl.owner_name, current_user_id)
 
     # Fetch tracks with local paths using repository method (provider-aware, best match only)
     track_rows = db.get_playlist_tracks_with_local_paths(playlist_id, provider)
-    tracks = [dict(r) | {'position': r['position']} for r in track_rows]
-    playlist_meta = {'name': pl.name, 'id': playlist_id}
+    tracks = [dict(r) | {"position": r["position"]} for r in track_rows]
+    playlist_meta = {"name": pl.name, "id": playlist_id}
 
     # Dispatch to export function based on mode (with path format and library roots)
-    if mode == 'strict':
+    if mode == "strict":
         actual_path = export_strict(playlist_meta, tracks, target_dir, path_format, library_roots_param)
-    elif mode == 'mirrored':
+    elif mode == "mirrored":
         actual_path = export_mirrored(playlist_meta, tracks, target_dir, path_format, library_roots_param)
-    elif mode == 'placeholders':
-        actual_path = export_placeholders(playlist_meta, tracks, target_dir, placeholder_ext, path_format, library_roots_param)
+    elif mode == "placeholders":
+        actual_path = export_placeholders(
+            playlist_meta, tracks, target_dir, placeholder_ext, path_format, library_roots_param
+        )
     else:
         logger.warning(f"Unknown export mode '{mode}', defaulting to strict")
         actual_path = export_strict(playlist_meta, tracks, target_dir, path_format, library_roots_param)
@@ -313,7 +310,7 @@ def build_single_playlist(
     start = time.time()
 
     # Pull
-    pull_result = pull_single_playlist(db, playlist_id, spotify_config, config['matching'], force_auth)
+    pull_result = pull_single_playlist(db, playlist_id, spotify_config, config["matching"], force_auth)
     result.playlist_name = pull_result.playlist_name
     result.tracks_processed = pull_result.tracks_processed
 
@@ -322,18 +319,12 @@ def build_single_playlist(
     result.tracks_matched = match_result.tracks_matched
 
     # Export
-    provider = config.get('provider', 'spotify')
-    organize_by_owner = config['export'].get('organize_by_owner', False)
-    current_user_id = db.get_meta('current_user_id') if organize_by_owner else None
-    library_paths = config.get('library', {}).get('paths', [])
+    provider = config.get("provider", "spotify")
+    organize_by_owner = config["export"].get("organize_by_owner", False)
+    current_user_id = db.get_meta("current_user_id") if organize_by_owner else None
+    library_paths = config.get("library", {}).get("paths", [])
     export_result = export_single_playlist(
-        db,
-        playlist_id,
-        config['export'],
-        organize_by_owner,
-        current_user_id,
-        library_paths,
-        provider
+        db, playlist_id, config["export"], organize_by_owner, current_user_id, library_paths, provider
     )
     result.exported_file = export_result.exported_file
 

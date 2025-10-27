@@ -40,6 +40,7 @@ SCHEMA = [
     "CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);",
 ]
 
+
 class Database(DatabaseInterface):
     def __init__(self, path: Path):
         self.path = path
@@ -50,7 +51,7 @@ class Database(DatabaseInterface):
         self._closed = False
 
         # Check SQLite version for window function support (required >= 3.25.0)
-        self._sqlite_version = tuple(int(x) for x in sqlite3.sqlite_version.split('.'))
+        self._sqlite_version = tuple(int(x) for x in sqlite3.sqlite_version.split("."))
         self._supports_window_functions = self._sqlite_version >= (3, 25, 0)
 
         self._init_schema()
@@ -66,15 +67,15 @@ class Database(DatabaseInterface):
         try:
             cur = self.conn.execute("PRAGMA table_info(playlists)")
             cols = [r[1] for r in cur.fetchall()]
-            if cols and 'provider' in cols:
+            if cols and "provider" in cols:
                 cur2 = self.conn.execute("PRAGMA table_info(playlists)")
                 pk_cols = [r[1] for r in cur2.fetchall() if r[5] == 1 or r[5] == 2]
-                if 'provider' not in pk_cols:
+                if "provider" not in pk_cols:
                     legacy = True
         except Exception:
             pass
         if legacy:
-            for tbl in ["matches","playlist_tracks","playlists","tracks","liked_tracks","library_files"]:
+            for tbl in ["matches", "playlist_tracks", "playlists", "tracks", "liked_tracks", "library_files"]:
                 try:
                     self.conn.execute(f"DROP TABLE IF EXISTS {tbl}")
                 except Exception:
@@ -83,9 +84,9 @@ class Database(DatabaseInterface):
         cur = self.conn.cursor()
         for stmt in SCHEMA:
             cur.execute(stmt)
-        self._ensure_column('tracks', 'artist_id', 'TEXT')
-        self._ensure_column('tracks', 'album_id', 'TEXT')
-        self._ensure_column('matches', 'confidence', 'TEXT')
+        self._ensure_column("tracks", "artist_id", "TEXT")
+        self._ensure_column("tracks", "album_id", "TEXT")
+        self._ensure_column("matches", "confidence", "TEXT")
 
         # Migrate existing matches to populate confidence from method string
         self._migrate_confidence_column()
@@ -138,7 +139,6 @@ class Database(DatabaseInterface):
         except Exception as e:
             logger.warning(f"Failed to migrate confidence column: {e}")
 
-
     def _execute_with_lock_handling(self, sql: str, params: Any = None):
         """Execute SQL with better diagnostics on database lock (but let SQLite retry)."""
         try:
@@ -155,7 +155,15 @@ class Database(DatabaseInterface):
                 logger.warning("  • Long-running transactions in other processes")
             raise
 
-    def upsert_playlist(self, pid: str, name: str, snapshot_id: str | None, owner_id: str | None = None, owner_name: str | None = None, provider: str | None = None) -> None:
+    def upsert_playlist(
+        self,
+        pid: str,
+        name: str,
+        snapshot_id: str | None,
+        owner_id: str | None = None,
+        owner_name: str | None = None,
+        provider: str | None = None,
+    ) -> None:
         if provider is None:
             raise ValueError("provider parameter is required")
         self._execute_with_lock_handling(
@@ -172,10 +180,14 @@ class Database(DatabaseInterface):
             return True
         return row[0] != snapshot_id
 
-    def replace_playlist_tracks(self, pid: str, tracks: Sequence[Tuple[int, str, str | None]], provider: str | None = None):
+    def replace_playlist_tracks(
+        self, pid: str, tracks: Sequence[Tuple[int, str, str | None]], provider: str | None = None
+    ):
         if provider is None:
             raise ValueError("provider parameter is required")
-        self._execute_with_lock_handling("DELETE FROM playlist_tracks WHERE playlist_id=? AND provider=?", (pid, provider))
+        self._execute_with_lock_handling(
+            "DELETE FROM playlist_tracks WHERE playlist_id=? AND provider=?", (pid, provider)
+        )
         # Use executemany for bulk inserts (with lock handling wrapper would be overkill here since we already hold transaction)
         self.conn.executemany(
             "INSERT INTO playlist_tracks(playlist_id, provider, position, track_id, added_at) VALUES(?,?,?,?,?)",
@@ -188,9 +200,17 @@ class Database(DatabaseInterface):
         self._execute_with_lock_handling(
             "INSERT INTO tracks(id,provider,name,album,artist,album_id,artist_id,isrc,duration_ms,normalized,year) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id,provider) DO UPDATE SET name=excluded.name, album=excluded.album, artist=excluded.artist, album_id=excluded.album_id, artist_id=excluded.artist_id, isrc=excluded.isrc, duration_ms=excluded.duration_ms, normalized=excluded.normalized, year=excluded.year",
             (
-                track.get("id"), provider, track.get("name"), track.get("album"), track.get("artist"),
-                track.get("album_id"), track.get("artist_id"), track.get("isrc"), track.get("duration_ms"),
-                track.get("normalized"), track.get("year"),
+                track.get("id"),
+                provider,
+                track.get("name"),
+                track.get("album"),
+                track.get("artist"),
+                track.get("album_id"),
+                track.get("artist_id"),
+                track.get("isrc"),
+                track.get("duration_ms"),
+                track.get("normalized"),
+                track.get("year"),
             ),
         )
 
@@ -209,13 +229,29 @@ class Database(DatabaseInterface):
         self._execute_with_lock_handling(
             "INSERT INTO library_files(path,size,mtime,partial_hash,title,album,artist,duration,normalized,year,bitrate_kbps) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(path) DO UPDATE SET size=excluded.size, mtime=excluded.mtime, partial_hash=excluded.partial_hash, title=excluded.title, album=excluded.album, artist=excluded.artist, duration=excluded.duration, normalized=excluded.normalized, year=excluded.year, bitrate_kbps=excluded.bitrate_kbps",
             (
-                data["path"], data.get("size"), data.get("mtime"), data.get("partial_hash"), data.get("title"),
-                data.get("album"), data.get("artist"), data.get("duration"), data.get("normalized"),
-                data.get("year"), data.get("bitrate_kbps"),
+                data["path"],
+                data.get("size"),
+                data.get("mtime"),
+                data.get("partial_hash"),
+                data.get("title"),
+                data.get("album"),
+                data.get("artist"),
+                data.get("duration"),
+                data.get("normalized"),
+                data.get("year"),
+                data.get("bitrate_kbps"),
             ),
         )
 
-    def add_match(self, track_id: str, file_id: int, score: float, method: str, provider: str | None = None, confidence: str | None = None):
+    def add_match(
+        self,
+        track_id: str,
+        file_id: int,
+        score: float,
+        method: str,
+        provider: str | None = None,
+        confidence: str | None = None,
+    ):
         if provider is None:
             raise ValueError("provider parameter is required")
         self._execute_with_lock_handling(
@@ -235,8 +271,7 @@ class Database(DatabaseInterface):
 
     def set_meta(self, key: str, value: str):
         self._execute_with_lock_handling(
-            "INSERT INTO meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
-            (key, value)
+            "INSERT INTO meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, value)
         )
 
     def get_meta(self, key: str) -> Optional[str]:
@@ -255,7 +290,9 @@ class Database(DatabaseInterface):
     def count_unique_playlist_tracks(self, provider: str | None = None) -> int:
         # None means all providers
         if provider:
-            cursor = self.conn.execute("SELECT COUNT(DISTINCT track_id) FROM playlist_tracks WHERE provider=?", (provider,))
+            cursor = self.conn.execute(
+                "SELECT COUNT(DISTINCT track_id) FROM playlist_tracks WHERE provider=?", (provider,)
+            )
         else:
             cursor = self.conn.execute("SELECT COUNT(DISTINCT track_id) FROM playlist_tracks")
         return cursor.fetchone()[0]
@@ -286,7 +323,7 @@ class Database(DatabaseInterface):
 
     def get_all_playlists(self, provider: str | None = None) -> List[PlaylistRow]:
         # Default to 'spotify' when None for backward compat (common in tests)
-        provider = provider if provider is not None else 'spotify'
+        provider = provider if provider is not None else "spotify"
         if provider:
             sql = """
             SELECT p.id, p.provider, p.name, p.owner_id, p.owner_name, p.snapshot_id,
@@ -322,7 +359,9 @@ class Database(DatabaseInterface):
     def count_playlist_tracks(self, playlist_id: str, provider: str | None = None) -> int:
         if provider is None:
             raise ValueError("provider parameter is required")
-        cursor = self.conn.execute("SELECT COUNT(*) FROM playlist_tracks WHERE playlist_id=? AND provider=?", (playlist_id, provider))
+        cursor = self.conn.execute(
+            "SELECT COUNT(*) FROM playlist_tracks WHERE playlist_id=? AND provider=?", (playlist_id, provider)
+        )
         return cursor.fetchone()[0]
 
     def get_playlists_containing_tracks(self, track_ids: List[str], provider: str | None = None) -> List[str]:
@@ -338,10 +377,10 @@ class Database(DatabaseInterface):
         if not track_ids:
             return []
 
-        provider = provider if provider is not None else 'spotify'
+        provider = provider if provider is not None else "spotify"
 
         # Use parameterized query with IN clause
-        placeholders = ','.join('?' * len(track_ids))
+        placeholders = ",".join("?" * len(track_ids))
         sql = f"""
         SELECT DISTINCT playlist_id
         FROM playlist_tracks
@@ -391,7 +430,7 @@ class Database(DatabaseInterface):
         if not track_ids:
             return []
 
-        placeholders = ','.join('?' * len(track_ids))
+        placeholders = ",".join("?" * len(track_ids))
         if provider:
             sql = f"""
             SELECT id, provider, name, artist, album, year, isrc, duration_ms, normalized, album_id, artist_id
@@ -414,7 +453,7 @@ class Database(DatabaseInterface):
         if not file_ids:
             return []
 
-        placeholders = ','.join('?' * len(file_ids))
+        placeholders = ",".join("?" * len(file_ids))
         sql = f"""
         SELECT id, path, title, artist, album, year, duration, normalized, size, mtime, partial_hash, bitrate_kbps
         FROM library_files
@@ -473,7 +512,7 @@ class Database(DatabaseInterface):
         if not track_ids:
             return
 
-        placeholders = ','.join('?' * len(track_ids))
+        placeholders = ",".join("?" * len(track_ids))
         sql = f"DELETE FROM matches WHERE track_id IN ({placeholders})"
         self._execute_with_lock_handling(sql, track_ids)
 
@@ -482,7 +521,7 @@ class Database(DatabaseInterface):
         if not file_ids:
             return
 
-        placeholders = ','.join('?' * len(file_ids))
+        placeholders = ",".join("?" * len(file_ids))
         sql = f"DELETE FROM matches WHERE file_id IN ({placeholders})"
         self._execute_with_lock_handling(sql, file_ids)
 
@@ -492,7 +531,9 @@ class Database(DatabaseInterface):
 
     def count_distinct_library_albums(self) -> int:
         """Count unique albums in library files."""
-        cursor = self.conn.execute("SELECT COUNT(DISTINCT album) FROM library_files WHERE album IS NOT NULL AND album != ''")
+        cursor = self.conn.execute(
+            "SELECT COUNT(DISTINCT album) FROM library_files WHERE album IS NOT NULL AND album != ''"
+        )
         return cursor.fetchone()[0]
 
     def get_match_confidence_counts(self) -> Dict[str, int]:
@@ -538,7 +579,7 @@ class Database(DatabaseInterface):
         if not track_ids:
             return {}
 
-        placeholders = ','.join('?' * len(track_ids))
+        placeholders = ",".join("?" * len(track_ids))
         sql = f"""
         SELECT track_id, COUNT(DISTINCT playlist_id) as count
         FROM playlist_tracks
@@ -560,7 +601,7 @@ class Database(DatabaseInterface):
         if not track_ids:
             return []
 
-        placeholders = ','.join('?' * len(track_ids))
+        placeholders = ",".join("?" * len(track_ids))
         if provider:
             sql = f"SELECT track_id FROM liked_tracks WHERE track_id IN ({placeholders}) AND provider=?"
             rows = self.conn.execute(sql, track_ids + [provider]).fetchall()
@@ -572,17 +613,19 @@ class Database(DatabaseInterface):
 
     # --- Export service methods ---
 
-    def list_playlists(self, playlist_ids: Optional[List[str]] = None, provider: str | None = None) -> List[Dict[str, Any]]:
+    def list_playlists(
+        self, playlist_ids: Optional[List[str]] = None, provider: str | None = None
+    ) -> List[Dict[str, Any]]:
         """List playlists with stable ordering.
 
         Returns playlists sorted by owner_name then name for consistent export order.
         Provider-aware to prevent cross-provider data leakage.
         """
         if provider is None:
-            provider = 'spotify'  # Default for backward compat
+            provider = "spotify"  # Default for backward compat
 
         if playlist_ids:
-            placeholders = ','.join('?' * len(playlist_ids))
+            placeholders = ",".join("?" * len(playlist_ids))
             sql = f"""
             SELECT id, name, owner_id, owner_name
             FROM playlists
@@ -602,14 +645,16 @@ class Database(DatabaseInterface):
 
         return [dict(row) for row in rows]
 
-    def get_playlist_tracks_with_local_paths(self, playlist_id: str, provider: str | None = None) -> List[Dict[str, Any]]:
+    def get_playlist_tracks_with_local_paths(
+        self, playlist_id: str, provider: str | None = None
+    ) -> List[Dict[str, Any]]:
         """Get playlist tracks with matched local file paths (best match only per track).
 
         Uses window function to select only the highest-scoring match per track.
         All joins are provider-aware to prevent cross-provider data leakage.
         """
         if provider is None:
-            provider = 'spotify'  # Default for backward compat
+            provider = "spotify"  # Default for backward compat
 
         if self._supports_window_functions:
             # Use window function to rank matches: prefer MANUAL confidence, then highest score (M1)
@@ -690,7 +735,7 @@ class Database(DatabaseInterface):
             """
             rows = self.conn.execute(sql, (provider, provider, provider, provider, playlist_id, provider)).fetchall()
 
-        return [dict(row) | {'position': row['position']} for row in rows]
+        return [dict(row) | {"position": row["position"]} for row in rows]
 
     def get_liked_tracks_with_local_paths(self, provider: str | None = None) -> List[Dict[str, Any]]:
         """Get liked tracks with matched local file paths (best match only per track), newest first.
@@ -700,7 +745,7 @@ class Database(DatabaseInterface):
         Ordered by added_at DESC (newest first) to match Spotify's behavior.
         """
         if provider is None:
-            provider = 'spotify'  # Default for backward compat
+            provider = "spotify"  # Default for backward compat
 
         if self._supports_window_functions:
             # Use window function to rank matches: prefer MANUAL confidence, then highest score (M1)
@@ -784,7 +829,7 @@ class Database(DatabaseInterface):
     def get_track_by_id(self, track_id: str, provider: str | None = None) -> Optional[TrackRow]:
         """Get a single track by ID."""
         if provider is None:
-            provider = 'spotify'  # Default for backward compat
+            provider = "spotify"  # Default for backward compat
 
         sql = """
         SELECT id, provider, name, artist, album, year, isrc, duration_ms, normalized, album_id, artist_id
@@ -797,7 +842,7 @@ class Database(DatabaseInterface):
     def get_match_for_track(self, track_id: str, provider: str | None = None) -> Optional[Dict[str, Any]]:
         """Get match details for a track if it exists."""
         if provider is None:
-            provider = 'spotify'  # Default for backward compat
+            provider = "spotify"  # Default for backward compat
 
         sql = """
         SELECT
@@ -824,68 +869,45 @@ class Database(DatabaseInterface):
 
     def get_distinct_artists(self, provider: str | None = None) -> List[str]:
         """Get unique artist names from tracks (SQL DISTINCT)."""
-        provider = provider or 'spotify'
+        provider = provider or "spotify"
         return queries_analytics.get_distinct_artists(self.conn, provider)
 
     def get_distinct_albums(self, provider: str | None = None) -> List[str]:
         """Get unique album names from tracks (SQL DISTINCT)."""
-        provider = provider or 'spotify'
+        provider = provider or "spotify"
         return queries_analytics.get_distinct_albums(self.conn, provider)
 
     def get_distinct_years(self, provider: str | None = None) -> List[int]:
         """Get unique years from tracks (SQL DISTINCT)."""
-        provider = provider or 'spotify'
+        provider = provider or "spotify"
         return queries_analytics.get_distinct_years(self.conn, provider)
 
     def get_playlist_coverage(self, provider: str | None = None) -> List[Dict[str, Any]]:
         """Get playlist coverage statistics in a single SQL query."""
-        provider = provider or 'spotify'
+        provider = provider or "spotify"
         return queries_analytics.get_playlist_coverage(self.conn, provider)
 
     def list_unified_tracks_min(
         self,
         provider: str | None = None,
         sort_column: Optional[str] = None,
-        sort_order: str = 'ASC',
+        sort_order: str = "ASC",
         limit: Optional[int] = None,
-        offset: int = 0
+        offset: int = 0,
     ) -> List[Dict[str, Any]]:
         """Get minimal unified tracks (fast path without playlist aggregation)."""
-        provider = provider or 'spotify'
-        return queries_unified.list_unified_tracks_min(
-            self.conn,
-            provider,
-            sort_column,
-            sort_order,
-            limit,
-            offset
-        )
+        provider = provider or "spotify"
+        return queries_unified.list_unified_tracks_min(self.conn, provider, sort_column, sort_order, limit, offset)
 
-    def get_playlists_for_track_ids(
-        self,
-        track_ids: List[str],
-        provider: str | None = None
-    ) -> Dict[str, str]:
+    def get_playlists_for_track_ids(self, track_ids: List[str], provider: str | None = None) -> Dict[str, str]:
         """Get comma-separated playlist names for each track ID."""
-        provider = provider or 'spotify'
-        return queries_analytics.get_playlists_for_track_ids(
-            self.conn,
-            track_ids,
-            provider
-        )
+        provider = provider or "spotify"
+        return queries_analytics.get_playlists_for_track_ids(self.conn, track_ids, provider)
 
-    def get_track_ids_for_playlist(
-        self,
-        playlist_name: str,
-        provider: str | None = None
-    ) -> set:
+    def get_track_ids_for_playlist(self, playlist_name: str, provider: str | None = None) -> set:
         """Get set of track IDs that belong to a specific playlist."""
-        provider = provider or 'spotify'
-        return queries_unified.get_track_ids_for_playlist(
-            self.conn,
-            playlist_name,
-            provider
-        )
+        provider = provider or "spotify"
+        return queries_unified.get_track_ids_for_playlist(self.conn, playlist_name, provider)
 
     def close(self):
         if not self._closed:
@@ -896,5 +918,6 @@ class Database(DatabaseInterface):
                 pass
             finally:
                 self._closed = True
+
 
 __all__ = ["Database"]

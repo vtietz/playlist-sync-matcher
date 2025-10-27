@@ -2,6 +2,7 @@
 
 Sets up QApplication, loads configuration and database, and launches main window.
 """
+
 import sys
 import logging
 from pathlib import Path
@@ -21,21 +22,18 @@ logger = logging.getLogger(__name__)
 
 def setup_logging():
     """Configure logging for the GUI."""
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
 
 def load_resources():
     """Load Qt resources (stylesheets, icons, etc.)."""
     # Try to load custom stylesheet
-    resources_dir = Path(__file__).parent / 'resources'
-    style_file = resources_dir / 'style.qss'
+    resources_dir = Path(__file__).parent / "resources"
+    style_file = resources_dir / "style.qss"
 
     if style_file.exists():
         try:
-            with open(style_file, 'r') as f:
+            with open(style_file, "r") as f:
                 return f.read()
         except Exception as e:
             logger.warning(f"Failed to load stylesheet: {e}")
@@ -49,7 +47,7 @@ def apply_app_icon(app: QApplication) -> None:
     Looks for `psm/gui/resources/icon.png` (preferred cross‑platform) or `icon.ico`.
     Safe no‑op if files are missing.
     """
-    resources_dir = Path(__file__).parent / 'resources'
+    resources_dir = Path(__file__).parent / "resources"
     for name in ("psm-icon.png", "psm-icon.ico", "ps-icon.ico", "icon.png", "icon.ico"):
         p = resources_dir / name
         if p.exists():
@@ -71,10 +69,12 @@ def main() -> int:
 
     # Check for first run before creating Qt application
     from ..utils.first_run import check_env_exists
+
     if not check_env_exists():
         # Need to show GUI dialog, so create minimal QApplication
         app = QApplication([])
         from ..utils.first_run import check_first_run_gui
+
         if not check_first_run_gui():
             logger.info("User needs to configure .env file. Exiting.")
             return 1
@@ -111,7 +111,7 @@ def main() -> int:
         db = get_db(config_dict)
 
         # Get provider from config
-        provider = config_dict.get('provider', 'spotify')
+        provider = config_dict.get("provider", "spotify")
 
         # Create data facade
         facade = DataFacade(db, provider=provider)
@@ -149,7 +149,7 @@ def main() -> int:
             None,
             "Startup Error",
             f"Failed to start application:\n\n{str(e)}\n\n"
-            f"Make sure the database and configuration are properly set up."
+            f"Make sure the database and configuration are properly set up.",
         )
         return 1
     finally:

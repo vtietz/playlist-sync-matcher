@@ -2,6 +2,7 @@
 
 Handles asynchronous loading of playlist track IDs for filter application.
 """
+
 from __future__ import annotations
 from typing import TYPE_CHECKING, Callable, Optional
 import logging
@@ -26,7 +27,7 @@ class PlaylistFilterLoader:
         self,
         filter_store: FilterStore,
         facade_factory: Callable[[], DataFacade],
-        on_loader_count_changed: Optional[Callable[[int], None]] = None
+        on_loader_count_changed: Optional[Callable[[int], None]] = None,
     ):
         """Initialize playlist filter loader.
 
@@ -44,7 +45,7 @@ class PlaylistFilterLoader:
         self,
         playlist_name: str,
         on_complete: Optional[Callable[[str, int], None]] = None,
-        on_error: Optional[Callable[[str], None]] = None
+        on_error: Optional[Callable[[str], None]] = None,
     ):
         """Load playlist track IDs asynchronously.
 
@@ -64,13 +65,11 @@ class PlaylistFilterLoader:
         logger.debug(f"Started async loading of track IDs for playlist: {playlist_name}")
 
         # Define loading function using facade_factory for thread safety
-        load_funcs = {
-            'track_ids': lambda: self.facade_factory().get_track_ids_for_playlist(playlist_name)
-        }
+        load_funcs = {"track_ids": lambda: self.facade_factory().get_track_ids_for_playlist(playlist_name)}
 
         def _on_loaded(results):
             """Handle successful load."""
-            track_ids = results.get('track_ids', set())
+            track_ids = results.get("track_ids", set())
             track_count = len(track_ids)
 
             logger.info(f"Loaded {track_count} tracks for playlist '{playlist_name}'")

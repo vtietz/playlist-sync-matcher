@@ -3,6 +3,7 @@
 This is the most expensive strategy but provides good quality matches for
 tracks that don't have exact normalized matches.
 """
+
 from __future__ import annotations
 from typing import Dict, Any, List, Tuple, Set, Optional
 import time
@@ -17,10 +18,11 @@ class FuzzyMatchStrategy(MatchStrategy):
     so best used with candidate filtering (e.g., duration-based).
     """
 
-    def __init__(self, db, config: Dict[str, Any], debug: bool = False,
-                 candidate_file_ids: Optional[Dict[str, List[int]]] = None):
+    def __init__(
+        self, db, config: Dict[str, Any], debug: bool = False, candidate_file_ids: Optional[Dict[str, List[int]]] = None
+    ):
         super().__init__(db, config, debug)
-        self.threshold = config.get('matching', {}).get('fuzzy_threshold', 0.78)
+        self.threshold = config.get("matching", {}).get("fuzzy_threshold", 0.78)
         # Map of track_id -> list of candidate file_ids (if prefiltered)
         self.candidate_file_ids = candidate_file_ids
 
@@ -32,13 +34,14 @@ class FuzzyMatchStrategy(MatchStrategy):
         # token set ratio returns 0-100
         return fuzz.token_set_ratio(t_norm, f_norm) / 100.0
 
-    def match(self, tracks: List[Dict[str, Any]], files: List[Dict[str, Any]],
-              already_matched: Set[str]) -> Tuple[List[Tuple[str, int, float, str]], Set[str]]:
+    def match(
+        self, tracks: List[Dict[str, Any]], files: List[Dict[str, Any]], already_matched: Set[str]
+    ) -> Tuple[List[Tuple[str, int, float, str]], Set[str]]:
         """Execute fuzzy matching on unmatched tracks."""
         start = time.time()
 
         # Filter to unmatched tracks
-        unmatched_tracks = [t for t in tracks if t['id'] not in already_matched]
+        unmatched_tracks = [t for t in tracks if t["id"] not in already_matched]
 
         if not unmatched_tracks:
             if self.debug:
@@ -46,12 +49,14 @@ class FuzzyMatchStrategy(MatchStrategy):
             return [], set()
 
         if self.debug:
-            print(f"[{self.get_name()}] Fuzzy matching {len(unmatched_tracks)} unmatched tracks "
-                  f"against {len(files)} files (threshold={self.threshold})")
+            print(
+                f"[{self.get_name()}] Fuzzy matching {len(unmatched_tracks)} unmatched tracks "
+                f"against {len(files)} files (threshold={self.threshold})"
+            )
 
         # Build file lookups
-        file_by_id = {f['id']: f for f in files}
-        track_by_id = {t['id']: t for t in tracks}
+        file_by_id = {f["id"]: f for f in files}
+        track_by_id = {t["id"]: t for t in tracks}
 
         matches: List[Tuple[str, int, float, str]] = []
         matched_track_ids: Set[str] = set()
@@ -61,8 +66,8 @@ class FuzzyMatchStrategy(MatchStrategy):
         last_progress_pct = 0
 
         for idx, track in enumerate(unmatched_tracks, 1):
-            track_id = track['id']
-            t_norm = track.get('normalized', '')
+            track_id = track["id"]
+            t_norm = track.get("normalized", "")
 
             if not t_norm:
                 continue
@@ -73,8 +78,10 @@ class FuzzyMatchStrategy(MatchStrategy):
                 elapsed = time.time() - start
                 tracks_per_sec = idx / elapsed if elapsed > 0 else 0
                 eta = (len(unmatched_tracks) - idx) / tracks_per_sec if tracks_per_sec > 0 else 0
-                print(f"[{self.get_name()}] Progress: {current_pct}% ({idx}/{len(unmatched_tracks)} tracks) - "
-                      f"{len(matches)} matches - {tracks_per_sec:.1f} tracks/sec - ETA {eta:.0f}s")
+                print(
+                    f"[{self.get_name()}] Progress: {current_pct}% ({idx}/{len(unmatched_tracks)} tracks) - "
+                    f"{len(matches)} matches - {tracks_per_sec:.1f} tracks/sec - ETA {eta:.0f}s"
+                )
                 last_progress_pct = current_pct
 
             # Determine which files to check
@@ -91,14 +98,14 @@ class FuzzyMatchStrategy(MatchStrategy):
             best_score = 0.0
 
             for file in candidate_files:
-                f_norm = file.get('normalized', '')
+                f_norm = file.get("normalized", "")
                 if not f_norm:
                     continue
 
                 score = self._score_fuzzy(t_norm, f_norm)
                 if score >= self.threshold and score > best_score:
                     best_score = score
-                    best_file_id = file['id']
+                    best_file_id = file["id"]
 
             # Store match if found
             if best_file_id is not None:
@@ -109,8 +116,10 @@ class FuzzyMatchStrategy(MatchStrategy):
                 if self.debug:
                     track = track_by_id.get(track_id, {})
                     file = file_by_id.get(best_file_id, {})
-                    print(f"[{self.get_name()}] [MATCH] score={best_score:.3f}: "
-                          f"{track.get('artist', '')} - {track.get('name', '')} -> {file.get('path', '')}")
+                    print(
+                        f"[{self.get_name()}] [MATCH] score={best_score:.3f}: "
+                        f"{track.get('artist', '')} - {track.get('name', '')} -> {file.get('path', '')}"
+                    )
 
         duration = time.time() - start
 
@@ -121,6 +130,8 @@ class FuzzyMatchStrategy(MatchStrategy):
                 high_quality = sum(1 for _, _, score, _ in matches if score >= 0.9)
                 medium_quality = sum(1 for _, _, score, _ in matches if 0.8 <= score < 0.9)
                 low_quality = sum(1 for _, _, score, _ in matches if score < 0.8)
-                print(f"[{self.get_name()}] Quality: {high_quality} high (≥0.9), {medium_quality} medium (0.8-0.9), {low_quality} low (<0.8)")
+                print(
+                    f"[{self.get_name()}] Quality: {high_quality} high (≥0.9), {medium_quality} medium (0.8-0.9), {low_quality} low (<0.8)"
+                )
 
         return matches, matched_track_ids

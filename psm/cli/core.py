@@ -20,23 +20,19 @@ from .helpers import cli, get_db
 
 # Import command modules to register commands with cli group
 from . import report_cmds
-from . import config_cmds
-from . import oauth_cmds
 from . import provider_cmds
 from . import scan_cmds
 from . import match_cmds
-from . import analyze_cmds
 from . import export_cmds
-from . import diagnose_cmds
 
 logger = logging.getLogger(__name__)
 
 
-@cli.command(name='build')
-@click.option('--no-report', is_flag=True, help='Skip report generation step')
-@click.option('--no-export', is_flag=True, help='Skip playlist export step')
-@click.option('--watch', is_flag=True, help='Watch library for changes and auto-rebuild')
-@click.option('--debounce', type=float, default=2.0, help='Debounce time in seconds for watch mode')
+@cli.command(name="build")
+@click.option("--no-report", is_flag=True, help="Skip report generation step")
+@click.option("--no-export", is_flag=True, help="Skip playlist export step")
+@click.option("--watch", is_flag=True, help="Watch library for changes and auto-rebuild")
+@click.option("--debounce", type=float, default=2.0, help="Debounce time in seconds for watch mode")
 @click.pass_context
 def build(ctx: click.Context, no_report: bool, no_export: bool, watch: bool, debounce: float):
     """Run the full one-way pipeline (pull -> scan -> match -> export -> report).
@@ -56,14 +52,10 @@ def build(ctx: click.Context, no_report: bool, no_export: bool, watch: bool, deb
         from ..services.watch_build_service import run_watch_build, WatchBuildConfig
 
         # Print styled header for watch mode
-        click.echo(click.style("=== Entering watch mode ===", fg='cyan', bold=True))
+        click.echo(click.style("=== Entering watch mode ===", fg="cyan", bold=True))
 
         watch_config = WatchBuildConfig(
-            config=cfg,
-            get_db_func=get_db,
-            skip_export=no_export,
-            skip_report=no_report,
-            debounce_seconds=debounce
+            config=cfg, get_db_func=get_db, skip_export=no_export, skip_report=no_report, debounce_seconds=debounce
         )
 
         run_watch_build(watch_config)
@@ -71,13 +63,15 @@ def build(ctx: click.Context, no_report: bool, no_export: bool, watch: bool, deb
 
     # Normal build mode (non-watch): Run full pipeline
     ctx.invoke(provider_cmds.pull)
-    ctx.invoke(scan_cmds.scan, since=None, deep=True, paths=(), watch=False, debounce=2.0)  # Use --deep for initial full scan
+    ctx.invoke(
+        scan_cmds.scan, since=None, deep=True, paths=(), watch=False, debounce=2.0
+    )  # Use --deep for initial full scan
     ctx.invoke(match_cmds.match, full=True)  # Use --full for initial complete match
     if not no_export:
         ctx.invoke(export_cmds.export)
     if not no_report:
         ctx.invoke(report_cmds.report, match_reports=True, analysis_reports=True, min_bitrate=None)
-    click.echo('Build complete')
+    click.echo("Build complete")
 
 
 @cli.command()
@@ -106,16 +100,17 @@ def gui(ctx):
 
     try:
         from psm.gui.app import main as gui_main
+
         sys.exit(gui_main())
     except ImportError as e:
-        if 'PySide6' in str(e):
-            click.echo(click.style("✗ Error: PySide6 not installed", fg='red', bold=True))
+        if "PySide6" in str(e):
+            click.echo(click.style("✗ Error: PySide6 not installed", fg="red", bold=True))
             click.echo("")
             click.echo("The GUI requires PySide6. Install it with:")
-            click.echo(click.style("  pip install PySide6>=6.6.0", fg='cyan'))
+            click.echo(click.style("  pip install PySide6>=6.6.0", fg="cyan"))
             click.echo("")
             click.echo("Or install all dependencies:")
-            click.echo(click.style("  pip install -r requirements.txt", fg='cyan'))
+            click.echo(click.style("  pip install -r requirements.txt", fg="cyan"))
             sys.exit(1)
         else:
             raise

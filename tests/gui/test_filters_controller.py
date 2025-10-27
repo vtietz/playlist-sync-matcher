@@ -8,7 +8,7 @@ from psm.gui.filters_controller import FiltersController
 from psm.gui.state import FilterStore
 
 
-@pytest.fixture(scope='module')
+@pytest.fixture(scope="module")
 def qapp():
     """Create QApplication instance for GUI tests."""
     app = QApplication.instance()

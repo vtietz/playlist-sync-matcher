@@ -20,9 +20,12 @@ _remaster_pattern = re.compile(
         [\)\]]*                           # Optional closing paren/bracket
     )
     """,
-    re.IGNORECASE | re.VERBOSE
+    re.IGNORECASE | re.VERBOSE,
 )
-_version_pattern = re.compile(r"\b(radio|album|single|extended|live|acoustic|remix|mix|edit|version|demo|deluxe|bonus|explicit|clean|instrumental)\b", re.IGNORECASE)
+_version_pattern = re.compile(
+    r"\b(radio|album|single|extended|live|acoustic|remix|mix|edit|version|demo|deluxe|bonus|explicit|clean|instrumental)\b",
+    re.IGNORECASE,
+)
 _punct_pattern = re.compile(r"[\s\-_.]+")
 
 _stopwords = {"the", "a", "an", "and", "or", "of", "in", "on", "at", "to", "for", "with", "from"}
@@ -60,5 +63,6 @@ def normalize_title_artist(title: str, artist: str) -> Tuple[str, str, str]:
     na = normalize_token(artist)
     combo = f"{na} {nt}".strip()
     return nt, na, combo
+
 
 __all__ = ["normalize_title_artist", "normalize_token"]

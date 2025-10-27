@@ -4,6 +4,7 @@ Provides a clean status bar showing:
 - Left: Execution status indicator and cancel button
 - Right: Statistics (tracks, playlists, etc.)
 """
+
 from __future__ import annotations
 from typing import Dict, Any
 from PySide6.QtWidgets import QWidget, QPushButton, QLabel
@@ -41,7 +42,8 @@ class StatusBar:
         self.btn_cancel.setFixedWidth(30)  # Small fixed width
         self.btn_cancel.setFixedHeight(20)  # Fixed height
         self.btn_cancel.setVisible(False)  # Hidden by default
-        self.btn_cancel.setStyleSheet("""
+        self.btn_cancel.setStyleSheet(
+            """
             QPushButton {
                 color: #0066cc;
                 font-weight: bold;
@@ -53,7 +55,8 @@ class StatusBar:
             QPushButton:hover {
                 background: #cce5ff;
             }
-        """)
+        """
+        )
         self.status_bar.addWidget(self.btn_cancel)
 
         # Spacer to push stats to the right
@@ -71,14 +74,12 @@ class StatusBar:
         Args:
             counts: Dict with 'tracks', 'matches', 'playlists' keys
         """
-        tracks = counts.get('tracks', 0)
-        matches = counts.get('matches', 0)  # Use 'matches' not 'matched'
-        playlists = counts.get('playlists', 0)
+        tracks = counts.get("tracks", 0)
+        matches = counts.get("matches", 0)  # Use 'matches' not 'matched'
+        playlists = counts.get("playlists", 0)
 
         match_pct = f"{matches / tracks * 100:.1f}%" if tracks > 0 else "0%"
-        self.stats_label.setText(
-            f"📀 {tracks} tracks | ✓ {matches} matched ({match_pct}) | 🎵 {playlists} playlists"
-        )
+        self.stats_label.setText(f"📀 {tracks} tracks | ✓ {matches} matched ({match_pct}) | 🎵 {playlists} playlists")
 
     def set_execution_status(self, running: bool, message: str = ""):
         """Set execution status indicator.

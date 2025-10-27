@@ -3,6 +3,7 @@
 This service handles chunked loading of large track datasets to prevent UI freezes.
 It manages chunk scheduling, progress updates, sorting state, and finalization.
 """
+
 from __future__ import annotations
 from typing import TYPE_CHECKING, List, Dict, Any, Optional
 from PySide6.QtCore import QTimer, Qt
@@ -39,7 +40,7 @@ class TrackStreamingService:
         view: UnifiedTracksView,
         model: UnifiedTracksModel,
         on_progress: Optional[callable] = None,
-        on_complete: Optional[callable] = None
+        on_complete: Optional[callable] = None,
     ):
         """Initialize streaming service.
 
@@ -64,7 +65,7 @@ class TrackStreamingService:
         self,
         tracks: List[Dict[str, Any]],
         filter_state: FilterState,
-        pending_sort: Optional[tuple[int, Qt.SortOrder]] = None
+        pending_sort: Optional[tuple[int, Qt.SortOrder]] = None,
     ):
         """Start streaming tracks to the UI.
 
@@ -74,9 +75,9 @@ class TrackStreamingService:
             pending_sort: Optional (column, order) tuple to apply after completion
         """
         # Pre-filter by playlist track_ids if active
-        if filter_state.active_dimension == 'playlist' and filter_state.track_ids:
+        if filter_state.active_dimension == "playlist" and filter_state.track_ids:
             logger.debug(f"Pre-filtering {len(tracks)} tracks by playlist filter ({len(filter_state.track_ids)} IDs)")
-            tracks = [row for row in tracks if row.get('id') in filter_state.track_ids]
+            tracks = [row for row in tracks if row.get("id") in filter_state.track_ids]
             logger.debug(f"After pre-filtering: {len(tracks)} tracks")
 
         self._total_count = len(tracks)
@@ -85,10 +86,7 @@ class TrackStreamingService:
         self._pending_sort = pending_sort
 
         # Prepare chunked iterator
-        self._chunk_iterator = [
-            tracks[i:i + self.CHUNK_SIZE]
-            for i in range(0, len(tracks), self.CHUNK_SIZE)
-        ]
+        self._chunk_iterator = [tracks[i : i + self.CHUNK_SIZE] for i in range(0, len(tracks), self.CHUNK_SIZE)]
 
         # Disable sorting and dynamic filtering during streaming
         self.view.tracks_table.setSortingEnabled(False)

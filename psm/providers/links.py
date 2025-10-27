@@ -3,6 +3,7 @@
 Provides easy access to provider-specific link generators for creating
 web URLs to tracks, albums, artists, and playlists.
 """
+
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
@@ -29,6 +30,7 @@ def get_link_generator(provider: str = "spotify") -> "ProviderLinkGenerator":
     """
     if provider.lower() == "spotify":
         from .spotify.provider import SpotifyLinkGenerator
+
         return SpotifyLinkGenerator()
 
     # Future providers can be added here
@@ -39,4 +41,4 @@ def get_link_generator(provider: str = "spotify") -> "ProviderLinkGenerator":
     raise ValueError(f"Unsupported provider: {provider}. Available: spotify")
 
 
-__all__ = ['get_link_generator']
+__all__ = ["get_link_generator"]

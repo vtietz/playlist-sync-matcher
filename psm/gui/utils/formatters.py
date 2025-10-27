@@ -2,6 +2,7 @@
 
 Reuses report formatting logic for consistency between GUI and reports.
 """
+
 from typing import Optional
 
 
@@ -38,8 +39,8 @@ def extract_confidence(method_str: str) -> str:
         return method_str.split(".")[-1]
 
     # Handle old score format: "score:HIGH:89.50" -> "HIGH"
-    if ':' in method_str:
-        parts = method_str.split(':')
+    if ":" in method_str:
+        parts = method_str.split(":")
         if len(parts) >= 2:
             return parts[1]
 
@@ -124,14 +125,13 @@ def get_confidence_tooltip(method_str: str) -> str:
         "HIGH": "Strong match with high similarity score (>85%)",
         "MEDIUM": "Reasonable match with moderate similarity (70-85%)",
         "LOW": "Weak match with low similarity (<70%)",
-        "UNKNOWN": "Matching method not recorded"
+        "UNKNOWN": "Matching method not recorded",
     }
 
     return tooltips.get(confidence, "Confidence level unknown")
 
 
-def get_quality_tooltip(missing_count: int, bitrate_kbps: Optional[int],
-                        missing_fields: Optional[list] = None) -> str:
+def get_quality_tooltip(missing_count: int, bitrate_kbps: Optional[int], missing_fields: Optional[list] = None) -> str:
     """Generate tooltip explaining quality assessment.
 
     Args:
@@ -171,10 +171,10 @@ def get_quality_tooltip(missing_count: int, bitrate_kbps: Optional[int],
 
 
 __all__ = [
-    'format_boolean_check',
-    'extract_confidence',
-    'get_quality_status_text',
-    'format_score_percentage',
-    'get_confidence_tooltip',
-    'get_quality_tooltip',
+    "format_boolean_check",
+    "extract_confidence",
+    "get_quality_status_text",
+    "format_score_percentage",
+    "get_confidence_tooltip",
+    "get_quality_tooltip",
 ]

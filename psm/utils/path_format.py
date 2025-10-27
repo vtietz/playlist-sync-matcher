@@ -2,6 +2,7 @@
 
 Handles conversion between absolute/relative paths and reconstruction from library roots.
 """
+
 from __future__ import annotations
 from pathlib import Path
 import logging
@@ -10,10 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 def format_path_for_m3u(
-    file_path: str | Path,
-    playlist_path: Path,
-    path_format: str = "absolute",
-    library_roots: list[str] | None = None
+    file_path: str | Path, playlist_path: Path, path_format: str = "absolute", library_roots: list[str] | None = None
 ) -> str:
     r"""Format a file path for inclusion in an M3U playlist.
 
@@ -77,16 +75,16 @@ def _reconstruct_from_library_root(file_path: Path, library_roots: list[str]) ->
         Config has: Z:\Artists
         Result: Z:\Artists\Song.mp3
     """
-    file_path_str = str(file_path).lower().replace('/', '\\')
+    file_path_str = str(file_path).lower().replace("/", "\\")
 
     for root in library_roots:
         root_path = Path(root).resolve()  # Resolve to absolute (may convert Z:\ to \\server\share)
-        root_str = str(root_path).lower().replace('/', '\\')
+        root_str = str(root_path).lower().replace("/", "\\")
 
         # Check if file path starts with this resolved root
         if file_path_str.startswith(root_str):
             # Found a match! Reconstruct using the ORIGINAL root from config
-            relative_part = str(file_path)[len(str(root_path)):].lstrip('\\/')
+            relative_part = str(file_path)[len(str(root_path)) :].lstrip("\\/")
             reconstructed = Path(root) / relative_part
             logger.debug(f"Reconstructed path: {file_path} -> {reconstructed} (using root: {root})")
             return reconstructed

@@ -1,4 +1,5 @@
 """Controller for selection synchronization between left panels and FilterStore."""
+
 from __future__ import annotations
 from typing import TYPE_CHECKING, Optional
 from PySide6.QtCore import QObject, QSignalBlocker
@@ -31,7 +32,7 @@ class SelectionSyncController(QObject):
         facade: DataFacade,
         facade_factory,
         db_monitor: Optional[DbAutoRefreshController] = None,
-        parent: Optional[QObject] = None
+        parent: Optional[QObject] = None,
     ):
         """Initialize controller.
 
@@ -61,9 +62,9 @@ class SelectionSyncController(QObject):
         self.window.playlists_tab.selection_changed.connect(self._on_playlist_selected)
 
         # Albums and Artists selection → FilterStore
-        if hasattr(self.window, 'albums_view'):
+        if hasattr(self.window, "albums_view"):
             self.window.albums_view.album_selected.connect(self._on_album_selected)
-        if hasattr(self.window, 'artists_view'):
+        if hasattr(self.window, "artists_view"):
             self.window.artists_view.artist_selected.connect(self._on_artist_selected)
 
         # FilterStore → Left panels (bidirectional sync)
@@ -111,7 +112,7 @@ class SelectionSyncController(QObject):
         # Try row_data first, fallback to display role
         row_data = self.window.playlists_model.get_row_data(source_row)
         if row_data:
-            playlist_name = row_data.get('name') or row_data.get('id')
+            playlist_name = row_data.get("name") or row_data.get("id")
         else:
             # Fallback to display role
             playlist_name = self.window.playlists_model.index(source_row, 0).data()
@@ -175,36 +176,36 @@ class SelectionSyncController(QObject):
         logger.debug(f"FilterStore changed: dimension={filter_state.active_dimension}")
 
         # Update left panel selection based on active dimension
-        if filter_state.active_dimension == 'playlist' and filter_state.playlist_name:
+        if filter_state.active_dimension == "playlist" and filter_state.playlist_name:
             # Select playlist in left panel
-            if hasattr(self.window, 'playlists_tab'):
+            if hasattr(self.window, "playlists_tab"):
                 self.window.playlists_tab.select_playlist(filter_state.playlist_name)
                 logger.debug(f"Updated playlist selection: {filter_state.playlist_name}")
 
-        elif filter_state.active_dimension == 'album' and filter_state.album_name:
+        elif filter_state.active_dimension == "album" and filter_state.album_name:
             # Select album in left panel
-            if hasattr(self.window, 'albums_view'):
+            if hasattr(self.window, "albums_view"):
                 self.window.albums_view.select_album(filter_state.album_name, filter_state.artist_name)
                 logger.debug(f"Updated album selection: {filter_state.album_name} by {filter_state.artist_name}")
 
-        elif filter_state.active_dimension == 'artist' and filter_state.artist_name:
+        elif filter_state.active_dimension == "artist" and filter_state.artist_name:
             # Select artist in left panel
-            if hasattr(self.window, 'artists_view'):
+            if hasattr(self.window, "artists_view"):
                 self.window.artists_view.select_artist(filter_state.artist_name)
                 logger.debug(f"Updated artist selection: {filter_state.artist_name}")
 
         elif filter_state.is_cleared:
             # Clear all left panel selections by clearing their selection models
-            if hasattr(self.window, 'playlists_tab'):
+            if hasattr(self.window, "playlists_tab"):
                 selection_model = self.window.playlists_tab.table_view.selectionModel()
                 if selection_model:
                     with QSignalBlocker(selection_model):
                         selection_model.clearSelection()
 
-            if hasattr(self.window, 'albums_view'):
+            if hasattr(self.window, "albums_view"):
                 self.window.albums_view.table.clearSelection()
 
-            if hasattr(self.window, 'artists_view'):
+            if hasattr(self.window, "artists_view"):
                 self.window.artists_view.table.clearSelection()
 
             logger.debug("Cleared all left panel selections")
@@ -234,16 +235,14 @@ class SelectionSyncController(QObject):
         # Cancel any previous playlist filter loaders
         # (Allow other loaders to continue - only cancel playlist filtering)
         for loader in self._active_loaders[:]:  # Copy list to avoid modification during iteration
-            if hasattr(loader, '_is_playlist_filter') and loader._is_playlist_filter:
+            if hasattr(loader, "_is_playlist_filter") and loader._is_playlist_filter:
                 logger.debug("Cancelling previous playlist filter loader")
                 loader.stop()
                 loader.wait()
                 self._active_loaders.remove(loader)
 
         # Define async loading function using facade_factory for thread safety
-        load_funcs = {
-            'track_ids': lambda: self.facade_factory().get_track_ids_for_playlist(playlist_name)
-        }
+        load_funcs = {"track_ids": lambda: self.facade_factory().get_track_ids_for_playlist(playlist_name)}
 
         # Create async loader
         loader = MultiAsyncLoader(load_funcs)
@@ -252,7 +251,7 @@ class SelectionSyncController(QObject):
 
         def on_loaded(results):
             """Handle track IDs loaded successfully."""
-            track_ids = results.get('track_ids', [])
+            track_ids = results.get("track_ids", [])
             logger.info(f"Loaded {len(track_ids)} tracks for playlist '{playlist_name}'")
 
             # Publish to FilterStore (single source of truth)

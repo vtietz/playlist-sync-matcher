@@ -7,11 +7,7 @@ from typing import Any, Iterable
 from ..html_templates import get_html_template
 
 
-def write_csv_report(
-    csv_path: Path,
-    headers: list[str],
-    rows: Iterable[list[Any]]
-) -> None:
+def write_csv_report(csv_path: Path, headers: list[str], rows: Iterable[list[Any]]) -> None:
     """Write CSV report with given headers and rows.
 
     Args:
@@ -19,7 +15,7 @@ def write_csv_report(
         headers: List of column headers
         rows: Iterable of row data (each row is a list matching headers)
     """
-    with csv_path.open('w', newline='', encoding='utf-8') as fh:
+    with csv_path.open("w", newline="", encoding="utf-8") as fh:
         writer = csv.writer(fh)
         writer.writerow(headers)
         writer.writerows(rows)
@@ -31,7 +27,7 @@ def write_html_report(
     columns: list[str],
     rows: list[list[Any]],
     description: str = "",
-    default_order: list[list[Any]] | None = None
+    default_order: list[list[Any]] | None = None,
 ) -> None:
     """Write HTML report using standard template.
 
@@ -44,13 +40,9 @@ def write_html_report(
         default_order: DataTables default sort order (e.g., [[0, "asc"]])
     """
     html_content = get_html_template(
-        title=title,
-        columns=columns,
-        rows=rows,
-        description=description,
-        default_order=default_order
+        title=title, columns=columns, rows=rows, description=description, default_order=default_order
     )
-    html_path.write_text(html_content, encoding='utf-8')
+    html_path.write_text(html_content, encoding="utf-8")
 
 
 def safe_str(value: Any, default: str = "") -> str:

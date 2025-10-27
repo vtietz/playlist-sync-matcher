@@ -3,6 +3,7 @@
 Thin adapter around DatabaseChangeDetector providing clean state management
 for loader count, command execution, watch mode, suppression, and ignore windows.
 """
+
 from __future__ import annotations
 from typing import TYPE_CHECKING, Callable
 from pathlib import Path
@@ -26,12 +27,7 @@ class DbAutoRefreshController:
     - Trigger refresh callbacks when external changes detected
     """
 
-    def __init__(
-        self,
-        db_path: Path,
-        get_write_epoch: Callable[[], str],
-        on_change_detected: Callable[[], None]
-    ):
+    def __init__(self, db_path: Path, get_write_epoch: Callable[[], str], on_change_detected: Callable[[], None]):
         """Initialize auto-refresh controller.
 
         Args:
@@ -44,7 +40,7 @@ class DbAutoRefreshController:
             get_write_epoch=get_write_epoch,
             on_change_detected=on_change_detected,
             check_interval=2000,  # 2 seconds
-            debounce_seconds=1.5
+            debounce_seconds=1.5,
         )
 
     # State management methods (delegate to detector)

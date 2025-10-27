@@ -35,16 +35,16 @@ class ActionStateManager:
 
         # Patterns for detecting step completion in logs
         self._completion_patterns = {
-            'pull': re.compile(r'Pull complete|Pulled \d+ playlist', re.IGNORECASE),
-            'scan': re.compile(r'Scan complete|Scanned \d+ file', re.IGNORECASE),
-            'match': re.compile(r'Match complete|Matched \d+ track', re.IGNORECASE),
-            'export': re.compile(r'Export complete|Exported \d+ playlist', re.IGNORECASE),
-            'report': re.compile(r'Report.* generated|Generated \d+ report', re.IGNORECASE),
-            'build': re.compile(r'Build complete', re.IGNORECASE),
+            "pull": re.compile(r"Pull complete|Pulled \d+ playlist", re.IGNORECASE),
+            "scan": re.compile(r"Scan complete|Scanned \d+ file", re.IGNORECASE),
+            "match": re.compile(r"Match complete|Matched \d+ track", re.IGNORECASE),
+            "export": re.compile(r"Export complete|Exported \d+ playlist", re.IGNORECASE),
+            "report": re.compile(r"Report.* generated|Generated \d+ report", re.IGNORECASE),
+            "build": re.compile(r"Build complete", re.IGNORECASE),
         }
 
         # Patterns for detecting errors
-        self._error_pattern = re.compile(r'✗|Error|Failed|Exception', re.IGNORECASE)
+        self._error_pattern = re.compile(r"✗|Error|Failed|Exception", re.IGNORECASE)
 
     def set_action_running(self, action_name: str):
         """Mark an action as started/running.
@@ -53,18 +53,18 @@ class ActionStateManager:
             action_name: Action being executed ('pull', 'scan', 'match', 'export', 'report', 'build')
         """
         self._current_action = action_name
-        self._is_build_command = (action_name == 'build')
+        self._is_build_command = action_name == "build"
         self._current_sub_step = None
 
         logger.debug(f"Action started: {action_name}")
 
         if self.on_state_change:
-            self.on_state_change(action_name, 'running')
+            self.on_state_change(action_name, "running")
 
             # For Build command, highlight Pull as the first step
             if self._is_build_command:
-                self._current_sub_step = 'pull'
-                self.on_state_change('build:pull', 'running')
+                self._current_sub_step = "pull"
+                self.on_state_change("build:pull", "running")
 
     def process_log_line(self, line: str):
         """Process a log line to detect state changes.
@@ -90,7 +90,7 @@ class ActionStateManager:
         if self._is_build_command and self.on_state_change:
             # Check each step's completion pattern
             for step, pattern in self._completion_patterns.items():
-                if step == 'build':
+                if step == "build":
                     continue  # Skip the build-complete pattern here
 
                 if pattern.search(line):
@@ -100,7 +100,7 @@ class ActionStateManager:
                     if next_step:
                         self._current_sub_step = next_step
                         # Emit sub-step change (using special naming for Build steps)
-                        self.on_state_change(f'build:{next_step}', 'running')
+                        self.on_state_change(f"build:{next_step}", "running")
                     break
 
     def set_action_finished(self, action_name: str, success: bool):
@@ -118,12 +118,12 @@ class ActionStateManager:
         if self.on_state_change:
             # On completion, return to idle state (original blue color)
             # Show error state only if command failed
-            state = 'idle' if success else 'error'
+            state = "idle" if success else "error"
             self.on_state_change(action_name, state)
 
             # Clear Build sub-step highlighting if it was a Build command
             if self._is_build_command:
-                self.on_state_change('build:clear', 'idle')
+                self.on_state_change("build:clear", "idle")
 
         self._current_action = None
         self._current_sub_step = None
@@ -140,7 +140,7 @@ class ActionStateManager:
         Returns:
             Next step name or None if this was the last step
         """
-        build_sequence = ['pull', 'scan', 'match', 'export', 'report']
+        build_sequence = ["pull", "scan", "match", "export", "report"]
         try:
             current_index = build_sequence.index(completed_step)
             if current_index < len(build_sequence) - 1:

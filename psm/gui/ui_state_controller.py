@@ -15,6 +15,7 @@ Responsibilities:
 - Centralize conditional UI state updates
 - Provide single source of truth for UI state
 """
+
 from __future__ import annotations
 from typing import Optional
 import logging
@@ -50,7 +51,7 @@ class UiStateController:
         btn_diagnose=None,
         btn_match_one=None,
         btn_manual_match=None,
-        btn_remove_match=None
+        btn_remove_match=None,
     ):
         """Initialize UI state controller.
 
@@ -183,7 +184,7 @@ class UiStateController:
             self._btn_match_one.setEnabled(should_enable)
         if self._btn_manual_match:
             self._btn_manual_match.setEnabled(should_enable)
-        
+
         # Remove Match has additional condition: track must have an existing match
         if self._btn_remove_match:
             has_match = False
@@ -191,7 +192,9 @@ class UiStateController:
                 has_match = self._tracks_panel._selected_track_has_match()
             self._btn_remove_match.setEnabled(not self._is_running and self._has_track_selection and has_match)
 
-        logger.debug(f"Track actions: enabled={should_enable} (running={self._is_running}, has_selection={self._has_track_selection})")
+        logger.debug(
+            f"Track actions: enabled={should_enable} (running={self._is_running}, has_selection={self._has_track_selection})"
+        )
 
     # Convenience methods (higher-level state changes)
 
@@ -215,7 +218,7 @@ class UiStateController:
         """
         self.set_running(False)
         self.update_all_states()
-        
+
         # TracksPanel needs to re-evaluate btn_remove_match based on current selection
         if self._tracks_panel:
             self._tracks_panel.refresh_button_states()

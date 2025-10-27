@@ -39,10 +39,7 @@ def _find_existing_m3u_files(export_dir: Path) -> List[Path]:
     return list(export_dir.rglob("*.m3u"))
 
 
-def _detect_obsolete_files(
-    existing_files: List[Path],
-    exported_files: List[str]
-) -> List[Path]:
+def _detect_obsolete_files(existing_files: List[Path], exported_files: List[str]) -> List[Path]:
     """Detect files that exist but weren't just exported.
 
     Args:
@@ -85,11 +82,7 @@ def _clean_export_directory(export_dir: Path) -> List[str]:
 
 
 def _resolve_export_dir(
-    base_dir: Path,
-    organize_by_owner: bool,
-    owner_id: str | None,
-    owner_name: str | None,
-    current_user_id: str | None
+    base_dir: Path, organize_by_owner: bool, owner_id: str | None, owner_name: str | None, current_user_id: str | None
 ) -> Path:
     """Resolve export directory for a playlist.
 
@@ -113,7 +106,7 @@ def _resolve_export_dir(
         folder_name = sanitize_filename(owner_name)
         return base_dir / folder_name
     else:
-        return base_dir / 'other'
+        return base_dir / "other"
 
 
 def export_playlists(
@@ -122,7 +115,7 @@ def export_playlists(
     organize_by_owner: bool = False,
     current_user_id: str | None = None,
     library_paths: list[str] | None = None,
-    playlist_ids: List[str] | None = None
+    playlist_ids: List[str] | None = None,
 ) -> ExportResult:
     """Export playlists to M3U files.
 
@@ -142,14 +135,14 @@ def export_playlists(
     result = ExportResult()
 
     # Extract config
-    export_dir = Path(export_config['directory'])
-    mode = export_config.get('mode', 'strict')
-    placeholder_ext = export_config.get('placeholder_extension', '.missing')
-    include_liked_songs = export_config.get('include_liked_songs', True)  # Default: enabled
-    path_format = export_config.get('path_format', 'absolute')
-    use_library_roots = export_config.get('use_library_roots', True)
-    clean_before_export = export_config.get('clean_before_export', False)
-    detect_obsolete = export_config.get('detect_obsolete', True)
+    export_dir = Path(export_config["directory"])
+    mode = export_config.get("mode", "strict")
+    placeholder_ext = export_config.get("placeholder_extension", ".missing")
+    include_liked_songs = export_config.get("include_liked_songs", True)  # Default: enabled
+    path_format = export_config.get("path_format", "absolute")
+    use_library_roots = export_config.get("use_library_roots", True)
+    clean_before_export = export_config.get("clean_before_export", False)
+    detect_obsolete = export_config.get("detect_obsolete", True)
 
     # Prepare library roots for path reconstruction (if enabled)
     library_roots_param = library_paths if (use_library_roots and library_paths) else None
@@ -166,19 +159,20 @@ def export_playlists(
 
     # Get current user ID from metadata if not provided
     if organize_by_owner and current_user_id is None:
-        current_user_id = db.get_meta('current_user_id')
+        current_user_id = db.get_meta("current_user_id")
 
     # Enumerate playlists using repository method (provider-aware, sorted)
-    provider = 'spotify'  # TODO: Make configurable when adding multi-provider support
+    provider = "spotify"  # TODO: Make configurable when adding multi-provider support
     playlists = db.list_playlists(playlist_ids, provider)
 
     total_playlists = len(playlists)
 
     # Group playlists by owner for logging
     from collections import defaultdict
+
     playlists_by_owner = defaultdict(list)
     for pl in playlists:
-        owner = pl.get('owner_name') or pl.get('owner_id') or 'Unknown'
+        owner = pl.get("owner_name") or pl.get("owner_id") or "Unknown"
         playlists_by_owner[owner].append(pl)
 
     # Log export summary by owner (INFO mode)
@@ -192,35 +186,31 @@ def export_playlists(
             logger.info(f"  • {owner}: {count} playlist(s)")
 
     for idx, pl in enumerate(playlists, 1):
-        pl_id = pl['id']
-        owner_id = pl['owner_id'] if 'owner_id' in pl.keys() else None
-        owner_name = pl['owner_name'] if 'owner_name' in pl.keys() else None
+        pl_id = pl["id"]
+        owner_id = pl["owner_id"] if "owner_id" in pl.keys() else None
+        owner_name = pl["owner_name"] if "owner_name" in pl.keys() else None
 
         # Determine target directory
-        target_dir = _resolve_export_dir(
-            export_dir,
-            organize_by_owner,
-            owner_id,
-            owner_name,
-            current_user_id
-        )
+        target_dir = _resolve_export_dir(export_dir, organize_by_owner, owner_id, owner_name, current_user_id)
 
         # Fetch tracks with local paths using repository method (provider-aware, best match only)
         track_rows = db.get_playlist_tracks_with_local_paths(pl_id, provider)
-        tracks = [dict(r) | {'position': r['position']} for r in track_rows]
-        playlist_meta = {'name': pl['name'], 'id': pl_id}
+        tracks = [dict(r) | {"position": r["position"]} for r in track_rows]
+        playlist_meta = {"name": pl["name"], "id": pl_id}
 
         # Log progress (only in DEBUG mode - INFO mode shows per-owner summary above)
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug(f"[{idx}/{total_playlists}] Exporting: {pl['name']}")
 
         # Dispatch to export function based on mode and capture actual path
-        if mode == 'strict':
+        if mode == "strict":
             actual_path = export_strict(playlist_meta, tracks, target_dir, path_format, library_roots_param)
-        elif mode == 'mirrored':
+        elif mode == "mirrored":
             actual_path = export_mirrored(playlist_meta, tracks, target_dir, path_format, library_roots_param)
-        elif mode == 'placeholders':
-            actual_path = export_placeholders(playlist_meta, tracks, target_dir, placeholder_ext, path_format, library_roots_param)
+        elif mode == "placeholders":
+            actual_path = export_placeholders(
+                playlist_meta, tracks, target_dir, placeholder_ext, path_format, library_roots_param
+            )
         else:
             logger.warning(f"Unknown export mode '{mode}', defaulting to strict")
             actual_path = export_strict(playlist_meta, tracks, target_dir, path_format, library_roots_param)
@@ -232,7 +222,7 @@ def export_playlists(
     # Export Liked Songs as virtual playlist (unless disabled in config)
     # Skip Liked Songs during incremental/scoped exports (playlist_ids provided)
     # to avoid unnecessary full exports - caller should trigger full export if Liked Songs affected
-    provider = 'spotify'  # TODO: Make configurable when adding multi-provider support
+    provider = "spotify"  # TODO: Make configurable when adding multi-provider support
     if include_liked_songs and playlist_ids is None:
         liked_count = db.count_liked_tracks(provider=provider)
         if liked_count > 0:
@@ -247,22 +237,16 @@ def export_playlists(
                 current_user_id,
                 path_format,
                 library_roots_param,
-                result
+                result,
             )
 
     # Detect obsolete files (if configured and not cleaned)
     if detect_obsolete and not clean_before_export and existing_files_before:
-        result.obsolete_files = [
-            str(f) for f in _detect_obsolete_files(existing_files_before, result.exported_files)
-        ]
+        result.obsolete_files = [str(f) for f in _detect_obsolete_files(existing_files_before, result.exported_files)]
         if result.obsolete_files:
             logger.info(f"Found {len(result.obsolete_files)} obsolete playlist(s) in export directory")
 
-    logger.info(
-        f"✓ Exported "
-        f"{result.playlist_count} playlists "
-        f"to {export_dir}"
-    )
+    logger.info(f"✓ Exported " f"{result.playlist_count} playlists " f"to {export_dir}")
     return result
 
 
@@ -275,7 +259,7 @@ def _export_liked_tracks(
     current_user_id: str | None,
     path_format: str,
     library_roots: list[str] | None,
-    result: ExportResult
+    result: ExportResult,
 ) -> None:
     """Export liked tracks as a virtual 'Liked Songs' playlist.
 
@@ -293,42 +277,35 @@ def _export_liked_tracks(
     # Determine target directory
     if organize_by_owner:
         # Use current user's folder if available, otherwise root
-        owner_name = db.get_meta('current_user_name')
+        owner_name = db.get_meta("current_user_name")
         if owner_name:
-            target_dir = _resolve_export_dir(
-                export_dir,
-                True,
-                current_user_id,
-                owner_name,
-                current_user_id
-            )
+            target_dir = _resolve_export_dir(export_dir, True, current_user_id, owner_name, current_user_id)
         else:
             target_dir = export_dir
     else:
         target_dir = export_dir
 
     # Fetch liked tracks with local paths using repository method (provider-aware, best match only)
-    provider = 'spotify'  # TODO: Make configurable when adding multi-provider support
+    provider = "spotify"  # TODO: Make configurable when adding multi-provider support
     track_rows = db.get_liked_tracks_with_local_paths(provider)
 
     tracks = [dict(r) for r in track_rows]
 
     # Add position attribute (0-indexed, preserving newest-first order)
     for i, track in enumerate(tracks):
-        track['position'] = i
+        track["position"] = i
 
-    playlist_meta = {
-        'name': 'Liked Songs',
-        'id': '_liked_songs_virtual'
-    }
+    playlist_meta = {"name": "Liked Songs", "id": "_liked_songs_virtual"}
 
     # Dispatch to appropriate export mode and get the actual file path
-    if mode == 'strict':
+    if mode == "strict":
         actual_path = export_strict(playlist_meta, tracks, target_dir, path_format, library_roots)
-    elif mode == 'mirrored':
+    elif mode == "mirrored":
         actual_path = export_mirrored(playlist_meta, tracks, target_dir, path_format, library_roots)
-    elif mode == 'placeholders':
-        actual_path = export_placeholders(playlist_meta, tracks, target_dir, placeholder_ext, path_format, library_roots)
+    elif mode == "placeholders":
+        actual_path = export_placeholders(
+            playlist_meta, tracks, target_dir, placeholder_ext, path_format, library_roots
+        )
     else:
         logger.warning(f"Unknown export mode '{mode}', defaulting to strict")
         actual_path = export_strict(playlist_meta, tracks, target_dir, path_format, library_roots)

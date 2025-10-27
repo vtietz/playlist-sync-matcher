@@ -3,19 +3,19 @@
 This module contains utilities that are used by both CLI and GUI components,
 without importing click (which is CLI-only).
 """
+
 from __future__ import annotations
 from pathlib import Path
-from ..config import load_typed_config
 from ..db import Database
 
 
 def get_db(cfg):
     """Get database instance from config.
-    
+
     Args:
         cfg: Configuration dictionary
-        
+
     Returns:
         Database instance
     """
-    return Database(Path(cfg['database']['path']))
+    return Database(Path(cfg["database"]["path"]))

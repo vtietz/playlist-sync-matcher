@@ -6,6 +6,7 @@ This component encapsulates a QTableView with QSortFilterProxyModel to provide:
 - Value filtering for specific columns
 - Clean API for common table operations
 """
+
 from __future__ import annotations
 from typing import Optional, List, Any
 from PySide6.QtWidgets import QTableView, QHeaderView, QWidget, QVBoxLayout
@@ -33,7 +34,7 @@ class SortFilterTable(QWidget):
         source_model: QAbstractTableModel,
         stretch_columns: bool = True,
         selection_mode: QTableView.SelectionMode = QTableView.SingleSelection,
-        parent: Optional[QWidget] = None
+        parent: Optional[QWidget] = None,
     ):
         """Initialize sortable/filterable table.
 
@@ -115,13 +116,11 @@ class SortFilterTable(QWidget):
         selection = self.table_view.selectionModel()
         if selection and selection.hasSelection():
             proxy_row = selection.selectedRows()[0].row()
-            source_index = self.proxy_model.mapToSource(
-                self.proxy_model.index(proxy_row, 0)
-            )
+            source_index = self.proxy_model.mapToSource(self.proxy_model.index(proxy_row, 0))
             source_row = source_index.row()
 
             # Access source model's get_row_data if available
-            if hasattr(self.source_model, 'get_row_data'):
+            if hasattr(self.source_model, "get_row_data"):
                 return self.source_model.get_row_data(source_row)
 
         return None
@@ -144,4 +143,3 @@ class SortFilterTable(QWidget):
             QItemSelectionModel for monitoring selections
         """
         return self.table_view.selectionModel()
-

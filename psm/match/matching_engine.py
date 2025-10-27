@@ -39,9 +39,9 @@ class MatchingEngine:
         self,
         db: Database,
         matching_config: MatchingConfig,
-        provider: str = 'spotify',
+        provider: str = "spotify",
         progress_enabled: bool = True,
-        progress_interval: int = 100
+        progress_interval: int = 100,
     ):
         """Initialize the matching engine.
 
@@ -96,15 +96,11 @@ class MatchingEngine:
             processed += 1
 
             # Select candidates using two-stage filtering
-            candidates = self.selector.duration_prefilter(
-                track, files, dur_tolerance=self.dur_tolerance
-            )
+            candidates = self.selector.duration_prefilter(track, files, dur_tolerance=self.dur_tolerance)
             if not candidates:  # Fallback if filter too strict
                 candidates = files
 
-            candidates = self.selector.token_prescore(
-                track, candidates, max_candidates=self.max_candidates
-            )
+            candidates = self.selector.token_prescore(track, candidates, max_candidates=self.max_candidates)
 
             # Find best match among candidates
             best_file_id = None
@@ -126,7 +122,7 @@ class MatchingEngine:
 
                 if breakdown.raw_score > best_score:
                     best_score = breakdown.raw_score
-                    best_file_id = file_dict['id']
+                    best_file_id = file_dict["id"]
                     best_breakdown = breakdown
 
                 # Early exit on CERTAIN match
@@ -136,12 +132,12 @@ class MatchingEngine:
             # Persist match if found
             if best_breakdown and best_file_id is not None:
                 self.db.add_match(
-                    track['id'],
+                    track["id"],
                     best_file_id,
                     best_breakdown.raw_score / 100.0,
                     f"score:{best_breakdown.confidence}",
                     provider=self.provider,
-                    confidence=best_breakdown.confidence.value
+                    confidence=best_breakdown.confidence.value,
                 )
                 matches += 1
 
@@ -155,7 +151,7 @@ class MatchingEngine:
                     new=matches,
                     skipped=skipped,
                     elapsed_seconds=elapsed,
-                    item_name="tracks"
+                    item_name="tracks",
                 )
                 last_progress_log = processed
 
@@ -167,9 +163,7 @@ class MatchingEngine:
         match_rate = (matches / len(tracks) * 100) if tracks else 0
         confidence_summary = self._get_confidence_summary(matches)
 
-        logger.info(
-            f"✓ Matched {matches}/{len(tracks)} tracks ({match_rate:.1f}%) in {duration:.2f}s"
-        )
+        logger.info(f"✓ Matched {matches}/{len(tracks)} tracks ({match_rate:.1f}%) in {duration:.2f}s")
         if matches > 0:
             logger.info(f"  Confidence: {confidence_summary}")
 
@@ -191,28 +185,24 @@ class MatchingEngine:
         tier_counts = self.db.get_match_confidence_tier_counts()
 
         # Extract counts for each tier (no more brittle string matching!)
-        certain = tier_counts.get('certain', tier_counts.get('CERTAIN', 0))
-        high = tier_counts.get('high', tier_counts.get('HIGH', 0))
-        medium = tier_counts.get('medium', tier_counts.get('MEDIUM', 0))
-        low = tier_counts.get('low', tier_counts.get('LOW', 0))
+        certain = tier_counts.get("certain", tier_counts.get("CERTAIN", 0))
+        high = tier_counts.get("high", tier_counts.get("HIGH", 0))
+        medium = tier_counts.get("medium", tier_counts.get("MEDIUM", 0))
+        low = tier_counts.get("low", tier_counts.get("LOW", 0))
 
         parts = []
         if certain > 0:
-            parts.append(f'{certain} certain')
+            parts.append(f"{certain} certain")
         if high > 0:
-            parts.append(f'{high} high')
+            parts.append(f"{high} high")
         if medium > 0:
-            parts.append(f'{medium} medium')
+            parts.append(f"{medium} medium")
         if low > 0:
-            parts.append(f'{low} low')
+            parts.append(f"{low} low")
 
         return ", ".join(parts) if parts else "none"
 
-    def match_tracks(
-        self,
-        track_ids: List[str] | None = None,
-        all_files: List[Dict[str, Any]] | None = None
-    ) -> int:
+    def match_tracks(self, track_ids: List[str] | None = None, all_files: List[Dict[str, Any]] | None = None) -> int:
         """Incrementally match specific tracks against all library files.
 
         This is the inverse of match_files: instead of matching a few changed
@@ -258,7 +248,9 @@ class MatchingEngine:
             logger.debug("No tracks need matching")
             return 0
 
-        logger.info(f"Incrementally matching {len(all_files)} file(s) against {len(tracks_to_match)} {match_type} track(s)...")
+        logger.info(
+            f"Incrementally matching {len(all_files)} file(s) against {len(tracks_to_match)} {match_type} track(s)..."
+        )
 
         new_matches = 0
         processed = 0
@@ -288,19 +280,19 @@ class MatchingEngine:
                     continue
                 if breakdown.raw_score > best_score:
                     best_score = breakdown.raw_score
-                    best_file_id = file_dict['id']
+                    best_file_id = file_dict["id"]
                     best_breakdown = breakdown
                 if breakdown.confidence == MatchConfidence.CERTAIN:
                     break
 
             if best_breakdown and best_file_id is not None:
                 self.db.add_match(
-                    track['id'],
+                    track["id"],
                     best_file_id,
                     best_breakdown.raw_score / 100.0,
                     f"score:{best_breakdown.confidence}",
                     provider=self.provider,
-                    confidence=best_breakdown.confidence.value
+                    confidence=best_breakdown.confidence.value,
                 )
                 new_matches += 1
 
@@ -314,7 +306,7 @@ class MatchingEngine:
                     new=new_matches,
                     skipped=skipped,
                     elapsed_seconds=elapsed,
-                    item_name="tracks"
+                    item_name="tracks",
                 )
                 last_progress_log = processed
 
@@ -330,9 +322,7 @@ class MatchingEngine:
         return new_matches
 
     def match_files(
-        self,
-        file_ids: List[int] | None = None,
-        all_tracks: List[Dict[str, Any]] | None = None
+        self, file_ids: List[int] | None = None, all_tracks: List[Dict[str, Any]] | None = None
     ) -> tuple[int, List[str]]:
         """Incrementally match specific files against all tracks.
 
@@ -378,7 +368,9 @@ class MatchingEngine:
             logger.debug("No files need matching")
             return (0, [])
 
-        logger.info(f"Incrementally matching {len(files_to_match)} {match_type} file(s) against {len(all_tracks)} tracks...")
+        logger.info(
+            f"Incrementally matching {len(files_to_match)} {match_type} file(s) against {len(all_tracks)} tracks..."
+        )
 
         new_matches = 0
         matched_track_ids = []  # Track which tracks got new matches
@@ -409,22 +401,22 @@ class MatchingEngine:
                     continue
                 if breakdown.raw_score > best_score:
                     best_score = breakdown.raw_score
-                    best_file_id = file_dict['id']
+                    best_file_id = file_dict["id"]
                     best_breakdown = breakdown
                 if breakdown.confidence == MatchConfidence.CERTAIN:
                     break
 
             if best_breakdown and best_file_id is not None:
                 self.db.add_match(
-                    track['id'],
+                    track["id"],
                     best_file_id,
                     best_breakdown.raw_score / 100.0,
                     f"score:{best_breakdown.confidence}",
                     provider=self.provider,
-                    confidence=best_breakdown.confidence.value
+                    confidence=best_breakdown.confidence.value,
                 )
                 new_matches += 1
-                matched_track_ids.append(track['id'])  # Track which tracks got matched
+                matched_track_ids.append(track["id"])  # Track which tracks got matched
 
             # Log progress periodically
             if self.progress_enabled and processed - last_progress_log >= self.progress_interval:
@@ -436,7 +428,7 @@ class MatchingEngine:
                     new=new_matches,
                     skipped=skipped,
                     elapsed_seconds=elapsed,
-                    item_name="tracks"
+                    item_name="tracks",
                 )
                 last_progress_log = processed
 
@@ -470,21 +462,21 @@ class MatchingEngine:
         Returns:
             Normalized file dict with 'name' field and precomputed 'normalized_tokens'
         """
-        normalized_str = raw_row.get('normalized') or ''
+        normalized_str = raw_row.get("normalized") or ""
 
         return {
-            'id': raw_row['id'],
-            'path': raw_row.get('path', ''),
-            'title': raw_row.get('title') or raw_row.get('name') or '',
-            'name': raw_row.get('title') or raw_row.get('name') or '',  # Scoring expects 'name'
-            'artist': raw_row.get('artist') or '',
-            'album': raw_row.get('album'),
-            'year': raw_row.get('year'),
-            'duration': raw_row.get('duration'),
-            'normalized': normalized_str,
-            'normalized_tokens': set(normalized_str.split()),  # Precompute for token_prescore()
-            'isrc': raw_row.get('isrc'),
+            "id": raw_row["id"],
+            "path": raw_row.get("path", ""),
+            "title": raw_row.get("title") or raw_row.get("name") or "",
+            "name": raw_row.get("title") or raw_row.get("name") or "",  # Scoring expects 'name'
+            "artist": raw_row.get("artist") or "",
+            "album": raw_row.get("album"),
+            "year": raw_row.get("year"),
+            "duration": raw_row.get("duration"),
+            "normalized": normalized_str,
+            "normalized_tokens": set(normalized_str.split()),  # Precompute for token_prescore()
+            "isrc": raw_row.get("isrc"),
         }
 
 
-__all__ = ['MatchingEngine']
+__all__ = ["MatchingEngine"]

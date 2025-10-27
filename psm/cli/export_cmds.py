@@ -22,16 +22,16 @@ def export(ctx: click.Context):
     # Print styled header for user experience
     click.echo(section_header("Exporting playlists to M3U"))
 
-    organize_by_owner = cfg['export'].get('organize_by_owner', False)
-    library_paths = cfg.get('library', {}).get('paths', [])
+    organize_by_owner = cfg["export"].get("organize_by_owner", False)
+    library_paths = cfg.get("library", {}).get("paths", [])
     with get_db(cfg) as db:
-        current_user_id = db.get_meta('current_user_id') if organize_by_owner else None
+        current_user_id = db.get_meta("current_user_id") if organize_by_owner else None
         result = export_playlists(
             db=db,
-            export_config=cfg['export'],
+            export_config=cfg["export"],
             organize_by_owner=organize_by_owner,
             current_user_id=current_user_id,
-            library_paths=library_paths
+            library_paths=library_paths,
         )
 
     # Handle obsolete files (if detected)
@@ -59,4 +59,4 @@ def export(ctx: click.Context):
     click.echo(success("Export complete"))
 
 
-__all__ = ['export']
+__all__ = ["export"]

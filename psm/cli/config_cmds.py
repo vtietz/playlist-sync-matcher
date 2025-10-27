@@ -7,9 +7,9 @@ import json as _json
 from .helpers import cli, _redact_spotify_config
 
 
-@cli.command(name='config')
-@click.option('--section', '-s', help='Only show a specific top-level section (e.g. providers, export, database).')
-@click.option('--redact', is_flag=True, help='Redact sensitive values like client_id.')
+@cli.command(name="config")
+@click.option("--section", "-s", help="Only show a specific top-level section (e.g. providers, export, database).")
+@click.option("--redact", is_flag=True, help="Redact sensitive values like client_id.")
 @click.pass_context
 def show_config(ctx: click.Context, section: str | None, redact: bool):
     """Show current configuration settings."""
@@ -26,4 +26,4 @@ def show_config(ctx: click.Context, section: str | None, redact: bool):
     click.echo(_json.dumps(out, indent=2, sort_keys=True))
 
 
-__all__ = ['show_config']
+__all__ = ["show_config"]

@@ -8,7 +8,7 @@ from PySide6.QtCore import Qt
 from psm.gui.model_coordinator import ModelCoordinator
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope="session")
 def qapp():
     """Create QApplication instance for all GUI tests."""
     app = QApplication.instance()
@@ -374,8 +374,7 @@ class TestUpdateUnifiedTracks:
         coordinator.update_unified_tracks([{"title": "Track"}], [])
 
         # Verify no auto-resize methods are called
-        assert not hasattr(mock_view, 'resize_columns_to_contents') or \
-               not mock_view.resize_columns_to_contents.called
+        assert not hasattr(mock_view, "resize_columns_to_contents") or not mock_view.resize_columns_to_contents.called
 
     def test_handles_no_view_gracefully(self, qapp):
         """Should not crash when no view is set."""

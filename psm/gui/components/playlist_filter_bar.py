@@ -3,11 +3,10 @@
 This is a simpler, reusable filter bar component that can be used
 for playlists or other views that need owner filtering and text search.
 """
+
 from __future__ import annotations
 from typing import Optional, List
-from PySide6.QtWidgets import (
-    QWidget, QHBoxLayout, QVBoxLayout, QLabel
-)
+from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QLabel
 from PySide6.QtCore import Signal
 import logging
 
@@ -48,9 +47,11 @@ class PlaylistFilterBar(QWidget):
 
         # Load filter options when user clicks the dropdown
         original_owner_showPopup = self.owner_combo.showPopup
+
         def owner_showPopup():
             self.filter_options_needed.emit()
             original_owner_showPopup()
+
         self.owner_combo.showPopup = owner_showPopup
 
         # Search field
@@ -116,4 +117,4 @@ class PlaylistFilterBar(QWidget):
         self.search_field.clear()
 
 
-__all__ = ['PlaylistFilterBar']
+__all__ = ["PlaylistFilterBar"]
