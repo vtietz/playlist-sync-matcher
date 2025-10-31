@@ -24,6 +24,10 @@ from . import provider_cmds
 from . import scan_cmds
 from . import match_cmds
 from . import export_cmds
+from . import analyze_cmds
+from . import diagnose_cmds
+from . import config_cmds
+from . import oauth_cmds
 
 logger = logging.getLogger(__name__)
 

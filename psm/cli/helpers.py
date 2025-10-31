@@ -104,7 +104,7 @@ def cli(ctx: click.Context, config_file: str | None, progress: bool | None, prog
     Maintenance:
       psm scan --full             # Refresh library index
       psm scan --watch            # Continuously import changed files
-      psm match-diagnose TRACK    # Debug matching issues
+      psm diagnose TRACK          # Debug matching issues
 
     \b
     Note: SQLite WAL mode enables safe concurrent operations.
