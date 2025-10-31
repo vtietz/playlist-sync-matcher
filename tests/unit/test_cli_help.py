@@ -35,7 +35,7 @@ def test_cli_help_contains_workflow_examples():
     assert "report" in result.output
 
     assert "Maintenance:" in result.output
-    assert "match-diagnose" in result.output
+    assert "diagnose" in result.output  # Changed from 'match-diagnose' to 'diagnose'
 
     # Check concurrency note (updated to reflect WAL mode support)
     assert "concurrent" in result.output.lower() or "wal" in result.output.lower()
