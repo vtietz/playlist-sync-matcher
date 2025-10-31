@@ -10,9 +10,15 @@ permissions:
   contents: write
 
 jobs:
+  # Run CI checks before building release
+  ci-check:
+    name: CI Quality Gate
+    uses: ./.github/workflows/ci.yml
+    
   build-cli:
     name: Build CLI - ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    needs: ci-check  # Wait for CI to pass before building
     strategy:
       matrix:
         include:
@@ -58,6 +64,7 @@ jobs:
   build-gui:
     name: Build GUI - ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    needs: ci-check  # Wait for CI to pass before building
     strategy:
       matrix:
         include:
