@@ -81,10 +81,13 @@ psm/gui/
 ## Installation
 
 ```bash
-# Install dependencies
+# Install dependencies (includes runtime + dev tools)
 run.bat install
 
-# Or manually
+# Or manually for development
+pip install -r requirements-dev.txt
+
+# Or for runtime only (if building executables)
 pip install -r requirements.txt
 ```
 

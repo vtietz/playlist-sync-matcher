@@ -84,7 +84,17 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    excludes=[
+        # Exclude dev/test tools (not needed in runtime)
+        'pytest',
+        'black',
+        'flake8',
+        'lizard',
+        'autoflake',
+        'pycodestyle',
+        'pyflakes',
+        'mccabe',
+    ],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,

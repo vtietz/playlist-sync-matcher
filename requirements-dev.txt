@@ -1,0 +1,20 @@
+# Development and Testing Dependencies
+# Install with: pip install -r requirements-dev.txt
+#
+# These are NOT needed in the final executables - only for development,
+# testing, and code quality checks.
+
+# Include runtime dependencies
+-r requirements.txt
+
+# Testing
+pytest>=8.0.0  # Test framework
+
+# Code Quality & Analysis
+lizard>=1.18.0  # Complexity analysis
+flake8>=7.0.0  # Style checking
+black>=24.0.0  # Code formatting
+autoflake>=2.0.0  # Unused import removal
+
+# Build Tools (pinned for reproducible builds)
+pyinstaller==6.3.0  # Executable builder

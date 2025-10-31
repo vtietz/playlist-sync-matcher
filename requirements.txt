@@ -1,16 +1,32 @@
+# Runtime Dependencies
+# These packages are required for the application to run and will be
+# bundled into the executables by PyInstaller.
+#
+# For development tools (pytest, black, flake8, etc.), see requirements-dev.txt
+
+# Core CLI framework
 click>=8.1.7
+
+# HTTP and API communication
 requests>=2.31.0
+
+# Audio metadata reading
 mutagen>=1.47.0
+
+# Fuzzy string matching
 rapidfuzz>=3.6.1
+
+# Retry logic for API calls
 tenacity>=8.2.3
+
+# Rich terminal output
 rich>=13.7.0
+
+# Certificate generation for OAuth
 cryptography>=42.0.0
-watchdog>=4.0.0  # filesystem watching for --watch mode
-pytest>=8.0.0  # needed for running test suite via run.bat test
-pyinstaller==6.3.0  # pinned for reproducible release builds
-PySide6>=6.6.0  # Qt GUI framework
-lizard>=1.18.0  # code complexity analysis
-flake8>=7.0.0  # style and syntax checking
-autoflake>=2.0.0  # automated unused import removal
-black>=24.0.0  # code formatting (PEP 8 compatible)
-black>=24.0.0  # code formatting (PEP 8 compatible)
+
+# Filesystem watching for --watch mode
+watchdog>=4.0.0
+
+# Qt GUI framework (needed for GUI executable)
+PySide6>=6.6.0

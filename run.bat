@@ -33,8 +33,8 @@ REM Default: treat as psm CLI command (for backward compatibility)
 GOTO psm_implicit
 
 :install
-ECHO Installing dependencies from requirements.txt ...
-pip install -r requirements.txt
+ECHO Installing development dependencies from requirements-dev.txt ...
+pip install -r requirements-dev.txt
 GOTO :EOF
 
 :test
