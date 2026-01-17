@@ -17,6 +17,196 @@ import re
 logger = logging.getLogger(__name__)
 
 
+def _resolve_file_for_match(db, file_id: int | None, file_path: str | None, cfg: dict, ctx: click.Context) -> int:
+    """Resolve file ID from either file_id parameter or file_path parameter.
+
+    Args:
+        db: Database connection
+        file_id: Optional file ID (takes precedence if provided)
+        file_path: Optional file path
+        cfg: Configuration dict
+        ctx: Click context for error handling
+
+    Returns:
+        Resolved file ID
+
+    Raises:
+        ctx.exit(1) on error
+    """
+    if file_id:
+        # Verify file exists in library
+        files = db.get_library_files_by_ids([file_id])
+        if not files:
+            click.echo(click.style(f"Error: File ID {file_id} not found in library", fg="red"))
+            ctx.exit(1)
+        click.echo(f"File: {files[0].path}")
+        return file_id
+
+    # file_path case
+    path = Path(file_path)
+    normalized_path = normalize_library_path(path)
+
+    # Check if file already in library
+    existing_file = db.get_library_file_by_path(normalized_path)
+    if existing_file:
+        click.echo(f"File: {existing_file.path} (already in library)")
+        return existing_file.id
+
+    # File not in library - ingest it
+    return _ingest_file_to_library(db, path, normalized_path, cfg, ctx)
+
+
+def _ingest_file_to_library(db, path: Path, normalized_path: str, cfg: dict, ctx: click.Context) -> int:
+    """Ingest a new file into the library database.
+
+    Args:
+        db: Database connection
+        path: Original file path
+        normalized_path: Normalized file path for database
+        cfg: Configuration dict
+        ctx: Click context for error handling
+
+    Returns:
+        File ID of the ingested file
+
+    Raises:
+        ctx.exit(1) on error
+    """
+    click.echo(f"File not in library, ingesting: {normalized_path}")
+
+    # Get file stats
+    try:
+        st = path.stat()
+    except OSError as e:
+        click.echo(click.style(f"Error: Cannot access file: {e}", fg="red"))
+        ctx.exit(1)
+
+    # Extract audio metadata
+    try:
+        audio = mutagen.File(path)
+    except Exception as e:
+        click.echo(click.style(f"Warning: Could not read audio tags: {e}", fg="yellow"))
+        audio = None
+
+    tags = extract_tags(audio)
+    title = tags.get("title") or path.stem
+    artist = tags.get("artist") or ""
+    album = tags.get("album") or ""
+    year = _extract_year_from_tags(tags)
+    duration = _extract_duration(audio)
+    bitrate_kbps = _extract_bitrate(audio)
+    ph = partial_hash(path)
+
+    # Build normalized string for matching
+    use_year = cfg.get("matching", {}).get("use_year", False)
+    nt, na, combo = normalize_title_artist(title, artist)
+    if use_year and year is not None:
+        combo = f"{combo} {year}"
+
+    # Add to library
+    db.add_library_file(
+        {
+            "path": normalized_path,
+            "size": st.st_size,
+            "mtime": st.st_mtime,
+            "partial_hash": ph,
+            "title": title,
+            "album": album,
+            "artist": artist,
+            "duration": duration,
+            "normalized": combo,
+            "year": year,
+            "bitrate_kbps": bitrate_kbps,
+        }
+    )
+
+    # Retrieve the newly inserted file to get its ID
+    existing_file = db.get_library_file_by_path(normalized_path)
+    if not existing_file:
+        click.echo(click.style("Error: Failed to add file to library", fg="red"))
+        ctx.exit(1)
+
+    click.echo(f"File added to library with ID: {existing_file.id}")
+    return existing_file.id
+
+
+def _extract_year_from_tags(tags: dict) -> int | None:
+    """Extract year from audio tags."""
+    year_raw = tags.get("year") or ""
+    if year_raw:
+        m = re.search(r"(19|20)\d{2}", str(year_raw))
+        if m:
+            return int(m.group(0))
+    return None
+
+
+def _extract_duration(audio) -> float | None:
+    """Extract duration from audio file info."""
+    if audio and getattr(audio, "info", None) and getattr(audio.info, "length", None):
+        return float(audio.info.length)
+    return None
+
+
+def _extract_bitrate(audio) -> int | None:
+    """Extract bitrate from audio file info."""
+    if not audio or not getattr(audio, "info", None):
+        return None
+
+    if hasattr(audio.info, "bitrate") and audio.info.bitrate:
+        return int(audio.info.bitrate / 1000)
+
+    if hasattr(audio.info, "sample_rate") and hasattr(audio.info, "bits_per_sample"):
+        sample_rate = audio.info.sample_rate
+        bits_per_sample = audio.info.bits_per_sample
+        channels = getattr(audio.info, "channels", 2)
+        return int((sample_rate * bits_per_sample * channels) / 1000)
+
+    return None
+
+
+def _get_tracks_for_propagation(db, track_id: str, provider: str, propagate: bool) -> list[str]:
+    """Get list of track IDs to match, including duplicates if propagate is enabled.
+
+    Args:
+        db: Database connection
+        track_id: Primary track ID
+        provider: Provider name
+        propagate: Whether to include duplicate tracks
+
+    Returns:
+        List of track IDs to match (always includes primary track_id)
+    """
+    tracks_to_match = [track_id]  # Always match the original track
+
+    if not propagate:
+        return tracks_to_match
+
+    duplicates = db.get_duplicate_tracks_by_isrc(track_id, provider)
+    if duplicates:
+        duplicate_ids = [dup.id for dup in duplicates]
+        tracks_to_match.extend(duplicate_ids)
+        click.echo("")
+        click.echo(
+            click.style(
+                f"✓ Found {len(duplicates)} duplicate track(s) with same ISRC",
+                fg="cyan",
+            )
+        )
+        for dup in duplicates:
+            click.echo(f"  - {dup.artist} - {dup.name}")
+        click.echo(f"  Total tracks to match: {len(tracks_to_match)}")
+    else:
+        click.echo("")
+        click.echo(
+            click.style(
+                "ℹ No duplicates found (track has no ISRC or no other tracks share it)",
+                fg="yellow",
+            )
+        )
+
+    return tracks_to_match
+
+
 @cli.command()
 @click.option("--top-tracks", type=int, default=20, help="Number of top unmatched tracks to show")
 @click.option("--top-albums", type=int, default=10, help="Number of top unmatched albums to show")
@@ -59,7 +249,7 @@ def match(ctx: click.Context, top_tracks: int, top_albums: int, full: bool, trac
             if matched_count > 0:
                 click.echo(f"✓ Matched track {track_id}")
             else:
-                click.echo(f"⚠ No match found for track")
+                click.echo("⚠ No match found for track")
 
         return
 
@@ -88,7 +278,7 @@ def match(ctx: click.Context, top_tracks: int, top_albums: int, full: bool, trac
             write_index_page(out_dir, db)
             logger.info("")
             logger.info(f"✓ Generated match reports in: {out_dir}")
-            logger.info(f"  Open index.html to navigate all reports")
+            logger.info("  Open index.html to navigate all reports")
 
     # At this point context manager closed the DB ensuring lock release
     if result is not None:
@@ -99,8 +289,13 @@ def match(ctx: click.Context, top_tracks: int, top_albums: int, full: bool, trac
 @click.option("--track-id", required=True, type=str, help="Spotify track ID to manually match")
 @click.option("--file-path", type=click.Path(exists=True), help="Absolute path to the local file to match to")
 @click.option("--file-id", type=int, help="Library file ID to match to (alternative to --file-path)")
+@click.option(
+    "--propagate",
+    is_flag=True,
+    help="Apply this match to all duplicate tracks with the same ISRC",
+)
 @click.pass_context
-def set_match(ctx: click.Context, track_id: str, file_path: str | None, file_id: int | None):
+def set_match(ctx: click.Context, track_id: str, file_path: str | None, file_id: int | None, propagate: bool):
     """Manually override the match for a track.
 
     Set a manual match between a Spotify track and a local file. Manual matches
@@ -109,9 +304,13 @@ def set_match(ctx: click.Context, track_id: str, file_path: str | None, file_id:
 
     You must specify either --file-path OR --file-id (but not both).
 
+    Use --propagate to apply this match to all tracks with the same ISRC code.
+    This is useful when you have the same song on multiple albums or playlists.
+
     Examples:
         psm set-match --track-id 3n3Ppam7vgaVa1iaRUc9Lp --file-path "C:\\Music\\song.mp3"
         psm set-match --track-id 3n3Ppam7vgaVa1iaRUc9Lp --file-id 12345
+        psm set-match --track-id 3n3Ppam7vgaVa1iaRUc9Lp --file-path "C:\\Music\\song.mp3" --propagate
     """
     cfg = ctx.obj
 
@@ -136,118 +335,35 @@ def set_match(ctx: click.Context, track_id: str, file_path: str | None, file_id:
 
         click.echo(f"Track: {track.artist} - {track.name}")
 
-        # 2. Resolve file
-        resolved_file_id = None
+        # 2. Resolve file ID (from file_id parameter or by ingesting file_path)
+        resolved_file_id = _resolve_file_for_match(db, file_id, file_path, cfg, ctx)
 
-        if file_id:
-            # Verify file exists
-            files = db.get_library_files_by_ids([file_id])
-            if not files:
-                click.echo(click.style(f"Error: File ID {file_id} not found in library", fg="red"))
-                ctx.exit(1)
-            resolved_file_id = file_id
-            click.echo(f"File: {files[0].path}")
+        # 3. Get tracks to match (original + duplicates if --propagate)
+        tracks_to_match = _get_tracks_for_propagation(db, track_id, provider, propagate)
 
-        else:  # file_path
-            path = Path(file_path)
-            normalized_path = normalize_library_path(path)
+        # 4. Delete any existing matches for all tracks
+        db.delete_matches_by_track_ids(tracks_to_match)
 
-            # Check if file already in library
-            existing_file = db.get_library_file_by_path(normalized_path)
+        # 5. Insert manual match(es) with MANUAL confidence
+        for tid in tracks_to_match:
+            db.add_match(
+                track_id=tid,
+                file_id=resolved_file_id,
+                score=1.00,
+                method="score:MANUAL:manual-selected",
+                provider=provider,
+                confidence="MANUAL",
+            )
 
-            if existing_file:
-                resolved_file_id = existing_file.id
-                click.echo(f"File: {existing_file.path} (already in library)")
-            else:
-                # Ingest the file into library
-                click.echo(f"File not in library, ingesting: {normalized_path}")
-
-                try:
-                    st = path.stat()
-                except OSError as e:
-                    click.echo(click.style(f"Error: Cannot access file: {e}", fg="red"))
-                    ctx.exit(1)
-
-                try:
-                    audio = mutagen.File(path)
-                except Exception as e:
-                    click.echo(click.style(f"Warning: Could not read audio tags: {e}", fg="yellow"))
-                    audio = None
-
-                tags = extract_tags(audio)
-                title = tags.get("title") or path.stem
-                artist = tags.get("artist") or ""
-                album = tags.get("album") or ""
-                year_raw = tags.get("year") or ""
-                year = None
-                if year_raw:
-                    m = re.search(r"(19|20)\d{2}", str(year_raw))
-                    if m:
-                        year = int(m.group(0))
-
-                duration = None
-                if audio and getattr(audio, "info", None) and getattr(audio.info, "length", None):
-                    duration = float(audio.info.length)
-
-                bitrate_kbps = None
-                if audio and getattr(audio, "info", None):
-                    if hasattr(audio.info, "bitrate") and audio.info.bitrate:
-                        bitrate_kbps = int(audio.info.bitrate / 1000)
-                    elif hasattr(audio.info, "sample_rate") and hasattr(audio.info, "bits_per_sample"):
-                        sample_rate = audio.info.sample_rate
-                        bits_per_sample = audio.info.bits_per_sample
-                        channels = getattr(audio.info, "channels", 2)
-                        bitrate_kbps = int((sample_rate * bits_per_sample * channels) / 1000)
-
-                ph = partial_hash(path)
-                use_year = cfg.get("matching", {}).get("use_year", False)
-                nt, na, combo = normalize_title_artist(title, artist)
-                if use_year and year is not None:
-                    combo = f"{combo} {year}"
-
-                db.add_library_file(
-                    {
-                        "path": normalized_path,
-                        "size": st.st_size,
-                        "mtime": st.st_mtime,
-                        "partial_hash": ph,
-                        "title": title,
-                        "album": album,
-                        "artist": artist,
-                        "duration": duration,
-                        "normalized": combo,
-                        "year": year,
-                        "bitrate_kbps": bitrate_kbps,
-                    }
-                )
-
-                # Retrieve the newly inserted file to get its ID
-                existing_file = db.get_library_file_by_path(normalized_path)
-                if not existing_file:
-                    click.echo(click.style("Error: Failed to add file to library", fg="red"))
-                    ctx.exit(1)
-                resolved_file_id = existing_file.id
-                click.echo(f"File added to library with ID: {resolved_file_id}")
-
-        # 3. Delete any existing matches for this track
-        db.delete_matches_by_track_ids([track_id])
-
-        # 4. Insert manual match with M1 solution parameters
-        db.add_match(
-            track_id=track_id,
-            file_id=resolved_file_id,
-            score=1.00,
-            method="score:MANUAL:manual-selected",
-            provider=provider,
-            confidence="MANUAL",
-        )
-
-        # 5. Trigger GUI refresh
+        # 6. Trigger GUI refresh
         db.set_meta("last_write_epoch", str(time.time()))
         db.set_meta("last_write_source", "manual")
         db.commit()
 
+        click.echo("")
         click.echo(click.style("✓ Manual match created successfully", fg="green", bold=True))
+        if len(tracks_to_match) > 1:
+            click.echo(click.style(f"✓ Applied to {len(tracks_to_match)} track(s)", fg="green", bold=True))
         click.echo("")
         click.echo("This match will be prioritized over automatic matches.")
         click.echo(f"Run 'psm diagnose {track_id}' to verify.")

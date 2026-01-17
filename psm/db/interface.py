@@ -303,6 +303,20 @@ class DatabaseInterface(ABC):
         """
         ...
 
+    @abstractmethod
+    def get_duplicate_tracks_by_isrc(self, track_id: str, provider: str | None = None) -> List[TrackRow]:
+        """Get all other tracks with the same ISRC as the given track.
+
+        Args:
+            track_id: Track ID to find duplicates for
+            provider: Provider name filter (required)
+
+        Returns:
+            List of TrackRow objects with same ISRC (excluding the given track_id)
+            Empty list if track not found or has no ISRC
+        """
+        ...
+
     # --- Performance / Analytics queries ---
     @abstractmethod
     def get_distinct_artists(self, provider: str | None = None) -> List[str]:

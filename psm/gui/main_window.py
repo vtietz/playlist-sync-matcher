@@ -47,7 +47,7 @@ class MainWindow(QMainWindow):
     on_pull_one_clicked = Signal()
     on_match_one_clicked = Signal()  # Match one playlist
     on_match_track_clicked = Signal(str)  # NEW: Match single track (track_id)
-    on_manual_match_clicked = Signal(str, str)  # NEW: Manual match (track_id, file_path)
+    on_manual_match_clicked = Signal(str, str, bool)  # NEW: Manual match (track_id, file_path, propagate)
     on_remove_match_clicked = Signal(str)  # NEW: Remove match (track_id)
     on_export_one_clicked = Signal()
     on_watch_toggled = Signal(bool)
@@ -337,10 +337,40 @@ class MainWindow(QMainWindow):
             logger.warning("Manual match clicked but no track_id provided")
             return
 
-        from PySide6.QtWidgets import QFileDialog
+        from PySide6.QtWidgets import QFileDialog, QMessageBox
         import os
 
         logger.info(f"Opening file picker for manual match: track_id={track_id}")
+
+        # Check for duplicate tracks with same ISRC
+        propagate = False
+        if hasattr(self, "controller_manager") and self.controller_manager:
+            db = self.controller_manager.get_database()
+            if db:
+                try:
+                    duplicates = db.get_duplicate_tracks_by_isrc(track_id)
+                    duplicate_count = len(duplicates)
+
+                    if duplicate_count > 0:
+                        # Show dialog asking if user wants to propagate to duplicates
+                        response = QMessageBox.question(
+                            self,
+                            "Match Duplicate Tracks?",
+                            f"This track has {duplicate_count} duplicate(s) with the same ISRC.\n\n"
+                            f"Apply this match to all {duplicate_count + 1} tracks?",
+                            QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel,
+                            QMessageBox.Yes,  # Default to Yes for convenience
+                        )
+
+                        if response == QMessageBox.Cancel:
+                            logger.info("Manual match cancelled by user at duplicate confirmation")
+                            return
+
+                        propagate = response == QMessageBox.Yes
+                        logger.info(f"User chose propagate={propagate} for {duplicate_count} duplicate(s)")
+                except Exception as e:
+                    logger.warning(f"Failed to check for duplicates: {e}")
+                    # Continue with single-track matching
 
         # Get music library paths from config for default directory
         config = self.controller_manager.get_config() if hasattr(self, "controller_manager") else {}
@@ -360,10 +390,12 @@ class MainWindow(QMainWindow):
             logger.info("Manual match cancelled - no file selected")
             return
 
-        logger.info(f"File selected for manual match: track_id={track_id}, file_path={file_path}")
+        logger.info(
+            f"File selected for manual match: track_id={track_id}, file_path={file_path}, propagate={propagate}"
+        )
 
-        # Emit signal with track_id and file_path - CommandController will handle execution
-        self.on_manual_match_clicked.emit(track_id, file_path)
+        # Emit signal with track_id, file_path, and propagate flag - CommandController will handle execution
+        self.on_manual_match_clicked.emit(track_id, file_path, propagate)
 
     def _on_remove_match_track(self, track_id: str):
         """Handle remove match button click - emit signal to remove match.

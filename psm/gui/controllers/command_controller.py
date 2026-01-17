@@ -408,23 +408,29 @@ class CommandController(QObject):
             logger.warning("Match track clicked but no track ID provided")
             self.window.append_log("⚠ No track selected")
 
-    def _on_manual_match(self, track_id: str, file_path: str):
+    def _on_manual_match(self, track_id: str, file_path: str, propagate: bool = False):
         """Handle manual match track to local file.
 
         Args:
             track_id: ID of track to match
             file_path: Path to local file
+            propagate: If True, apply match to all duplicate tracks with same ISRC
         """
-        logger.info(f"Manual match requested: track_id={track_id}, file_path={file_path}")
+        logger.info(f"Manual match requested: track_id={track_id}, file_path={file_path}, propagate={propagate}")
         if track_id and file_path:
             # Suppress DB monitor during command execution
             if self._db_monitor:
                 self._db_monitor.set_ignore_window(2.5)
                 self._db_monitor.set_suppression(True)
 
+            # Build command with optional propagate flag
+            cmd = ["set-match", "--track-id", track_id, "--file-path", file_path]
+            if propagate:
+                cmd.append("--propagate")
+
             # Use standard CLI command execution with optimistic UI update
             self._execute_command(
-                ["set-match", "--track-id", track_id, "--file-path", file_path],
+                cmd,
                 f"✓ Manual match set for track {track_id}",
                 refresh_after=False,  # Optimistic update - no full refresh
             )

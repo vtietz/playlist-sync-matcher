@@ -689,6 +689,44 @@ class MockDatabase(DatabaseInterface):
 
         return None
 
+    def get_duplicate_tracks_by_isrc(self, track_id: str, provider: str | None = None) -> List[TrackRow]:
+        """Get all other tracks with the same ISRC as the given track."""
+        provider = provider or "spotify"
+
+        # Find the track to get its ISRC
+        target_track = None
+        for track in self.tracks.values():
+            if track.get("id") == track_id and track.get("provider") == provider:
+                target_track = track
+                break
+
+        if not target_track or not target_track.get("isrc"):
+            return []
+
+        target_isrc = target_track["isrc"]
+
+        # Find all other tracks with same ISRC
+        duplicates = []
+        for track in self.tracks.values():
+            if track.get("isrc") == target_isrc and track.get("provider") == provider and track.get("id") != track_id:
+                duplicates.append(
+                    TrackRow(
+                        id=track["id"],
+                        provider=track.get("provider", "spotify"),
+                        name=track["name"],
+                        artist=track.get("artist", ""),
+                        album=track.get("album", ""),
+                        year=track.get("year"),
+                        isrc=track.get("isrc"),
+                        duration_ms=track.get("duration_ms"),
+                        normalized=track.get("normalized"),
+                        album_id=track.get("album_id"),
+                        artist_id=track.get("artist_id"),
+                    )
+                )
+
+        return duplicates
+
     # --- Missing abstract methods (added for test compatibility) ---
 
     def get_distinct_albums(self, provider: str | None = None) -> List[str]:

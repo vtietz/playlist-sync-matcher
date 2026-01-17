@@ -865,6 +865,45 @@ class Database(DatabaseInterface):
         row = self.conn.execute(sql, (track_id, provider)).fetchone()
         return dict(row) if row else None
 
+    def get_duplicate_tracks_by_isrc(self, track_id: str, provider: str | None = None) -> List[TrackRow]:
+        """Get all other tracks with the same ISRC as the given track.
+
+        Args:
+            track_id: Track ID to find duplicates for
+            provider: Provider name filter (required)
+
+        Returns:
+            List of TrackRow objects with same ISRC (excluding the given track_id)
+            Empty list if track not found or has no ISRC
+        """
+        if provider is None:
+            provider = "spotify"  # Default for backward compat
+
+        # First get the ISRC of the given track
+        sql_get_isrc = """
+        SELECT isrc
+        FROM tracks
+        WHERE id = ? AND provider = ? AND isrc IS NOT NULL AND isrc != ''
+        """
+        row = self.conn.execute(sql_get_isrc, (track_id, provider)).fetchone()
+
+        if not row or not row["isrc"]:
+            # Track not found or has no ISRC
+            return []
+
+        isrc = row["isrc"]
+
+        # Find all other tracks with the same ISRC
+        sql_find_duplicates = """
+        SELECT id, provider, name, artist, album, year, isrc, duration_ms, normalized, album_id, artist_id
+        FROM tracks
+        WHERE isrc = ? AND provider = ? AND id != ?
+        ORDER BY name, artist
+        """
+        rows = self.conn.execute(sql_find_duplicates, (isrc, provider, track_id)).fetchall()
+
+        return [TrackRow.from_row(row) for row in rows]
+
     # --- Performance / Analytics queries (delegate to helper modules) ---
 
     def get_distinct_artists(self, provider: str | None = None) -> List[str]:
