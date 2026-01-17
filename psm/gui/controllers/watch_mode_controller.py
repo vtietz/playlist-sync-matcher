@@ -108,8 +108,7 @@ class WatchModeController(QObject):
                 self.window.enable_actions(True)
                 self.window.set_execution_status(False)  # Set to Ready
                 self.window.append_log("\nWatch mode stopped")
-                if self._data_refresh:
-                    self._data_refresh.refresh_all_async()  # Async refresh after watch mode stops
+                # No refresh needed - watch mode stop doesn't change data
 
             def on_error(error: str):
                 self._watch_mode_active = False  # Disable watch mode flag
@@ -134,6 +133,12 @@ class WatchModeController(QObject):
             if self._db_monitor:
                 self._db_monitor.set_watch_mode(False)
                 self._db_monitor.set_command_running(False)  # Watch command stopped
+            
+            # Re-enable UI immediately when manually stopping watch mode
+            self.window.set_watch_mode(False)
+            self.window.enable_actions(True)
+            self.window.set_execution_status(False)  # Set to Ready
+            
             self.executor.stop_current()
 
     @property
